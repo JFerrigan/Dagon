@@ -1,0 +1,13 @@
+{
+  "asset_id": "deep_spawn",
+  "asset_type": "enemy_sprite",
+  "prompt": "Hulking deep spawn bruiser, barnacled abyssal fish-ogre with shell-plated shoulders, heavy claws, corpse-pink underflesh, seaweed rot, frontal 3/4 silhouette, transparent background, readable gameplay sprite.",
+  "output_path": "Assets/Resources/Sprites/Enemies/deep_spawn.png",
+  "source_image": "Tools/AssetGen/generated/deep_spawn.png",
+  "processed_image": "Tools/AssetGen/processed/deep_spawn.png",
+  "size": [64, 64],
+  "palette_notes": "abyssal teal, algae black, corpse pink, barnacle ivory, rust red accents",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Primary Deep Spawn gameplay sprite imported from the local inbox image provided for this enemy replacement pass."
+}

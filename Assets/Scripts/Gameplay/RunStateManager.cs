@@ -11,7 +11,6 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private SpawnDirector spawnDirector;
-        [SerializeField] private Sprite mireSprite;
         [SerializeField] private HarpoonProjectile bossProjectilePrefab;
         [SerializeField] private float bossSpawnTime = 80f;
 
@@ -80,13 +79,23 @@ namespace Dagon.Gameplay
             player = playerTransform;
             worldCamera = cameraReference;
             spawnDirector = director;
-            mireSprite = enemySprite;
             bossProjectilePrefab = projectilePrefab;
+        }
+
+        public void ConfigureStage(float newBossSpawnTime)
+        {
+            bossSpawnTime = Mathf.Max(0.1f, newBossSpawnTime);
         }
 
         private void SpawnBoss()
         {
-            if (player == null || worldCamera == null || mireSprite == null)
+            if (player == null || worldCamera == null)
+            {
+                return;
+            }
+
+            var bossSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Bosses/mire_colossus", 256f);
+            if (bossSprite == null)
             {
                 return;
             }
@@ -125,10 +134,10 @@ namespace Dagon.Gameplay
             visuals.transform.SetParent(boss.transform, false);
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = mireSprite;
+            renderer.sprite = bossSprite;
             renderer.sortingOrder = 20;
-            renderer.color = new Color(0.86f, 0.44f, 0.32f, 1f);
-            visuals.transform.localScale = new Vector3(2.4f, 2.4f, 1f);
+            renderer.color = Color.white;
+            visuals.transform.localScale = new Vector3(0.95f, 0.95f, 1f);
 
             var billboard = visuals.AddComponent<Dagon.Rendering.BillboardSprite>();
             billboard.Configure(worldCamera, Dagon.Rendering.BillboardSprite.BillboardMode.YAxisOnly);

@@ -1,0 +1,13 @@
+{
+  "asset_id": "heart_icon",
+  "asset_type": "ui_icon",
+  "prompt": "Lovecraftian heart icon, red anatomical heart wrapped in brine-dark tendrils and barnacle fragments, transparent background, readable HUD icon.",
+  "output_path": "Assets/Resources/Sprites/UI/heart.png",
+  "source_image": "Tools/AssetGen/generated/heart.png",
+  "processed_image": "Tools/AssetGen/processed/heart.png",
+  "size": [64, 64],
+  "palette_notes": "deep reds, bone white, black-green brine",
+  "orientation": "hud_icon",
+  "provider": "chat_attachment_inbox",
+  "notes": "Player health HUD icon."
+}

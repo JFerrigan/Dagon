@@ -11,10 +11,12 @@ namespace Dagon.Gameplay
         [SerializeField] private float radius = 2.8f;
         [SerializeField] private float damage = 2f;
         [SerializeField] private LayerMask enemyMask = ~0;
+        [SerializeField] private Camera worldCamera;
 
         private float cooldownRemaining;
 
         public float CooldownRemaining => cooldownRemaining;
+        public float CooldownDuration => cooldown;
 
         private void Update()
         {
@@ -55,7 +57,18 @@ namespace Dagon.Gameplay
                 damageable?.ApplyDamage(damage, gameObject);
             }
 
+            BrineSurgeVisual.Spawn(transform.position, radius, ResolveCamera());
             cooldownRemaining = cooldown;
+        }
+
+        private Camera ResolveCamera()
+        {
+            if (worldCamera == null)
+            {
+                worldCamera = Camera.main;
+            }
+
+            return worldCamera;
         }
     }
 }

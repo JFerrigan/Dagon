@@ -1,0 +1,13 @@
+{
+  "asset_id": "brine_surge",
+  "asset_type": "effect_sprite",
+  "prompt": "Brine surge activation swirl, green abyssal vortex with barnacle fragments and luminous tidal energy, transparent background, readable circular skill effect.",
+  "output_path": "Assets/Resources/Sprites/Effects/brine_surge.png",
+  "source_image": "Tools/AssetGen/generated/brine_surge.png",
+  "processed_image": "Tools/AssetGen/processed/brine_surge.png",
+  "size": [128, 128],
+  "palette_notes": "acid green, abyssal olive, black brine, pale barnacle highlights",
+  "orientation": "top_down_effect",
+  "provider": "chat_attachment_inbox",
+  "notes": "Dedicated Brine Surge activation VFX sprite used at ability trigger time."
+}

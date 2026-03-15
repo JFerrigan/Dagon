@@ -7,6 +7,8 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class SpawnDirector : MonoBehaviour
     {
+        private const string DeepSpawnPrefabResourcePath = "Prefabs/Enemies/DeepSpawn";
+
         private enum EnemyKind
         {
             MireWretch,
@@ -17,6 +19,9 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private Sprite mireSprite;
+        [SerializeField] private Sprite acolyteSprite;
+        [SerializeField] private Sprite deepSpawnSprite;
+        [SerializeField] private GameObject deepSpawnPrefab;
         [SerializeField] private HarpoonProjectile acolyteProjectilePrefab;
         [SerializeField] private float spawnRadius = 10f;
         [SerializeField] private float minSpawnInterval = 0.5f;
@@ -66,6 +71,9 @@ namespace Dagon.Gameplay
             player = playerTransform;
             worldCamera = cameraReference;
             mireSprite = enemySprite;
+            acolyteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/drowned_acolyte", 256f);
+            deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 256f);
+            deepSpawnPrefab = Resources.Load<GameObject>(DeepSpawnPrefabResourcePath);
             acolyteProjectilePrefab = rangedProjectilePrefab;
         }
 
@@ -79,6 +87,11 @@ namespace Dagon.Gameplay
             var ring = Random.insideUnitCircle.normalized * Random.Range(spawnRadius * 0.75f, spawnRadius);
             var position = player.position + new Vector3(ring.x, 0.5f, ring.y);
             var enemyKind = ChooseEnemyKind();
+
+            if (enemyKind == EnemyKind.DeepSpawn && TrySpawnDeepSpawn(position))
+            {
+                return;
+            }
 
             var mire = new GameObject($"{enemyKind}_{aliveEnemies + 1}");
             mire.transform.SetParent(transform);
@@ -132,7 +145,7 @@ namespace Dagon.Gameplay
             visuals.transform.localPosition = Vector3.zero;
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = mireSprite;
+            renderer.sprite = GetSprite(enemyKind);
             renderer.sortingOrder = enemyKind == EnemyKind.MireWretch ? 5 : enemyKind == EnemyKind.DrownedAcolyte ? 6 : 7;
             renderer.color = GetTint(enemyKind);
 
@@ -140,12 +153,48 @@ namespace Dagon.Gameplay
             {
                 visuals.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
             }
+            else if (enemyKind == EnemyKind.DrownedAcolyte && acolyteSprite != null)
+            {
+                visuals.transform.localScale = new Vector3(0.82f, 0.82f, 1f);
+            }
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
 
             aliveEnemies += 1;
             totalSpawned += 1;
+        }
+
+        private bool TrySpawnDeepSpawn(Vector3 position)
+        {
+            if (deepSpawnPrefab == null)
+            {
+                return false;
+            }
+
+            var deepSpawnObject = Instantiate(deepSpawnPrefab, position, Quaternion.identity, transform);
+            deepSpawnObject.name = $"{EnemyKind.DeepSpawn}_{aliveEnemies + 1}";
+
+            var deepSpawn = deepSpawnObject.GetComponent<DeepSpawnPrefab>();
+            if (deepSpawn == null)
+            {
+                Destroy(deepSpawnObject);
+                return false;
+            }
+
+            deepSpawn.Configure(player, worldCamera);
+
+            var health = deepSpawn.HealthComponent;
+            if (health == null)
+            {
+                Destroy(deepSpawnObject);
+                return false;
+            }
+
+            health.Died += HandleEnemyDied;
+            aliveEnemies += 1;
+            totalSpawned += 1;
+            return true;
         }
 
         private void HandleEnemyDied(Health health, GameObject source)
@@ -169,6 +218,15 @@ namespace Dagon.Gameplay
         public void StopSpawning()
         {
             enabled = false;
+        }
+
+        public void ConfigureStage(int startingEnemyCount, bool disableContinuousSpawning)
+        {
+            startingEnemies = Mathf.Max(0, startingEnemyCount);
+            if (disableContinuousSpawning)
+            {
+                enabled = false;
+            }
         }
 
         private EnemyKind ChooseEnemyKind()
@@ -202,9 +260,19 @@ namespace Dagon.Gameplay
             return enemyKind switch
             {
                 EnemyKind.MireWretch => Color.white,
-                EnemyKind.DrownedAcolyte => new Color(0.7f, 0.95f, 0.72f, 1f),
-                EnemyKind.DeepSpawn => new Color(0.92f, 0.66f, 0.56f, 1f),
+                EnemyKind.DrownedAcolyte => Color.white,
+                EnemyKind.DeepSpawn => Color.white,
                 _ => Color.white
+            };
+        }
+
+        private Sprite GetSprite(EnemyKind enemyKind)
+        {
+            return enemyKind switch
+            {
+                EnemyKind.DrownedAcolyte when acolyteSprite != null => acolyteSprite,
+                EnemyKind.DeepSpawn when deepSpawnSprite != null => deepSpawnSprite,
+                _ => mireSprite
             };
         }
     }

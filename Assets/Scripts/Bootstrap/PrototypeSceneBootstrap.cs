@@ -2,24 +2,65 @@ using Dagon.Core;
 using Dagon.Gameplay;
 using Dagon.Rendering;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Dagon.Bootstrap
 {
     public sealed class PrototypeSceneBootstrap : MonoBehaviour
     {
-        private const string BootstrapRootName = "DagonPrototype";
+        private enum StageKind
+        {
+            BlackMireRun,
+            MireColossusBoss
+        }
+
+        private const string RuntimeRootName = "DagonStageRuntime";
+        private const string BootstrapObjectName = "StageBootstrapRuntime";
+
+        [SerializeField] private StageKind stageKind = StageKind.BlackMireRun;
+        [SerializeField] private string runtimeRootName = RuntimeRootName;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void BuildPrototypeScene()
+        private static void EnsureStageBootstrapForScene()
         {
-            if (GameObject.Find(BootstrapRootName) != null || GameObject.FindGameObjectWithTag("Player") != null)
+            var sceneName = SceneManager.GetActiveScene().name;
+            if (!TryGetStageKindForScene(sceneName, out var sceneStageKind))
             {
                 return;
             }
 
-            var root = new GameObject(BootstrapRootName);
-            var bootstrap = root.AddComponent<PrototypeSceneBootstrap>();
-            bootstrap.CreateScene(root.transform);
+            if (GameObject.FindGameObjectWithTag("Player") != null || GameObject.Find(RuntimeRootName) != null)
+            {
+                return;
+            }
+
+            var bootstrap = FindObjectOfType<PrototypeSceneBootstrap>();
+            if (bootstrap == null)
+            {
+                var bootstrapObject = new GameObject(BootstrapObjectName);
+                bootstrap = bootstrapObject.AddComponent<PrototypeSceneBootstrap>();
+            }
+
+            bootstrap.stageKind = sceneStageKind;
+            bootstrap.runtimeRootName = RuntimeRootName;
+            bootstrap.EnsureBuilt();
+        }
+
+        private void Awake()
+        {
+            EnsureBuilt();
+        }
+
+        private void EnsureBuilt()
+        {
+            if (GameObject.FindGameObjectWithTag("Player") != null || GameObject.Find(runtimeRootName) != null)
+            {
+                return;
+            }
+
+            var runtimeRoot = new GameObject(runtimeRootName);
+            runtimeRoot.transform.SetParent(transform, false);
+            CreateScene(runtimeRoot.transform);
         }
 
         private void CreateScene(Transform root)
@@ -29,7 +70,7 @@ namespace Dagon.Bootstrap
             CreateLight(root);
             CreateGround(root);
             CreateProps(root, cameraObject);
-            CreateRuntimeSystems(root, player, cameraObject);
+            CreateStageRuntimeSystems(root, player, cameraObject);
         }
 
         private static GameObject CreatePlayer(Transform root)
@@ -158,7 +199,7 @@ namespace Dagon.Bootstrap
             scatterer.Configure(camera);
         }
 
-        private static void CreateRuntimeSystems(Transform root, GameObject player, Camera camera)
+        private static void CreateCommonRuntimeSystems(Transform root, GameObject player, Camera camera)
         {
             var sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mire_wretch");
             var acolyteProjectile = RuntimeOrbProjectileFactory.Create(camera);
@@ -170,6 +211,39 @@ namespace Dagon.Bootstrap
 
             var runState = root.gameObject.AddComponent<RunStateManager>();
             runState.Configure(player.transform, camera, spawnDirector, sprite, acolyteProjectile);
+        }
+
+        private void CreateStageRuntimeSystems(Transform root, GameObject player, Camera camera)
+        {
+            CreateCommonRuntimeSystems(root, player, camera);
+
+            var spawnDirector = root.GetComponent<SpawnDirector>();
+            var runState = root.GetComponent<RunStateManager>();
+
+            if (stageKind != StageKind.MireColossusBoss)
+            {
+                return;
+            }
+
+            spawnDirector?.ConfigureStage(0, true);
+            runState?.ConfigureStage(0.5f);
+        }
+
+        private static bool TryGetStageKindForScene(string sceneName, out StageKind sceneStageKind)
+        {
+            switch (sceneName)
+            {
+                case "BlackMire":
+                case "SampleScene":
+                    sceneStageKind = StageKind.BlackMireRun;
+                    return true;
+                case "MireColossusBoss":
+                    sceneStageKind = StageKind.MireColossusBoss;
+                    return true;
+                default:
+                    sceneStageKind = StageKind.BlackMireRun;
+                    return false;
+            }
         }
     }
 }
