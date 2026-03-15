@@ -1,4 +1,5 @@
 using Dagon.Core;
+using Dagon.Data;
 using Dagon.Gameplay;
 using Dagon.Rendering;
 using UnityEngine;
@@ -39,8 +40,9 @@ namespace Dagon.Bootstrap
         {
             var player = CreatePlayer(root);
             var cameraObject = ConfigureCamera(root, player.transform);
+            ConfigurePlayerCombat(player, cameraObject);
             CreateLight(root);
-            CreateGround(root);
+            CreateGround(root, player.transform);
             CreateProps(root, cameraObject);
             CreateStageRuntimeSystems(root, player, cameraObject);
         }
@@ -65,11 +67,8 @@ namespace Dagon.Bootstrap
             player.AddComponent<Health>();
             player.AddComponent<CorruptionMeter>();
 
-            var mover = player.AddComponent<PlayerMover>();
-            var launcher = player.AddComponent<HarpoonLauncher>();
-            launcher.SetProjectilePrefab(RuntimeHarpoonProjectileFactory.Create(null));
-            launcher.Configure(1.5f, 10f, 1f, 1, 0f);
-            player.AddComponent<BrineSurgeAbility>();
+            player.AddComponent<PlayerMover>();
+            player.AddComponent<PlayerCombatLoadout>();
             player.AddComponent<ExperienceController>();
             player.AddComponent<CorruptionRuntimeEffects>();
 
@@ -83,6 +82,19 @@ namespace Dagon.Bootstrap
             visuals.AddComponent<BillboardSprite>();
 
             return player;
+        }
+
+        private static void ConfigurePlayerCombat(GameObject player, Camera camera)
+        {
+            var loadout = player.GetComponent<PlayerCombatLoadout>();
+            if (loadout == null)
+            {
+                return;
+            }
+
+            loadout.SetWeaponPool(CreateWeaponPool());
+            loadout.ConfigureRuntime(camera);
+            loadout.Initialize(CreateStartingLoadout());
         }
 
         private static Camera ConfigureCamera(Transform root, Transform player)
@@ -122,9 +134,6 @@ namespace Dagon.Bootstrap
                 playerBillboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
             }
 
-            var launcher = player.GetComponent<HarpoonLauncher>();
-            launcher.SetProjectilePrefab(RuntimeHarpoonProjectileFactory.Create(camera));
-
             return camera;
         }
 
@@ -150,9 +159,10 @@ namespace Dagon.Bootstrap
             light.color = new Color(0.75f, 0.85f, 0.72f, 1f);
         }
 
-        private static void CreateGround(Transform root)
+        private static void CreateGround(Transform root, Transform player)
         {
             var tiler = root.gameObject.AddComponent<MireGroundTiler>();
+            tiler.Configure(player);
             tiler.Build();
         }
 
@@ -185,13 +195,66 @@ namespace Dagon.Bootstrap
 
             if (stageKind == StageKind.BlackMireRun)
             {
-                spawnDirector?.ConfigureCampaign(30, 6, 18, 10, 0.6f, 1.1f);
+                spawnDirector?.ConfigureCampaign(30, 7, 20, 10, 0.35f, 0.7f);
                 runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
                 return;
             }
 
-            spawnDirector?.ConfigureCampaign(18, 4, 14, 8, 0.65f, 1.15f);
+            spawnDirector?.ConfigureCampaign(18, 5, 16, 8, 0.4f, 0.75f);
             runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 2);
+        }
+
+        private static CharacterLoadoutDefinition CreateStartingLoadout()
+        {
+            return CharacterLoadoutDefinition.CreateRuntime(
+                WeaponDefinition.CreateRuntime(
+                    "weapon.harpoon_cast",
+                    "Harpoon Cast",
+                    "Launches barbed harpoons in short bursts.",
+                    WeaponRuntimeKind.ProjectileLauncher,
+                    WeaponProjectileVisualKind.Harpoon,
+                    1.5f,
+                    10f,
+                    1f,
+                    1,
+                    0f),
+                ActiveAbilityDefinition.CreateRuntime(
+                    "ability.brine_surge",
+                    "Brine Surge",
+                    "A black-water burst that punishes crowd pressure.",
+                    ActiveAbilityRuntimeKind.BrineSurge,
+                    6f,
+                    2.8f,
+                    2f));
+        }
+
+        private static WeaponDefinition[] CreateWeaponPool()
+        {
+            return new[]
+            {
+                WeaponDefinition.CreateRuntime(
+                    "weapon.abyss_orb",
+                    "Abyss Orb",
+                    "Loose a slow orb that adds steady ranged pressure.",
+                    WeaponRuntimeKind.ProjectileLauncher,
+                    WeaponProjectileVisualKind.Orb,
+                    1.15f,
+                    8f,
+                    1.4f,
+                    1,
+                    0f),
+                WeaponDefinition.CreateRuntime(
+                    "weapon.riptide_fan",
+                    "Riptide Fan",
+                    "A broad fan of harpoons that thickens your front arc.",
+                    WeaponRuntimeKind.ProjectileLauncher,
+                    WeaponProjectileVisualKind.Harpoon,
+                    0.9f,
+                    11f,
+                    0.8f,
+                    3,
+                    14f)
+            };
         }
     }
 }

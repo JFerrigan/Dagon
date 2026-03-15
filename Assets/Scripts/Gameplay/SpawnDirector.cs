@@ -24,6 +24,7 @@ namespace Dagon.Gameplay
         [SerializeField] private GameObject deepSpawnPrefab;
         [SerializeField] private HarpoonProjectile acolyteProjectilePrefab;
         [SerializeField] private float spawnRadius = 10f;
+        [SerializeField] private float despawnRadius = 28f;
         [SerializeField] private float minSpawnInterval = 0.5f;
         [SerializeField] private float maxSpawnInterval = 1.2f;
         [SerializeField] private int maxAliveEnemies = 24;
@@ -33,6 +34,7 @@ namespace Dagon.Gameplay
 
         private float spawnTimer;
         private int aliveEnemies;
+        private int defeatedEnemies;
         private int totalSpawned;
         private bool spawningStopped;
         private bool quotaNotified;
@@ -41,9 +43,10 @@ namespace Dagon.Gameplay
         public event System.Action BattlefieldCleared;
 
         public int AliveEnemies => aliveEnemies;
+        public int DefeatedEnemies => defeatedEnemies;
         public int TotalSpawned => totalSpawned;
-        public int RemainingSpawns => Mathf.Max(0, regularSpawnQuota - totalSpawned);
-        public bool SpawnQuotaMet => totalSpawned >= regularSpawnQuota;
+        public int RemainingSpawns => Mathf.Max(0, regularSpawnQuota - defeatedEnemies);
+        public bool SpawnQuotaMet => defeatedEnemies >= regularSpawnQuota;
         public bool IsBattlefieldClear => SpawnQuotaMet && aliveEnemies <= 0;
 
         private void Start()
@@ -61,7 +64,14 @@ namespace Dagon.Gameplay
 
         private void Update()
         {
-            if (player == null || worldCamera == null || spawningStopped || SpawnQuotaMet)
+            if (player == null || worldCamera == null)
+            {
+                return;
+            }
+
+            DespawnFarEnemies();
+
+            if (spawningStopped || SpawnQuotaMet)
             {
                 return;
             }
@@ -129,7 +139,7 @@ namespace Dagon.Gameplay
 
         private bool TrySpawnEnemy()
         {
-            if (SpawnQuotaMet)
+            if (SpawnQuotaMet || defeatedEnemies + aliveEnemies >= regularSpawnQuota)
             {
                 NotifyQuotaCompletedIfNeeded();
                 return false;
@@ -146,7 +156,7 @@ namespace Dagon.Gameplay
 
         private void SpawnEnemy()
         {
-            if (player == null || mireSprite == null || SpawnQuotaMet)
+            if (player == null || mireSprite == null || SpawnQuotaMet || defeatedEnemies + aliveEnemies >= regularSpawnQuota)
             {
                 return;
             }
@@ -185,19 +195,19 @@ namespace Dagon.Gameplay
                 contactDamage.Configure(1f);
 
                 var wanderer = mire.AddComponent<MireWanderer>();
-                wanderer.Configure(player, Random.Range(1.3f, 1.7f), 3f, 8f);
+                wanderer.Configure(player, Random.Range(4.1f, 4.5f), 3f, 22f);
                 rewards.Configure(1, 1.5f);
             }
             else if (enemyKind == EnemyKind.DrownedAcolyte)
             {
                 var shooter = mire.AddComponent<DrownedAcolyteShooter>();
-                shooter.Configure(player, acolyteProjectilePrefab, 1.1f, 5.5f, 2.2f);
+                shooter.Configure(player, acolyteProjectilePrefab, 4.0f, 7.5f, 2.2f);
                 rewards.Configure(3, 3f);
             }
             else
             {
                 var bruiser = mire.AddComponent<DeepSpawnBruiser>();
-                bruiser.Configure(player, 1.15f, 4.4f);
+                bruiser.Configure(player, 4.3f, 5.8f);
 
                 var contactDamage = mire.AddComponent<ContactDamage>();
                 contactDamage.Configure(3f);
@@ -265,9 +275,16 @@ namespace Dagon.Gameplay
         {
             health.Died -= HandleEnemyDied;
             aliveEnemies = Mathf.Max(0, aliveEnemies - 1);
+            defeatedEnemies = Mathf.Min(regularSpawnQuota, defeatedEnemies + 1);
             if (IsBattlefieldClear)
             {
                 BattlefieldCleared?.Invoke();
+                return;
+            }
+
+            if (SpawnQuotaMet)
+            {
+                NotifyQuotaCompletedIfNeeded();
             }
         }
 
@@ -285,6 +302,45 @@ namespace Dagon.Gameplay
 
             quotaNotified = true;
             SpawnQuotaCompleted?.Invoke();
+        }
+
+        private void DespawnFarEnemies()
+        {
+            if (player == null || aliveEnemies <= 0)
+            {
+                return;
+            }
+
+            var despawnRadiusSquared = despawnRadius * despawnRadius;
+            for (var i = transform.childCount - 1; i >= 0; i--)
+            {
+                var enemy = transform.GetChild(i);
+                var offset = enemy.position - player.position;
+                offset.y = 0f;
+                if (offset.sqrMagnitude <= despawnRadiusSquared)
+                {
+                    continue;
+                }
+
+                DespawnEnemy(enemy.gameObject);
+            }
+        }
+
+        private void DespawnEnemy(GameObject enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            var health = enemy.GetComponent<Health>();
+            if (health != null)
+            {
+                health.Died -= HandleEnemyDied;
+            }
+
+            aliveEnemies = Mathf.Max(0, aliveEnemies - 1);
+            Destroy(enemy);
         }
 
         private EnemyKind ChooseEnemyKind()

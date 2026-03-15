@@ -18,7 +18,7 @@ namespace Dagon.Gameplay
         [SerializeField] private ExperienceController experienceController;
         [SerializeField] private Health playerHealth;
         [SerializeField] private CorruptionMeter corruptionMeter;
-        [SerializeField] private BrineSurgeAbility brineSurgeAbility;
+        [SerializeField] private PlayerCombatLoadout combatLoadout;
 
         private Texture2D heartTexture;
         private Texture2D whiteTexture;
@@ -43,9 +43,9 @@ namespace Dagon.Gameplay
                 corruptionMeter = FindObjectOfType<PlayerMover>()?.GetComponent<CorruptionMeter>();
             }
 
-            if (brineSurgeAbility == null)
+            if (combatLoadout == null)
             {
-                brineSurgeAbility = FindObjectOfType<BrineSurgeAbility>();
+                combatLoadout = FindObjectOfType<PlayerCombatLoadout>();
             }
 
             heartTexture = Resources.Load<Texture2D>("Sprites/UI/heart");
@@ -65,6 +65,7 @@ namespace Dagon.Gameplay
             DrawExperienceBar();
             DrawCooldownPanel();
             DrawCorruptionBar();
+            DrawWeaponStrip();
 
             if (!experienceController.HasPendingChoice)
             {
@@ -80,18 +81,9 @@ namespace Dagon.Gameplay
             DrawUpgradeOverlay(choices);
         }
 
-        private static string DescribeChoice(UpgradeChoice choice)
+        private static string DescribeChoice(CombatRewardOption choice)
         {
-            return choice switch
-            {
-                UpgradeChoice.AttackRate => "Tighter Rhythm: increase harpoon fire rate",
-                UpgradeChoice.ProjectileDamage => "Barbed Iron: increase harpoon damage",
-                UpgradeChoice.ProjectileCount => "Split Cast: fire one additional harpoon",
-                UpgradeChoice.BrineRadius => "Rising Tide: increase Brine Surge radius",
-                UpgradeChoice.MaxHealth => "Salt-Hardened: increase max health",
-                UpgradeChoice.CorruptionPulse => "Tide of Dagon: gain corruption and power",
-                _ => choice.ToString()
-            };
+            return $"{choice.Title}: {choice.Description}";
         }
 
         private void DrawHealthDisplay()
@@ -147,14 +139,15 @@ namespace Dagon.Gameplay
             const float panelWidth = 156f;
             const float panelHeight = 36f;
 
-            var cooldownRemaining = brineSurgeAbility != null ? brineSurgeAbility.CooldownRemaining : 0f;
-            var cooldownDuration = brineSurgeAbility != null ? Mathf.Max(0.01f, brineSurgeAbility.CooldownDuration) : 1f;
+            var activeAbility = combatLoadout != null ? combatLoadout.GetActive(0) : null;
+            var cooldownRemaining = activeAbility != null ? activeAbility.CooldownRemaining : 0f;
+            var cooldownDuration = activeAbility != null ? Mathf.Max(0.01f, activeAbility.CooldownDuration) : 1f;
             var ready = cooldownRemaining <= 0.01f;
             var progress = ready ? 1f : 1f - Mathf.Clamp01(cooldownRemaining / cooldownDuration);
             var panelX = Screen.width - panelWidth - margin;
             var panelY = Screen.height - panelHeight - margin;
 
-            GUI.Label(new Rect(panelX, panelY - 2f, panelWidth - 44f, 18f), "Brine Surge");
+            GUI.Label(new Rect(panelX, panelY - 2f, panelWidth - 44f, 18f), activeAbility != null ? activeAbility.DisplayName : "Active");
             DrawMeter(
                 new Rect(panelX, panelY + 16f, 108f, 12f),
                 progress,
@@ -163,6 +156,27 @@ namespace Dagon.Gameplay
             GUI.Label(
                 new Rect(panelX + 116f, panelY + 12f, 40f, 18f),
                 ready ? "Ready" : $"{cooldownRemaining:0.0}s");
+        }
+
+        private void DrawWeaponStrip()
+        {
+            if (combatLoadout == null || combatLoadout.Weapons.Count == 0)
+            {
+                return;
+            }
+
+            const float margin = 16f;
+            var y = Screen.height - 92f;
+            GUI.Label(new Rect(margin, y, 280f, 18f), "Weapons");
+
+            for (var i = 0; i < combatLoadout.Weapons.Count; i++)
+            {
+                var weapon = combatLoadout.Weapons[i];
+                var label = weapon.IsBaseWeapon
+                    ? $"{weapon.DisplayName} [Base] R{weapon.Rank}"
+                    : $"{weapon.DisplayName} R{weapon.Rank}";
+                GUI.Label(new Rect(margin, y + 18f + (i * 18f), 320f, 18f), label);
+            }
         }
 
         private void DrawCorruptionBar()
@@ -245,7 +259,7 @@ namespace Dagon.Gameplay
             upgradeButtonStyle.active.textColor = Color.white;
         }
 
-        private void DrawUpgradeOverlay(UpgradeChoiceSet choices)
+        private void DrawUpgradeOverlay(CombatRewardChoiceSet choices)
         {
             if (whiteTexture == null)
             {

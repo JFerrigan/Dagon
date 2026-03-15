@@ -1,11 +1,11 @@
 using Dagon.Core;
+using Dagon.Data;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace Dagon.Gameplay
 {
-    [DisallowMultipleComponent]
-    public sealed class BrineSurgeAbility : MonoBehaviour
+    public sealed class BrineSurgeAbility : ActiveAbilityRuntime
     {
         [SerializeField] private float cooldown = 6f;
         [SerializeField] private float radius = 2.8f;
@@ -15,8 +15,8 @@ namespace Dagon.Gameplay
 
         private float cooldownRemaining;
 
-        public float CooldownRemaining => cooldownRemaining;
-        public float CooldownDuration => cooldown;
+        public override float CooldownRemaining => cooldownRemaining;
+        public override float CooldownDuration => cooldown;
 
         private void Update()
         {
@@ -33,9 +33,21 @@ namespace Dagon.Gameplay
             }
         }
 
-        public void ModifyRadius(float amount)
+        public override void ConfigureRuntime(Camera cameraReference)
+        {
+            worldCamera = cameraReference;
+        }
+
+        public override void ModifyRadius(float amount)
         {
             radius = Mathf.Max(1f, radius + amount);
+        }
+
+        protected override void ApplyDefinition(ActiveAbilityDefinition runtimeDefinition)
+        {
+            cooldown = Mathf.Max(0.25f, runtimeDefinition.Cooldown);
+            radius = Mathf.Max(1f, runtimeDefinition.Radius);
+            damage = Mathf.Max(0.1f, runtimeDefinition.Damage);
         }
 
         private void TryActivate()

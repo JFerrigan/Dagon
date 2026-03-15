@@ -7,13 +7,13 @@ namespace Dagon.Gameplay
     public sealed class WeaponLoadout : MonoBehaviour
     {
         [SerializeField] private WeaponDefinition startingWeapon;
-        [SerializeField] private HarpoonLauncher harpoonLauncher;
+        [SerializeField] private PlayerCombatLoadout combatLoadout;
 
         private void Awake()
         {
-            if (harpoonLauncher == null)
+            if (combatLoadout == null)
             {
-                harpoonLauncher = GetComponent<HarpoonLauncher>();
+                combatLoadout = GetComponent<PlayerCombatLoadout>();
             }
 
             ApplyStartingWeapon();
@@ -21,17 +21,15 @@ namespace Dagon.Gameplay
 
         public void ApplyStartingWeapon()
         {
-            if (startingWeapon == null || harpoonLauncher == null)
+            if (startingWeapon == null || combatLoadout == null)
             {
                 return;
             }
 
-            harpoonLauncher.Configure(
-                startingWeapon.AttacksPerSecond,
-                startingWeapon.ProjectileSpeed,
-                startingWeapon.ProjectileDamage,
-                startingWeapon.ProjectilesPerVolley,
-                startingWeapon.SpreadAngle);
+            if (!combatLoadout.HasWeapon(startingWeapon.WeaponId))
+            {
+                combatLoadout.AddWeapon(startingWeapon, true);
+            }
         }
     }
 }

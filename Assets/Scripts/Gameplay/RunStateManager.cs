@@ -18,6 +18,10 @@ namespace Dagon.Gameplay
 
         private readonly List<Health> activeBosses = new();
         private Health playerHealth;
+        private Texture2D whiteTexture;
+        private GUIStyle endTitleStyle;
+        private GUIStyle endBodyStyle;
+        private GUIStyle endButtonStyle;
         private float runTimer;
         private bool bossWaveStarted;
         private bool runEnded;
@@ -29,6 +33,8 @@ namespace Dagon.Gameplay
 
         private void Start()
         {
+            whiteTexture = Texture2D.whiteTexture;
+
             if (player != null)
             {
                 playerHealth = player.GetComponent<Health>();
@@ -207,6 +213,8 @@ namespace Dagon.Gameplay
 
         private void OnGUI()
         {
+            EnsureStyles();
+
             if (runEnded)
             {
                 DrawEndScreen();
@@ -217,7 +225,7 @@ namespace Dagon.Gameplay
             if (!bossWaveStarted)
             {
                 var enemiesLeft = spawnDirector != null ? spawnDirector.RemainingSpawns : 0;
-                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Remaining: {enemiesLeft}");
+                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Kills Left: {enemiesLeft}");
             }
             else
             {
@@ -227,39 +235,63 @@ namespace Dagon.Gameplay
 
         private void DrawEndScreen()
         {
-            var box = new Rect(Screen.width * 0.5f - 180f, Screen.height * 0.5f - 100f, 360f, 200f);
-            GUI.Box(box, playerWon ? "Level Cleared" : "Run Failed");
-            GUI.Label(new Rect(box.x + 28f, box.y + 40f, 300f, 24f), $"Time: {runTimer:0.0}s");
+            var previousMatrix = GUI.matrix;
+            var previousColor = GUI.color;
+            var previousBackground = GUI.backgroundColor;
+
+            var scale = Mathf.Max(1.1f, Mathf.Min(Screen.width / 1600f, Screen.height / 900f) * 1.15f);
+            var width = 520f;
+            var height = 310f;
+            var scaledWidth = Screen.width / scale;
+            var scaledHeight = Screen.height / scale;
+            var box = new Rect((scaledWidth - width) * 0.5f, (scaledHeight - height) * 0.5f, width, height);
+
+            GUI.color = new Color(0.02f, 0.04f, 0.04f, 0.54f);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), whiteTexture, ScaleMode.StretchToFill, false);
+
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
+            DrawPanel(box);
+
+            GUI.Label(new Rect(box.x + 36f, box.y + 28f, box.width - 72f, 34f), playerWon ? "Level Cleared" : "Run Failed", endTitleStyle);
+            GUI.Label(new Rect(box.x + 36f, box.y + 74f, box.width - 72f, 24f), $"Time: {runTimer:0.0}s", endBodyStyle);
             GUI.Label(
-                new Rect(box.x + 28f, box.y + 68f, 300f, 24f),
-                playerWon ? "The mire falls silent. The path forward opens." : "The black mire claims the sailor.");
+                new Rect(box.x + 48f, box.y + 106f, box.width - 96f, 48f),
+                playerWon ? "The mire falls silent. The path forward opens." : "The black mire claims the sailor.",
+                endBodyStyle);
 
             if (playerWon)
             {
                 if (!string.IsNullOrWhiteSpace(nextSceneName))
                 {
-                    if (GUI.Button(new Rect(box.x + 28f, box.y + 110f, 132f, 34f), "Next Level"))
+                    GUI.backgroundColor = new Color(0.16f, 0.28f, 0.22f, 0.92f);
+                    if (GUI.Button(new Rect(box.x + 76f, box.y + 184f, box.width - 152f, 50f), "Next Level", endButtonStyle))
                     {
                         LoadScene(nextSceneName);
                     }
                 }
                 else
                 {
-                    GUI.Label(new Rect(box.x + 28f, box.y + 110f, 220f, 24f), "Run complete");
+                    GUI.Label(new Rect(box.x + 36f, box.y + 194f, box.width - 72f, 24f), "Run complete", endBodyStyle);
                 }
             }
             else
             {
-                if (GUI.Button(new Rect(box.x + 28f, box.y + 110f, 132f, 34f), "Retry"))
+                GUI.backgroundColor = new Color(0.16f, 0.28f, 0.22f, 0.92f);
+                if (GUI.Button(new Rect(box.x + 76f, box.y + 184f, box.width - 152f, 50f), "Retry", endButtonStyle))
                 {
                     LoadScene(SceneManager.GetActiveScene().name);
                 }
             }
 
-            if (GUI.Button(new Rect(box.x + 28f, box.y + 150f, 132f, 34f), "Main Menu"))
+            GUI.backgroundColor = new Color(0.14f, 0.22f, 0.20f, 0.9f);
+            if (GUI.Button(new Rect(box.x + 76f, box.y + 246f, box.width - 152f, 50f), "Main Menu", endButtonStyle))
             {
                 LoadScene(menuSceneName);
             }
+
+            GUI.matrix = previousMatrix;
+            GUI.color = previousColor;
+            GUI.backgroundColor = previousBackground;
         }
 
         private static void LoadScene(string sceneName)
@@ -271,6 +303,57 @@ namespace Dagon.Gameplay
 
             Time.timeScale = 1f;
             SceneManager.LoadScene(sceneName);
+        }
+
+        private void EnsureStyles()
+        {
+            if (endTitleStyle != null)
+            {
+                return;
+            }
+
+            endTitleStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 30,
+                fontStyle = FontStyle.Bold
+            };
+            endTitleStyle.normal.textColor = new Color(0.90f, 0.97f, 0.85f, 1f);
+
+            endBodyStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 17,
+                wordWrap = true
+            };
+            endBodyStyle.normal.textColor = new Color(0.78f, 0.86f, 0.76f, 1f);
+
+            endButtonStyle = new GUIStyle(GUI.skin.button)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 20,
+                fontStyle = FontStyle.Bold,
+                padding = new RectOffset(16, 16, 12, 12)
+            };
+            endButtonStyle.normal.textColor = new Color(0.93f, 0.98f, 0.92f, 1f);
+            endButtonStyle.hover.textColor = Color.white;
+            endButtonStyle.active.textColor = Color.white;
+        }
+
+        private void DrawPanel(Rect rect)
+        {
+            if (whiteTexture == null)
+            {
+                return;
+            }
+
+            GUI.color = new Color(0.04f, 0.08f, 0.07f, 0.82f);
+            GUI.DrawTexture(rect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.34f, 0.52f, 0.36f, 0.95f);
+            GUI.DrawTexture(new Rect(rect.x + 4f, rect.y + 4f, rect.width - 8f, 5f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(1f, 1f, 1f, 0.06f);
+            GUI.DrawTexture(new Rect(rect.x + 16f, rect.y + 16f, rect.width - 32f, rect.height - 32f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = Color.white;
         }
     }
 }

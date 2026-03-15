@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Dagon.Core;
 using UnityEngine;
 
@@ -12,11 +13,10 @@ namespace Dagon.Gameplay
         [SerializeField] private int baseXpRequirement = 5;
         [SerializeField] private int xpRequirementGrowth = 3;
 
-        private readonly Queue<UpgradeChoiceSet> queuedChoices = new();
-        private HarpoonLauncher harpoonLauncher;
+        private readonly Queue<CombatRewardChoiceSet> queuedChoices = new();
+        private PlayerCombatLoadout combatLoadout;
         private Health health;
         private CorruptionMeter corruptionMeter;
-        private BrineSurgeAbility brineSurgeAbility;
 
         public int Level { get; private set; }
         public int CurrentXp { get; private set; }
@@ -27,10 +27,9 @@ namespace Dagon.Gameplay
 
         private void Awake()
         {
-            harpoonLauncher = GetComponent<HarpoonLauncher>();
+            combatLoadout = GetComponent<PlayerCombatLoadout>();
             health = GetComponent<Health>();
             corruptionMeter = GetComponent<CorruptionMeter>();
-            brineSurgeAbility = GetComponent<BrineSurgeAbility>();
 
             Level = Mathf.Max(1, startingLevel);
             RequiredXp = GetRequiredXpForLevel(Level);
@@ -55,7 +54,7 @@ namespace Dagon.Gameplay
             Changed?.Invoke();
         }
 
-        public UpgradeChoiceSet PeekChoices()
+        public CombatRewardChoiceSet PeekChoices()
         {
             return queuedChoices.Count > 0 ? queuedChoices.Peek() : default;
         }
@@ -73,7 +72,7 @@ namespace Dagon.Gameplay
                 index = 0;
             }
 
-            ApplyUpgrade(choices.Options[index]);
+            ApplyReward(choices.Options[index]);
             Changed?.Invoke();
         }
 
@@ -82,63 +81,114 @@ namespace Dagon.Gameplay
             return baseXpRequirement + ((level - 1) * xpRequirementGrowth);
         }
 
-        private UpgradeChoiceSet BuildChoiceSet()
+        private CombatRewardChoiceSet BuildChoiceSet()
         {
-            return new UpgradeChoiceSet(
-                new[]
+            var candidates = new List<CombatRewardOption>();
+            if (combatLoadout != null)
+            {
+                candidates.Add(new CombatRewardOption(
+                    CombatRewardKind.GlobalAttackRate,
+                    "Tighter Rhythm",
+                    "All owned weapons fire faster."));
+                candidates.Add(new CombatRewardOption(
+                    CombatRewardKind.GlobalProjectileDamage,
+                    "Barbed Iron",
+                    "All owned weapons hit harder."));
+
+                if (combatLoadout.Weapons.Count > 0)
                 {
-                    UpgradeChoice.AttackRate,
-                    UpgradeChoice.ProjectileDamage,
-                    UpgradeChoice.ProjectileCount
-                });
+                    candidates.Add(new CombatRewardOption(
+                        CombatRewardKind.GlobalProjectileCount,
+                        "Storm Rack",
+                        "All owned weapons fire one additional projectile when possible."));
+                }
+
+                foreach (var weapon in combatLoadout.Weapons)
+                {
+                    candidates.Add(new CombatRewardOption(
+                        CombatRewardKind.UpgradeWeaponDamage,
+                        $"Hone {weapon.DisplayName}",
+                        $"{weapon.DisplayName} deals more damage.",
+                        targetWeaponId: weapon.WeaponId));
+                    candidates.Add(new CombatRewardOption(
+                        CombatRewardKind.UpgradeWeaponAttackRate,
+                        $"Quicken {weapon.DisplayName}",
+                        $"{weapon.DisplayName} attacks faster.",
+                        targetWeaponId: weapon.WeaponId));
+                }
+
+                foreach (var definition in combatLoadout.GetAvailableWeaponOffers().Take(2))
+                {
+                    candidates.Add(new CombatRewardOption(
+                        CombatRewardKind.AcquireWeapon,
+                        $"Claim {definition.DisplayName}",
+                        definition.Description,
+                        definition));
+                }
+
+                if (combatLoadout.GetActive(0) != null)
+                {
+                    candidates.Add(new CombatRewardOption(
+                        CombatRewardKind.ActiveRadius,
+                        "Rising Tide",
+                        "Increase the area of your equipped active ability."));
+                }
+            }
+
+            candidates.Add(new CombatRewardOption(
+                CombatRewardKind.MaxHealth,
+                "Salt-Hardened",
+                "Increase max health."));
+            candidates.Add(new CombatRewardOption(
+                CombatRewardKind.CorruptionPulse,
+                "Tide of Dagon",
+                "Gain corruption and empower the run."));
+
+            var selected = new List<CombatRewardOption>();
+            while (selected.Count < 3 && candidates.Count > 0)
+            {
+                var index = UnityEngine.Random.Range(0, candidates.Count);
+                selected.Add(candidates[index]);
+                candidates.RemoveAt(index);
+            }
+
+            return new CombatRewardChoiceSet(selected.ToArray());
         }
 
-        private void ApplyUpgrade(UpgradeChoice choice)
+        private void ApplyReward(CombatRewardOption reward)
         {
-            switch (choice)
+            switch (reward.Kind)
             {
-                case UpgradeChoice.AttackRate:
-                    harpoonLauncher?.ModifyAttacksPerSecond(0.25f);
+                case CombatRewardKind.GlobalAttackRate:
+                    combatLoadout?.ModifyAllWeaponsAttackRate(0.25f);
                     break;
-                case UpgradeChoice.ProjectileDamage:
-                    harpoonLauncher?.ModifyProjectileDamage(0.5f);
+                case CombatRewardKind.GlobalProjectileDamage:
+                    combatLoadout?.ModifyAllWeaponsDamage(0.5f);
                     break;
-                case UpgradeChoice.ProjectileCount:
-                    harpoonLauncher?.ModifyProjectileCount(1);
+                case CombatRewardKind.GlobalProjectileCount:
+                    combatLoadout?.ModifyAllWeaponsProjectileCount(1);
                     break;
-                case UpgradeChoice.BrineRadius:
-                    brineSurgeAbility?.ModifyRadius(0.6f);
+                case CombatRewardKind.AcquireWeapon:
+                    combatLoadout?.AddWeapon(reward.WeaponDefinition);
                     break;
-                case UpgradeChoice.MaxHealth:
+                case CombatRewardKind.UpgradeWeaponAttackRate:
+                case CombatRewardKind.UpgradeWeaponDamage:
+                case CombatRewardKind.UpgradeWeaponProjectileCount:
+                    combatLoadout?.UpgradeWeapon(reward.TargetWeaponId, reward.Kind);
+                    break;
+                case CombatRewardKind.ActiveRadius:
+                    combatLoadout?.GetActive(0)?.ModifyRadius(0.6f);
+                    break;
+                case CombatRewardKind.MaxHealth:
                     if (health != null)
                     {
                         health.SetMaxHealth(health.MaxHealth + 3f, true);
                     }
                     break;
-                case UpgradeChoice.CorruptionPulse:
+                case CombatRewardKind.CorruptionPulse:
                     corruptionMeter?.AddCorruption(8f);
                     break;
             }
         }
-    }
-
-    public readonly struct UpgradeChoiceSet
-    {
-        public UpgradeChoiceSet(UpgradeChoice[] options)
-        {
-            Options = options;
-        }
-
-        public UpgradeChoice[] Options { get; }
-    }
-
-    public enum UpgradeChoice
-    {
-        AttackRate,
-        ProjectileDamage,
-        ProjectileCount,
-        BrineRadius,
-        MaxHealth,
-        CorruptionPulse
     }
 }

@@ -1,9 +1,9 @@
+using Dagon.Data;
 using UnityEngine;
 
 namespace Dagon.Gameplay
 {
-    [DisallowMultipleComponent]
-    public sealed class HarpoonLauncher : MonoBehaviour
+    public sealed class HarpoonLauncher : PlayerWeaponRuntime
     {
         [SerializeField] private PlayerMover playerMover;
         [SerializeField] private HarpoonProjectile projectilePrefab;
@@ -14,6 +14,7 @@ namespace Dagon.Gameplay
         [SerializeField] private int projectilesPerVolley = 1;
         [SerializeField] private float spreadAngle = 8f;
         [SerializeField] private bool autoFire = true;
+        [SerializeField] private WeaponProjectileVisualKind projectileVisualKind = WeaponProjectileVisualKind.Harpoon;
 
         private float cooldownTimer;
 
@@ -42,6 +43,11 @@ namespace Dagon.Gameplay
             cooldownTimer = 1f / attacksPerSecond;
         }
 
+        public override void ConfigureRuntime(Camera worldCamera)
+        {
+            SetProjectilePrefab(CreateProjectilePrefab(worldCamera));
+        }
+
         public void Configure(float newAttacksPerSecond, float newProjectileSpeed, float newProjectileDamage, int newProjectilesPerVolley, float newSpreadAngle)
         {
             attacksPerSecond = Mathf.Max(0.01f, newAttacksPerSecond);
@@ -56,17 +62,17 @@ namespace Dagon.Gameplay
             projectilePrefab = prefab;
         }
 
-        public void ModifyAttacksPerSecond(float amount)
+        public override void ModifyAttackRate(float amount)
         {
             attacksPerSecond = Mathf.Max(0.1f, attacksPerSecond + amount);
         }
 
-        public void ModifyProjectileDamage(float amount)
+        public override void ModifyProjectileDamage(float amount)
         {
             projectileDamage = Mathf.Max(0.1f, projectileDamage + amount);
         }
 
-        public void ModifyProjectileCount(int amount)
+        public override void ModifyProjectileCount(int amount)
         {
             projectilesPerVolley = Mathf.Max(1, projectilesPerVolley + amount);
         }
@@ -92,6 +98,35 @@ namespace Dagon.Gameplay
                 projectile.gameObject.SetActive(true);
                 projectile.Initialize(gameObject, direction, projectileSpeed, projectileDamage);
             }
+        }
+
+        protected override void ApplyDefinition(WeaponDefinition runtimeDefinition)
+        {
+            projectileVisualKind = runtimeDefinition.ProjectileVisualKind;
+            Configure(
+                runtimeDefinition.AttacksPerSecond,
+                runtimeDefinition.ProjectileSpeed,
+                runtimeDefinition.ProjectileDamage,
+                runtimeDefinition.ProjectilesPerVolley,
+                runtimeDefinition.SpreadAngle);
+        }
+
+        protected override void ApplyRankBonus(int currentRank)
+        {
+            ModifyProjectileDamage(0.35f);
+            if (currentRank % 2 == 0)
+            {
+                ModifyAttackRate(0.12f);
+            }
+        }
+
+        private HarpoonProjectile CreateProjectilePrefab(Camera worldCamera)
+        {
+            return projectileVisualKind switch
+            {
+                WeaponProjectileVisualKind.Orb => RuntimeOrbProjectileFactory.Create(worldCamera),
+                _ => RuntimeHarpoonProjectileFactory.Create(worldCamera)
+            };
         }
     }
 }

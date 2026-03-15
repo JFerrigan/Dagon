@@ -7,8 +7,7 @@ namespace Dagon.Gameplay
     public sealed class CorruptionRuntimeEffects : MonoBehaviour
     {
         [SerializeField] private CorruptionMeter corruptionMeter;
-        [SerializeField] private HarpoonLauncher harpoonLauncher;
-        [SerializeField] private BrineSurgeAbility brineSurgeAbility;
+        [SerializeField] private PlayerCombatLoadout combatLoadout;
         [SerializeField] private SpawnDirector spawnDirector;
 
         private void Awake()
@@ -18,14 +17,9 @@ namespace Dagon.Gameplay
                 corruptionMeter = GetComponent<CorruptionMeter>();
             }
 
-            if (harpoonLauncher == null)
+            if (combatLoadout == null)
             {
-                harpoonLauncher = GetComponent<HarpoonLauncher>();
-            }
-
-            if (brineSurgeAbility == null)
-            {
-                brineSurgeAbility = GetComponent<BrineSurgeAbility>();
+                combatLoadout = GetComponent<PlayerCombatLoadout>();
             }
         }
 
@@ -55,14 +49,14 @@ namespace Dagon.Gameplay
             switch (thresholdIndex)
             {
                 case 0:
-                    harpoonLauncher?.ModifyAttacksPerSecond(0.2f);
+                    combatLoadout?.ModifyAllWeaponsAttackRate(0.2f);
                     break;
                 case 1:
-                    brineSurgeAbility?.ModifyRadius(0.75f);
+                    combatLoadout?.GetActive(0)?.ModifyRadius(0.75f);
                     spawnDirector?.TightenPressure(0.12f, 3);
                     break;
                 case 2:
-                    harpoonLauncher?.ModifyProjectileDamage(0.8f);
+                    combatLoadout?.ModifyAllWeaponsDamage(0.8f);
                     spawnDirector?.TightenPressure(0.1f, 5);
                     break;
             }
