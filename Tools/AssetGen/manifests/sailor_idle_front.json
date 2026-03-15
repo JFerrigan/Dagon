@@ -1,0 +1,15 @@
+{
+  "asset_id": "sailor_idle_front",
+  "asset_type": "character_sprite",
+  "prompt": "Dark painterly pixel-art sailor, gaunt human silhouette, weathered long coat and sailor cap, holding a ragged harpoon, grim maritime cosmic-horror mood, transparent background, centered full body.",
+  "output_path": "Assets/Art/Sprites/Characters/sailor_idle_front.png",
+  "style": "painterly_pixel_art",
+  "source_image": "Tools/AssetGen/generated/sailor_idle_front.png",
+  "processed_image": "Tools/AssetGen/processed/sailor_idle_front.png",
+  "size": [64, 64],
+  "palette_notes": "muddy browns, sea-worn blacks, muted brass, corpse-pale skin accents",
+  "orientation": "front_34",
+  "seed": 1,
+  "provider": "chatgpt_browser",
+  "notes": "Target a human, narrow silhouette with readable coat, cap, boots, and harpoon. Avoid mascot or chibi proportions."
+}

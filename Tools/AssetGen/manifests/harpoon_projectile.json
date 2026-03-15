@@ -1,0 +1,15 @@
+{
+  "asset_id": "harpoon_projectile",
+  "asset_type": "weapon_projectile_sprite",
+  "prompt": "A side-view harpoon projectile for a Lovecraftian bullet-heaven game; weathered wooden shaft, tarnished barbed metal tip, frayed rope wrapping near the base, compact readable silhouette.",
+  "output_path": "Assets/Resources/Sprites/Weapons/harpoon_projectile.png",
+  "style": "dark_painterly_pixel_art",
+  "source_image": "Tools/AssetGen/generated/harpoon_projectile.png",
+  "processed_image": "Tools/AssetGen/processed/harpoon_projectile.png",
+  "size": [64, 64],
+  "palette_notes": "muted maritime browns, tarnished brass, grime, restrained blood accents",
+  "orientation": "horizontal_side_view_tip_right",
+  "seed": 1,
+  "provider": "chatgpt_browser",
+  "notes": "Canonical projectile direction: the right side of the sprite is the spear tip and must face the direction of travel. Keep projectile sprites compact, horizontally oriented, and using relatively few pixels so they stay readable at small runtime scales."
+}

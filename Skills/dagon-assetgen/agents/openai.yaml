@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dagon AssetGen"
+  short_description: "Generate and import Dagon sprite assets"
+  default_prompt: "Use $dagon-assetgen to generate, render, or export Dagon sprite assets."

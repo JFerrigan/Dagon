@@ -1,0 +1,15 @@
+{
+  "asset_id": "mire_wretch",
+  "asset_type": "enemy_sprite",
+  "prompt": "Dark painterly pixel-art mire wretch, hunched amphibious fish-man horror, asymmetrical body, oversized claw arm, wet rotting flesh, black mire sludge, glowing eye, transparent background, centered full body.",
+  "output_path": "Assets/Art/Sprites/Enemies/mire_wretch.png",
+  "style": "painterly_pixel_art",
+  "source_image": "Tools/AssetGen/generated/mire_wretch.png",
+  "processed_image": "Tools/AssetGen/processed/mire_wretch.png",
+  "size": [64, 64],
+  "palette_notes": "sickly greens, mire black, corpse gray, rotten reds",
+  "orientation": "front_34",
+  "seed": 1,
+  "provider": "chatgpt_browser",
+  "notes": "Push asymmetry, maw and claw detail, and a low hunched silhouette. Avoid rounded cartoon body shapes."
+}

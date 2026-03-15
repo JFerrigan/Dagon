@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dagon Unity Prototype"
+  short_description: "Build the Dagon Unity vertical slice"
+  default_prompt: "Use $dagon-unity-prototype to scaffold or extend the Dagon Unity prototype."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dagon Design Loop"
+  short_description: "Iterate on Dagon game design decisions"
+  default_prompt: "Use $dagon-design-loop to refine Dagon design, scope, and content decisions."
