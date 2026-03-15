@@ -18,6 +18,9 @@ namespace Dagon.Gameplay
 
         private float cooldownTimer;
 
+        public override string PathAName => "Volley Path";
+        public override string PathBName => "Heavy Harpoon Path";
+
         private void Awake()
         {
             if (playerMover == null)
@@ -75,6 +78,13 @@ namespace Dagon.Gameplay
         public override void ModifyProjectileCount(int amount)
         {
             projectilesPerVolley = Mathf.Max(1, projectilesPerVolley + amount);
+            spreadAngle = projectilesPerVolley switch
+            {
+                1 => 0f,
+                2 => 8f,
+                3 => 14f,
+                _ => 20f
+            };
         }
 
         public void FireVolley()
@@ -111,13 +121,60 @@ namespace Dagon.Gameplay
                 runtimeDefinition.SpreadAngle);
         }
 
-        protected override void ApplyRankBonus(int currentRank)
+        protected override void ApplyPathUpgrade(WeaponUpgradePath path, int nextStep)
         {
-            ModifyProjectileDamage(0.35f);
-            if (currentRank % 2 == 0)
+            switch (path)
             {
-                ModifyAttackRate(0.12f);
+                case WeaponUpgradePath.PathA:
+                    projectilesPerVolley = nextStep switch
+                    {
+                        1 => 2,
+                        2 => 3,
+                        _ => 4
+                    };
+                    spreadAngle = projectilesPerVolley switch
+                    {
+                        1 => 0f,
+                        2 => 8f,
+                        3 => 14f,
+                        _ => 20f
+                    };
+                    break;
+                case WeaponUpgradePath.PathB:
+                    projectileDamage = nextStep switch
+                    {
+                        1 => 1.4f,
+                        2 => 1.8f,
+                        _ => 2.2f
+                    };
+                    break;
             }
+        }
+
+        protected override string GetUpgradeTitle(WeaponUpgradePath path, int nextStep)
+        {
+            return path switch
+            {
+                WeaponUpgradePath.PathA when nextStep == 1 => "Split Cast I",
+                WeaponUpgradePath.PathA when nextStep == 2 => "Split Cast II",
+                WeaponUpgradePath.PathA => "Split Cast III",
+                WeaponUpgradePath.PathB when nextStep == 1 => "Barbed Iron I",
+                WeaponUpgradePath.PathB when nextStep == 2 => "Barbed Iron II",
+                _ => "Barbed Iron III"
+            };
+        }
+
+        protected override string GetUpgradeDescription(WeaponUpgradePath path, int nextStep)
+        {
+            return path switch
+            {
+                WeaponUpgradePath.PathA when nextStep == 1 => "Increase harpoon count to 2 with a wider volley.",
+                WeaponUpgradePath.PathA when nextStep == 2 => "Increase harpoon count to 3 with a broader volley.",
+                WeaponUpgradePath.PathA => "Increase harpoon count to 4 and flood the lane.",
+                WeaponUpgradePath.PathB when nextStep == 1 => "Increase harpoon damage to 1.4.",
+                WeaponUpgradePath.PathB when nextStep == 2 => "Increase harpoon damage to 1.8.",
+                _ => "Increase harpoon damage to 2.2."
+            };
         }
 
         private HarpoonProjectile CreateProjectilePrefab(Camera worldCamera)

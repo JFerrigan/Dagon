@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Dagon.Core;
 using Dagon.Rendering;
 using UnityEngine;
@@ -16,13 +17,21 @@ namespace Dagon.Gameplay
             DeepSpawn
         }
 
+        private enum SpawnPattern
+        {
+            SurroundRing,
+            FrontCone,
+            FlankPincer,
+            EliteEscort
+        }
+
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private Sprite mireSprite;
         [SerializeField] private Sprite acolyteSprite;
         [SerializeField] private Sprite deepSpawnSprite;
         [SerializeField] private GameObject deepSpawnPrefab;
-        [SerializeField] private HarpoonProjectile acolyteProjectilePrefab;
+        [SerializeField] private DrownedAcolyteProjectile acolyteProjectilePrefab;
         [SerializeField] private float spawnRadius = 10f;
         [SerializeField] private float despawnRadius = 28f;
         [SerializeField] private float minSpawnInterval = 0.5f;
@@ -51,14 +60,7 @@ namespace Dagon.Gameplay
 
         private void Start()
         {
-            for (var i = 0; i < startingEnemies; i++)
-            {
-                if (!TrySpawnEnemy())
-                {
-                    break;
-                }
-            }
-
+            SpawnOpeningWave();
             ResetTimer();
         }
 
@@ -71,12 +73,7 @@ namespace Dagon.Gameplay
 
             DespawnFarEnemies();
 
-            if (spawningStopped || SpawnQuotaMet)
-            {
-                return;
-            }
-
-            if (aliveEnemies >= maxAliveEnemies)
+            if (spawningStopped || SpawnQuotaMet || aliveEnemies >= maxAliveEnemies)
             {
                 return;
             }
@@ -87,7 +84,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            if (TrySpawnEnemy())
+            if (TrySpawnEncounter())
             {
                 ResetTimer();
             }
@@ -101,7 +98,7 @@ namespace Dagon.Gameplay
             acolyteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/drowned_acolyte", 256f);
             deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 256f);
             deepSpawnPrefab = Resources.Load<GameObject>(DeepSpawnPrefabResourcePath);
-            acolyteProjectilePrefab = rangedProjectilePrefab;
+            acolyteProjectilePrefab = RuntimeAcolyteProjectileFactory.Create(cameraReference);
         }
 
         public void ConfigureCampaign(int newRegularSpawnQuota, int newStartingEnemies, int newMaxAliveEnemies, int newEliteSpawnEvery, float newMinSpawnInterval, float newMaxSpawnInterval)
@@ -137,7 +134,20 @@ namespace Dagon.Gameplay
             maxAliveEnemies = Mathf.Max(maxAliveEnemies, maxAliveEnemies + additionalAliveCap);
         }
 
-        private bool TrySpawnEnemy()
+        private void SpawnOpeningWave()
+        {
+            var count = Mathf.Min(startingEnemies, regularSpawnQuota);
+            var positions = BuildPatternPositions(SpawnPattern.SurroundRing, count);
+            for (var i = 0; i < positions.Count; i++)
+            {
+                if (!TrySpawnSpecificEnemy(EnemyKind.MireWretch, positions[i]))
+                {
+                    break;
+                }
+            }
+        }
+
+        private bool TrySpawnEncounter()
         {
             if (SpawnQuotaMet || defeatedEnemies + aliveEnemies >= regularSpawnQuota)
             {
@@ -145,29 +155,71 @@ namespace Dagon.Gameplay
                 return false;
             }
 
-            SpawnEnemy();
+            var pattern = ChooseSpawnPattern();
+            var spawnedAny = pattern == SpawnPattern.EliteEscort
+                ? SpawnEliteEscort()
+                : SpawnPatternWave(pattern);
+
             if (SpawnQuotaMet)
             {
                 NotifyQuotaCompletedIfNeeded();
             }
 
-            return true;
+            return spawnedAny;
         }
 
-        private void SpawnEnemy()
+        private bool SpawnPatternWave(SpawnPattern pattern)
         {
-            if (player == null || mireSprite == null || SpawnQuotaMet || defeatedEnemies + aliveEnemies >= regularSpawnQuota)
+            var phase = GetPhase();
+            var count = phase switch
             {
-                return;
+                0 => 2,
+                1 => 3,
+                _ => 4
+            };
+
+            var positions = BuildPatternPositions(pattern, count);
+            var spawned = false;
+            for (var i = 0; i < positions.Count; i++)
+            {
+                var kind = ChooseStandardEnemyKind(phase, i);
+                if (TrySpawnSpecificEnemy(kind, positions[i]))
+                {
+                    spawned = true;
+                }
             }
 
-            var ring = Random.insideUnitCircle.normalized * Random.Range(spawnRadius * 0.75f, spawnRadius);
-            var position = player.position + new Vector3(ring.x, 0.5f, ring.y);
-            var enemyKind = ChooseEnemyKind();
+            return spawned;
+        }
+
+        private bool SpawnEliteEscort()
+        {
+            var positions = BuildPatternPositions(SpawnPattern.EliteEscort, 4);
+            var spawned = false;
+            if (positions.Count > 0)
+            {
+                spawned |= TrySpawnSpecificEnemy(EnemyKind.DeepSpawn, positions[0]);
+            }
+
+            for (var i = 1; i < positions.Count; i++)
+            {
+                var kind = i == positions.Count - 1 ? EnemyKind.DrownedAcolyte : EnemyKind.MireWretch;
+                spawned |= TrySpawnSpecificEnemy(kind, positions[i]);
+            }
+
+            return spawned;
+        }
+
+        private bool TrySpawnSpecificEnemy(EnemyKind enemyKind, Vector3 position)
+        {
+            if (player == null || mireSprite == null || SpawnQuotaMet || defeatedEnemies + aliveEnemies >= regularSpawnQuota || aliveEnemies >= maxAliveEnemies)
+            {
+                return false;
+            }
 
             if (enemyKind == EnemyKind.DeepSpawn && TrySpawnDeepSpawn(position))
             {
-                return;
+                return true;
             }
 
             var mire = new GameObject($"{enemyKind}_{aliveEnemies + 1}");
@@ -189,33 +241,47 @@ namespace Dagon.Gameplay
             health.Died += HandleEnemyDied;
 
             var rewards = mire.AddComponent<EnemyDeathRewards>();
-            if (enemyKind == EnemyKind.MireWretch)
+            switch (enemyKind)
             {
-                var contactDamage = mire.AddComponent<ContactDamage>();
-                contactDamage.Configure(1f);
+                case EnemyKind.MireWretch:
+                {
+                    var contactDamage = mire.AddComponent<ContactDamage>();
+                    contactDamage.Configure(1f);
 
-                var wanderer = mire.AddComponent<MireWanderer>();
-                wanderer.Configure(player, Random.Range(4.1f, 4.5f), 3f, 22f);
-                rewards.Configure(1, 1.5f);
+                    var wanderer = mire.AddComponent<MireWanderer>();
+                    wanderer.Configure(player, Random.Range(3.2f, 3.6f), 3f, 18f);
+                    rewards.Configure(1, 1.5f);
+                    break;
+                }
+                case EnemyKind.DrownedAcolyte:
+                {
+                    var shooter = mire.AddComponent<DrownedAcolyteShooter>();
+                    shooter.Configure(player, acolyteProjectilePrefab, Random.Range(2.4f, 2.8f), 6f, 1.6f, worldCamera);
+                    rewards.Configure(3, 3f);
+                    break;
+                }
+                case EnemyKind.DeepSpawn:
+                default:
+                {
+                    var bruiser = mire.AddComponent<DeepSpawnBruiser>();
+                    bruiser.Configure(player, 1.2f, 4.8f);
+                    var contactDamage = mire.AddComponent<ContactDamage>();
+                    contactDamage.Configure(3f);
+                    rewards.Configure(6, 7f);
+                    break;
+                }
             }
-            else if (enemyKind == EnemyKind.DrownedAcolyte)
-            {
-                var shooter = mire.AddComponent<DrownedAcolyteShooter>();
-                shooter.Configure(player, acolyteProjectilePrefab, 4.0f, 7.5f, 2.2f);
-                rewards.Configure(3, 3f);
-            }
-            else
-            {
-                var bruiser = mire.AddComponent<DeepSpawnBruiser>();
-                bruiser.Configure(player, 4.3f, 5.8f);
 
-                var contactDamage = mire.AddComponent<ContactDamage>();
-                contactDamage.Configure(3f);
-                rewards.Configure(6, 7f);
-            }
+            ConfigureVisuals(mire.transform, enemyKind);
+            aliveEnemies += 1;
+            totalSpawned += 1;
+            return true;
+        }
 
+        private void ConfigureVisuals(Transform enemyRoot, EnemyKind enemyKind)
+        {
             var visuals = new GameObject("Visuals");
-            visuals.transform.SetParent(mire.transform, false);
+            visuals.transform.SetParent(enemyRoot, false);
             visuals.transform.localPosition = Vector3.zero;
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
@@ -234,9 +300,6 @@ namespace Dagon.Gameplay
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
-
-            aliveEnemies += 1;
-            totalSpawned += 1;
         }
 
         private bool TrySpawnDeepSpawn(Vector3 position)
@@ -343,19 +406,109 @@ namespace Dagon.Gameplay
             Destroy(enemy);
         }
 
-        private EnemyKind ChooseEnemyKind()
+        private SpawnPattern ChooseSpawnPattern()
         {
             if (totalSpawned > 0 && totalSpawned % eliteSpawnEvery == 0)
             {
-                return EnemyKind.DeepSpawn;
+                return SpawnPattern.EliteEscort;
             }
 
-            if (acolyteProjectilePrefab == null)
+            var phase = GetPhase();
+            var roll = Random.value;
+            return phase switch
             {
-                return EnemyKind.MireWretch;
+                0 => roll < 0.55f ? SpawnPattern.SurroundRing : SpawnPattern.FrontCone,
+                1 => roll < 0.35f ? SpawnPattern.SurroundRing : roll < 0.7f ? SpawnPattern.FrontCone : SpawnPattern.FlankPincer,
+                _ => roll < 0.25f ? SpawnPattern.SurroundRing : roll < 0.5f ? SpawnPattern.FrontCone : roll < 0.8f ? SpawnPattern.FlankPincer : SpawnPattern.EliteEscort
+            };
+        }
+
+        private int GetPhase()
+        {
+            if (defeatedEnemies < regularSpawnQuota * 0.33f)
+            {
+                return 0;
             }
 
-            return Random.value < 0.2f ? EnemyKind.DrownedAcolyte : EnemyKind.MireWretch;
+            if (defeatedEnemies < regularSpawnQuota * 0.72f)
+            {
+                return 1;
+            }
+
+            return 2;
+        }
+
+        private EnemyKind ChooseStandardEnemyKind(int phase, int index)
+        {
+            if (phase == 0)
+            {
+                return index == 0 && Random.value < 0.18f ? EnemyKind.DrownedAcolyte : EnemyKind.MireWretch;
+            }
+
+            if (phase == 1)
+            {
+                return index == 0 && Random.value < 0.35f ? EnemyKind.DrownedAcolyte : Random.value < 0.22f ? EnemyKind.DrownedAcolyte : EnemyKind.MireWretch;
+            }
+
+            return index == 0 || Random.value < 0.3f ? EnemyKind.DrownedAcolyte : EnemyKind.MireWretch;
+        }
+
+        private List<Vector3> BuildPatternPositions(SpawnPattern pattern, int count)
+        {
+            var positions = new List<Vector3>(count);
+            var forward = ResolvePatternForward();
+            var right = new Vector3(forward.z, 0f, -forward.x);
+            switch (pattern)
+            {
+                case SpawnPattern.SurroundRing:
+                    for (var i = 0; i < count; i++)
+                    {
+                        var angle = (360f / Mathf.Max(1, count)) * i + Random.Range(-18f, 18f);
+                        var direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+                        positions.Add(player.position + direction * Random.Range(spawnRadius * 0.78f, spawnRadius) + Vector3.up * 0.5f);
+                    }
+                    break;
+                case SpawnPattern.FrontCone:
+                    for (var i = 0; i < count; i++)
+                    {
+                        var yaw = Random.Range(-26f, 26f);
+                        var direction = Quaternion.Euler(0f, yaw, 0f) * forward;
+                        positions.Add(player.position + direction * Random.Range(spawnRadius * 0.75f, spawnRadius * 0.96f) + Vector3.up * 0.5f);
+                    }
+                    break;
+                case SpawnPattern.FlankPincer:
+                    for (var i = 0; i < count; i++)
+                    {
+                        var flank = i % 2 == 0 ? right : -right;
+                        var mixed = (flank + forward * Random.Range(-0.25f, 0.35f)).normalized;
+                        positions.Add(player.position + mixed * Random.Range(spawnRadius * 0.82f, spawnRadius) + Vector3.up * 0.5f);
+                    }
+                    break;
+                case SpawnPattern.EliteEscort:
+                    positions.Add(player.position + forward * (spawnRadius * 0.88f) + Vector3.up * 0.5f);
+                    positions.Add(player.position + (forward + right * 0.35f).normalized * (spawnRadius * 0.82f) + Vector3.up * 0.5f);
+                    positions.Add(player.position + (forward - right * 0.35f).normalized * (spawnRadius * 0.82f) + Vector3.up * 0.5f);
+                    positions.Add(player.position + (forward - right * 0.1f).normalized * (spawnRadius * 0.92f) + Vector3.up * 0.5f);
+                    break;
+            }
+
+            return positions;
+        }
+
+        private Vector3 ResolvePatternForward()
+        {
+            var mover = player != null ? player.GetComponent<PlayerMover>() : null;
+            if (mover != null && mover.MoveDirection.sqrMagnitude > 0.05f)
+            {
+                return mover.MoveDirection.normalized;
+            }
+
+            if (mover != null && mover.AimDirection.sqrMagnitude > 0.05f)
+            {
+                return mover.AimDirection.normalized;
+            }
+
+            return Vector3.forward;
         }
 
         private static float GetMaxHealth(EnemyKind enemyKind)
@@ -363,8 +516,8 @@ namespace Dagon.Gameplay
             return enemyKind switch
             {
                 EnemyKind.MireWretch => 3f,
-                EnemyKind.DrownedAcolyte => 7f,
-                EnemyKind.DeepSpawn => 20f,
+                EnemyKind.DrownedAcolyte => 5f,
+                EnemyKind.DeepSpawn => 24f,
                 _ => 3f
             };
         }

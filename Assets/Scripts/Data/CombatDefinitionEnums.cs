@@ -2,7 +2,10 @@ namespace Dagon.Data
 {
     public enum WeaponRuntimeKind
     {
-        ProjectileLauncher
+        ProjectileLauncher,
+        AnchorChain,
+        RotLantern,
+        BilgeSpray
     }
 
     public enum WeaponProjectileVisualKind

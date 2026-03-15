@@ -4,16 +4,16 @@ namespace Dagon.Gameplay
 {
     public enum CombatRewardKind
     {
-        GlobalAttackRate,
-        GlobalProjectileDamage,
-        GlobalProjectileCount,
         AcquireWeapon,
-        UpgradeWeaponAttackRate,
-        UpgradeWeaponDamage,
-        UpgradeWeaponProjectileCount,
-        ActiveRadius,
+        UpgradeWeaponPath,
         MaxHealth,
         CorruptionPulse
+    }
+
+    public enum WeaponUpgradePath
+    {
+        PathA,
+        PathB
     }
 
     public readonly struct CombatRewardOption
@@ -23,13 +23,15 @@ namespace Dagon.Gameplay
             string title,
             string description,
             WeaponDefinition weaponDefinition = null,
-            string targetWeaponId = null)
+            string targetWeaponId = null,
+            WeaponUpgradePath? upgradePath = null)
         {
             Kind = kind;
             Title = title;
             Description = description;
             WeaponDefinition = weaponDefinition;
             TargetWeaponId = targetWeaponId ?? string.Empty;
+            UpgradePath = upgradePath;
         }
 
         public CombatRewardKind Kind { get; }
@@ -37,6 +39,7 @@ namespace Dagon.Gameplay
         public string Description { get; }
         public WeaponDefinition WeaponDefinition { get; }
         public string TargetWeaponId { get; }
+        public WeaponUpgradePath? UpgradePath { get; }
     }
 
     public readonly struct CombatRewardChoiceSet

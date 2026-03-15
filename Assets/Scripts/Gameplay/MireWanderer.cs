@@ -12,6 +12,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float chaseDistance = 6f;
         [SerializeField] private float retargetIntervalMin = 1.2f;
         [SerializeField] private float retargetIntervalMax = 2.6f;
+        [SerializeField] private EnemySlowReceiver slowReceiver;
 
         private Vector3 origin;
         private Vector3 roamTarget;
@@ -19,6 +20,11 @@ namespace Dagon.Gameplay
 
         private void Awake()
         {
+            if (slowReceiver == null)
+            {
+                slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+
             origin = transform.position;
             PickRoamTarget();
         }
@@ -45,7 +51,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            transform.position += offset.normalized * (moveSpeed * Time.deltaTime);
+            var effectiveSpeed = moveSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            transform.position += offset.normalized * (effectiveSpeed * Time.deltaTime);
         }
 
         public void Configure(Transform newTarget, float newMoveSpeed, float newWanderRadius, float newChaseDistance)

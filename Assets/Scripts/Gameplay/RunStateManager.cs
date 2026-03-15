@@ -26,6 +26,7 @@ namespace Dagon.Gameplay
         private bool bossWaveStarted;
         private bool runEnded;
         private bool playerWon;
+        private float bossWaveBannerTimer;
 
         public float RunTimer => runTimer;
         public bool RunEnded => runEnded;
@@ -84,6 +85,7 @@ namespace Dagon.Gameplay
             }
 
             runTimer += Time.deltaTime;
+            bossWaveBannerTimer = Mathf.Max(0f, bossWaveBannerTimer - Time.deltaTime);
             if (!bossWaveStarted && spawnDirector != null && spawnDirector.IsBattlefieldClear)
             {
                 BeginBossWave();
@@ -125,6 +127,7 @@ namespace Dagon.Gameplay
             }
 
             bossWaveStarted = true;
+            bossWaveBannerTimer = 3.2f;
             spawnDirector?.StopSpawning();
 
             for (var i = 0; i < bossesInWave; i++)
@@ -158,7 +161,7 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var bossHealth = boss.AddComponent<Health>();
-            bossHealth.SetMaxHealth(120f, true);
+            bossHealth.SetMaxHealth(140f, true);
             bossHealth.Died += HandleBossDied;
             activeBosses.Add(bossHealth);
 
@@ -230,7 +233,65 @@ namespace Dagon.Gameplay
             else
             {
                 GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Bosses left: {activeBosses.Count}");
+                DrawBossHealthBar();
+                DrawBossWaveBanner();
             }
+        }
+
+        private void DrawBossHealthBar()
+        {
+            if (whiteTexture == null || activeBosses.Count == 0)
+            {
+                return;
+            }
+
+            float totalCurrent = 0f;
+            float totalMax = 0f;
+            for (var i = 0; i < activeBosses.Count; i++)
+            {
+                if (activeBosses[i] == null)
+                {
+                    continue;
+                }
+
+                totalCurrent += activeBosses[i].CurrentHealth;
+                totalMax += activeBosses[i].MaxHealth;
+            }
+
+            if (totalMax <= 0f)
+            {
+                return;
+            }
+
+            const float width = 420f;
+            const float height = 16f;
+            var x = (Screen.width - width) * 0.5f;
+            var y = 18f;
+            var progress = Mathf.Clamp01(totalCurrent / totalMax);
+
+            var previous = GUI.color;
+            GUI.color = new Color(0.08f, 0.10f, 0.10f, 0.92f);
+            GUI.DrawTexture(new Rect(x, y, width, height), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.32f, 0.76f, 0.46f, 0.96f);
+            GUI.DrawTexture(new Rect(x, y, width * progress, height), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = previous;
+
+            var label = activeBosses.Count == 1 ? "Mire Colossus" : $"Boss Wave x{activeBosses.Count}";
+            GUI.Label(new Rect(x, y - 18f, width, 18f), label);
+        }
+
+        private void DrawBossWaveBanner()
+        {
+            if (bossWaveBannerTimer <= 0f)
+            {
+                return;
+            }
+
+            var alpha = Mathf.Clamp01(bossWaveBannerTimer / 3.2f);
+            var previous = GUI.color;
+            GUI.color = new Color(0.92f, 0.98f, 0.94f, alpha);
+            GUI.Label(new Rect((Screen.width - 280f) * 0.5f, 48f, 280f, 24f), "Boss Wave: The Mire Colossus");
+            GUI.color = previous;
         }
 
         private void DrawEndScreen()

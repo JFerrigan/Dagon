@@ -8,6 +8,15 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform target;
         [SerializeField] private float moveSpeed = 2.5f;
         [SerializeField] private float stoppingDistance = 0.8f;
+        [SerializeField] private EnemySlowReceiver slowReceiver;
+
+        private void Awake()
+        {
+            if (slowReceiver == null)
+            {
+                slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+        }
 
         private void Update()
         {
@@ -30,7 +39,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            transform.position += offset.normalized * (moveSpeed * Time.deltaTime);
+            var effectiveSpeed = moveSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            transform.position += offset.normalized * (effectiveSpeed * Time.deltaTime);
         }
 
         public void Configure(float newMoveSpeed, float newStoppingDistance)

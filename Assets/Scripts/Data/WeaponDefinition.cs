@@ -20,6 +20,11 @@ namespace Dagon.Data
         [SerializeField] private float projectileDamage = 1f;
         [SerializeField] private int projectilesPerVolley = 1;
         [SerializeField] private float spreadAngle = 8f;
+        [SerializeField] private float effectRadius = 2f;
+        [SerializeField] private float effectAngle = 90f;
+        [SerializeField] private float knockbackForce = 0f;
+        [SerializeField] private float slowAmount = 0f;
+        [SerializeField] private float slowDuration = 0f;
 
         public string WeaponId => weaponId;
         public string DisplayName => displayName;
@@ -31,6 +36,11 @@ namespace Dagon.Data
         public float ProjectileDamage => projectileDamage;
         public int ProjectilesPerVolley => projectilesPerVolley;
         public float SpreadAngle => spreadAngle;
+        public float EffectRadius => effectRadius;
+        public float EffectAngle => effectAngle;
+        public float KnockbackForce => knockbackForce;
+        public float SlowAmount => slowAmount;
+        public float SlowDuration => slowDuration;
 
         public static WeaponDefinition CreateRuntime(
             string id,
@@ -42,7 +52,12 @@ namespace Dagon.Data
             float speed,
             float damage,
             int projectileCount,
-            float spread)
+            float spread,
+            float radius = 0f,
+            float angle = 0f,
+            float force = 0f,
+            float slow = 0f,
+            float slowTime = 0f)
         {
             var definition = CreateInstance<WeaponDefinition>();
             definition.weaponId = id;
@@ -55,6 +70,11 @@ namespace Dagon.Data
             definition.projectileDamage = damage;
             definition.projectilesPerVolley = projectileCount;
             definition.spreadAngle = spread;
+            definition.effectRadius = radius;
+            definition.effectAngle = angle;
+            definition.knockbackForce = force;
+            definition.slowAmount = slow;
+            definition.slowDuration = slowTime;
             return definition;
         }
     }

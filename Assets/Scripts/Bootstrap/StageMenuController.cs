@@ -10,9 +10,9 @@ namespace Dagon.Bootstrap
         private const string BlackMireSceneName = "BlackMire";
         private const string MenuBackgroundResourcePath = "Sprites/UI/menu_background";
         private const string MenuLogoResourcePath = "Sprites/UI/menu_logo";
-        private const string EnterUnselectedResourcePath = "Sprites/UI/menu_enter_unselected";
-        private const string AlterationsUnselectedResourcePath = "Sprites/UI/menu_alterations_unselected";
-        private const string ExitUnselectedResourcePath = "Sprites/UI/menu_exit_unselected";
+        private const string EnterResourcePath = "Sprites/UI/enter";
+        private const string AlterationsResourcePath = "Sprites/UI/alterations";
+        private const string ExitResourcePath = "Sprites/UI/exit";
 
         private enum MenuSelection
         {
@@ -35,22 +35,19 @@ namespace Dagon.Bootstrap
         private Texture2D menuLogo;
         private Texture2D whiteTexture;
         private GUIStyle titleStyle;
-        private GUIStyle footerStyle;
         private MenuOptionArt enterOptionArt;
         private MenuOptionArt alterationsOptionArt;
         private MenuOptionArt exitOptionArt;
         private MenuSelection currentSelection = MenuSelection.Enter;
-        private float currentGuiScale = 1f;
-
         private void Start()
         {
             EnsureCamera();
             menuBackground = Resources.Load<Texture2D>(MenuBackgroundResourcePath);
             menuLogo = Resources.Load<Texture2D>(MenuLogoResourcePath);
             whiteTexture = Texture2D.whiteTexture;
-            enterOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(EnterUnselectedResourcePath));
-            alterationsOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(AlterationsUnselectedResourcePath));
-            exitOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(ExitUnselectedResourcePath));
+            enterOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(EnterResourcePath));
+            alterationsOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(AlterationsResourcePath));
+            exitOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(ExitResourcePath));
         }
 
         private void Update()
@@ -100,7 +97,6 @@ namespace Dagon.Bootstrap
             GUI.color = Color.white;
 
             var scale = Mathf.Max(1.15f, Mathf.Min(Screen.width / 1600f, Screen.height / 900f) * 1.25f);
-            currentGuiScale = scale;
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
 
             var width = 760f;
@@ -109,13 +105,16 @@ namespace Dagon.Bootstrap
             var scaledHeight = Screen.height / scale;
             var left = (scaledWidth - width) * 0.5f;
             var top = (scaledHeight - height) * 0.5f;
+            var buttonHeight = 88f;
+            var buttonsTop = top + 268f;
+            var buttonsBottom = top + 564f;
+            var availableButtonSpan = buttonsBottom - buttonsTop;
+            var buttonGap = (availableButtonSpan - (buttonHeight * 3f)) * 0.5f;
 
             DrawLogo(left, top, width);
-            DrawMenuOption(new Rect(left + 56f, top + 252f, width - 112f, 102f), MenuSelection.Enter, enterOptionArt);
-            DrawMenuOption(new Rect(left + 56f, top + 370f, width - 112f, 102f), MenuSelection.Alterations, alterationsOptionArt);
-            DrawMenuOption(new Rect(left + 56f, top + 488f, width - 112f, 102f), MenuSelection.Exit, exitOptionArt);
-
-            GUI.Label(new Rect(left + 48f, top + 598f, width - 96f, 20f), "Arrow keys, W/S, mouse wheel, Enter", footerStyle);
+            DrawMenuOption(CreateButtonRect(left, width, buttonsTop, buttonHeight, enterOptionArt), MenuSelection.Enter, enterOptionArt);
+            DrawMenuOption(CreateButtonRect(left, width, buttonsTop + buttonHeight + buttonGap, buttonHeight, alterationsOptionArt), MenuSelection.Alterations, alterationsOptionArt);
+            DrawMenuOption(CreateButtonRect(left, width, buttonsTop + ((buttonHeight + buttonGap) * 2f), buttonHeight, exitOptionArt), MenuSelection.Exit, exitOptionArt);
 
             GUI.matrix = previousMatrix;
             GUI.color = previousColor;
@@ -154,12 +153,6 @@ namespace Dagon.Bootstrap
             };
             titleStyle.normal.textColor = new Color(0.88f, 0.96f, 0.82f, 1f);
 
-            footerStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 12
-            };
-            footerStyle.normal.textColor = new Color(0.68f, 0.74f, 0.68f, 0.95f);
         }
 
         private void DrawBackground()
@@ -204,21 +197,86 @@ namespace Dagon.Bootstrap
                 return;
             }
 
-            var scaledMousePosition = currentGuiScale > 0f ? Event.current.mousePosition / currentGuiScale : Event.current.mousePosition;
+            var guiMousePosition = GetGuiMousePosition();
+            var imageRect = GetScaleToFitRect(rect, texture);
 
-            if (rect.Contains(scaledMousePosition))
+            if (imageRect.Contains(guiMousePosition))
             {
                 currentSelection = selection;
             }
 
-            if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && rect.Contains(scaledMousePosition))
+            var isHovered = currentSelection == selection;
+
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && imageRect.Contains(guiMousePosition))
             {
                 currentSelection = selection;
                 ActivateSelection(selection);
                 Event.current.Use();
             }
 
-            GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit, true);
+            if (isHovered)
+            {
+                DrawHoverFrame(imageRect);
+            }
+
+            GUI.DrawTexture(imageRect, texture, ScaleMode.StretchToFill, true);
+        }
+
+        private void DrawHoverFrame(Rect rect)
+        {
+            if (whiteTexture == null)
+            {
+                return;
+            }
+
+            var outer = new Rect(rect.x - 4f, rect.y - 4f, rect.width + 8f, rect.height + 8f);
+            var inner = new Rect(rect.x - 1f, rect.y - 1f, rect.width + 2f, rect.height + 2f);
+
+            GUI.color = new Color(0.86f, 0.70f, 0.18f, 0.12f);
+            GUI.DrawTexture(outer, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.98f, 0.86f, 0.34f, 0.2f);
+            GUI.DrawTexture(inner, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = Color.white;
+        }
+
+        private Vector2 GetGuiMousePosition()
+        {
+            return GUI.matrix.inverse.MultiplyPoint3x4(Event.current.mousePosition);
+        }
+
+        private static Rect CreateButtonRect(float left, float containerWidth, float top, float height, MenuOptionArt optionArt)
+        {
+            var texture = optionArt.Texture;
+            if (texture == null || texture.height <= 0)
+            {
+                return new Rect(left, top, containerWidth, height);
+            }
+
+            var width = height * (texture.width / (float)texture.height);
+            var x = left + ((containerWidth - width) * 0.5f);
+            return new Rect(x, top, width, height);
+        }
+
+        private static Rect GetScaleToFitRect(Rect bounds, Texture2D texture)
+        {
+            if (texture == null || texture.width <= 0 || texture.height <= 0)
+            {
+                return bounds;
+            }
+
+            var textureAspect = texture.width / (float)texture.height;
+            var boundsAspect = bounds.width / bounds.height;
+
+            if (textureAspect > boundsAspect)
+            {
+                var height = bounds.width / textureAspect;
+                var y = bounds.y + ((bounds.height - height) * 0.5f);
+                return new Rect(bounds.x, y, bounds.width, height);
+            }
+
+            var width = bounds.height * textureAspect;
+            var x = bounds.x + ((bounds.width - width) * 0.5f);
+            return new Rect(x, bounds.y, width, bounds.height);
         }
 
         private static void ActivateSelection(MenuSelection selection)

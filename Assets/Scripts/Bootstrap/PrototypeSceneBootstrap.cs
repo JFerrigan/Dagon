@@ -200,8 +200,9 @@ namespace Dagon.Bootstrap
                 return;
             }
 
-            spawnDirector?.ConfigureCampaign(18, 5, 16, 8, 0.4f, 0.75f);
-            runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 2);
+            // Boss scene starts directly in the boss phase by leaving no regular wave to clear.
+            spawnDirector?.ConfigureCampaign(0, 0, 1, 1, 0.4f, 0.75f);
+            runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 1);
         }
 
         private static CharacterLoadoutDefinition CreateStartingLoadout()
@@ -233,27 +234,47 @@ namespace Dagon.Bootstrap
             return new[]
             {
                 WeaponDefinition.CreateRuntime(
-                    "weapon.abyss_orb",
-                    "Abyss Orb",
-                    "Loose a slow orb that adds steady ranged pressure.",
-                    WeaponRuntimeKind.ProjectileLauncher,
-                    WeaponProjectileVisualKind.Orb,
-                    1.15f,
-                    8f,
-                    1.4f,
-                    1,
-                    0f),
-                WeaponDefinition.CreateRuntime(
-                    "weapon.riptide_fan",
-                    "Riptide Fan",
-                    "A broad fan of harpoons that thickens your front arc.",
-                    WeaponRuntimeKind.ProjectileLauncher,
+                    "weapon.anchor_chain",
+                    "Anchor Chain",
+                    "Sweep a brutal chain arc that punishes enemies pressing too close.",
+                    WeaponRuntimeKind.AnchorChain,
                     WeaponProjectileVisualKind.Harpoon,
-                    0.9f,
-                    11f,
+                    0.85f,
+                    0f,
+                    1.8f,
+                    1,
+                    0f,
+                    2.4f,
+                    105f,
+                    4.5f),
+                WeaponDefinition.CreateRuntime(
+                    "weapon.rot_lantern",
+                    "Rot Lantern",
+                    "A cursed lantern emits baleful pulses around the sailor.",
+                    WeaponRuntimeKind.RotLantern,
+                    WeaponProjectileVisualKind.Harpoon,
+                    0.75f,
+                    0f,
                     0.8f,
-                    3,
-                    14f)
+                    1,
+                    0f,
+                    2.2f),
+                WeaponDefinition.CreateRuntime(
+                    "weapon.bilge_spray",
+                    "Bilge Spray",
+                    "Blast foul brine in a short cone that slows and softens the swarm.",
+                    WeaponRuntimeKind.BilgeSpray,
+                    WeaponProjectileVisualKind.Harpoon,
+                    0.65f,
+                    0f,
+                    0.7f,
+                    1,
+                    0f,
+                    3.2f,
+                    70f,
+                    0f,
+                    0.25f,
+                    1.5f)
             };
         }
     }

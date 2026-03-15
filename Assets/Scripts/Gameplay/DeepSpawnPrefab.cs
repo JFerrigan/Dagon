@@ -8,9 +8,9 @@ namespace Dagon.Gameplay
     public sealed class DeepSpawnPrefab : MonoBehaviour
     {
         [Header("Stats")]
-        [SerializeField] private float maxHealth = 20f;
-        [SerializeField] private float driftSpeed = 1.15f;
-        [SerializeField] private float chargeSpeed = 4.4f;
+        [SerializeField] private float maxHealth = 24f;
+        [SerializeField] private float driftSpeed = 1.2f;
+        [SerializeField] private float chargeSpeed = 4.8f;
         [SerializeField] private float contactDamageAmount = 3f;
         [SerializeField] private int experienceReward = 6;
         [SerializeField] private float corruptionReward = 7f;

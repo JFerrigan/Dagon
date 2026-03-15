@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Dagon.Core;
 using UnityEngine;
 
@@ -83,73 +82,19 @@ namespace Dagon.Gameplay
 
         private CombatRewardChoiceSet BuildChoiceSet()
         {
-            var candidates = new List<CombatRewardOption>();
-            if (combatLoadout != null)
+            var selected = new List<CombatRewardOption>(3);
+            var usedKeys = new HashSet<string>();
+
+            AddWeightedPathOffer(selected, usedKeys);
+            AddWeightedPathOffer(selected, usedKeys);
+            AddNewWeaponOrGlobalOffer(selected, usedKeys);
+
+            while (selected.Count < 3 && AddWeightedPathOffer(selected, usedKeys))
             {
-                candidates.Add(new CombatRewardOption(
-                    CombatRewardKind.GlobalAttackRate,
-                    "Tighter Rhythm",
-                    "All owned weapons fire faster."));
-                candidates.Add(new CombatRewardOption(
-                    CombatRewardKind.GlobalProjectileDamage,
-                    "Barbed Iron",
-                    "All owned weapons hit harder."));
-
-                if (combatLoadout.Weapons.Count > 0)
-                {
-                    candidates.Add(new CombatRewardOption(
-                        CombatRewardKind.GlobalProjectileCount,
-                        "Storm Rack",
-                        "All owned weapons fire one additional projectile when possible."));
-                }
-
-                foreach (var weapon in combatLoadout.Weapons)
-                {
-                    candidates.Add(new CombatRewardOption(
-                        CombatRewardKind.UpgradeWeaponDamage,
-                        $"Hone {weapon.DisplayName}",
-                        $"{weapon.DisplayName} deals more damage.",
-                        targetWeaponId: weapon.WeaponId));
-                    candidates.Add(new CombatRewardOption(
-                        CombatRewardKind.UpgradeWeaponAttackRate,
-                        $"Quicken {weapon.DisplayName}",
-                        $"{weapon.DisplayName} attacks faster.",
-                        targetWeaponId: weapon.WeaponId));
-                }
-
-                foreach (var definition in combatLoadout.GetAvailableWeaponOffers().Take(2))
-                {
-                    candidates.Add(new CombatRewardOption(
-                        CombatRewardKind.AcquireWeapon,
-                        $"Claim {definition.DisplayName}",
-                        definition.Description,
-                        definition));
-                }
-
-                if (combatLoadout.GetActive(0) != null)
-                {
-                    candidates.Add(new CombatRewardOption(
-                        CombatRewardKind.ActiveRadius,
-                        "Rising Tide",
-                        "Increase the area of your equipped active ability."));
-                }
             }
 
-            candidates.Add(new CombatRewardOption(
-                CombatRewardKind.MaxHealth,
-                "Salt-Hardened",
-                "Increase max health."));
-            candidates.Add(new CombatRewardOption(
-                CombatRewardKind.CorruptionPulse,
-                "Tide of Dagon",
-                "Gain corruption and empower the run."));
-
-            var selected = new List<CombatRewardOption>();
-            while (selected.Count < 3 && candidates.Count > 0)
+            while (selected.Count < 3 && AddGlobalOffer(selected, usedKeys))
             {
-                var index = UnityEngine.Random.Range(0, candidates.Count);
-                selected.Add(candidates[index]);
-                candidates.RemoveAt(index);
             }
 
             return new CombatRewardChoiceSet(selected.ToArray());
@@ -159,25 +104,14 @@ namespace Dagon.Gameplay
         {
             switch (reward.Kind)
             {
-                case CombatRewardKind.GlobalAttackRate:
-                    combatLoadout?.ModifyAllWeaponsAttackRate(0.25f);
-                    break;
-                case CombatRewardKind.GlobalProjectileDamage:
-                    combatLoadout?.ModifyAllWeaponsDamage(0.5f);
-                    break;
-                case CombatRewardKind.GlobalProjectileCount:
-                    combatLoadout?.ModifyAllWeaponsProjectileCount(1);
-                    break;
                 case CombatRewardKind.AcquireWeapon:
                     combatLoadout?.AddWeapon(reward.WeaponDefinition);
                     break;
-                case CombatRewardKind.UpgradeWeaponAttackRate:
-                case CombatRewardKind.UpgradeWeaponDamage:
-                case CombatRewardKind.UpgradeWeaponProjectileCount:
-                    combatLoadout?.UpgradeWeapon(reward.TargetWeaponId, reward.Kind);
-                    break;
-                case CombatRewardKind.ActiveRadius:
-                    combatLoadout?.GetActive(0)?.ModifyRadius(0.6f);
+                case CombatRewardKind.UpgradeWeaponPath:
+                    if (reward.UpgradePath.HasValue)
+                    {
+                        combatLoadout?.UpgradeWeapon(reward.TargetWeaponId, reward.UpgradePath.Value);
+                    }
                     break;
                 case CombatRewardKind.MaxHealth:
                     if (health != null)
@@ -189,6 +123,154 @@ namespace Dagon.Gameplay
                     corruptionMeter?.AddCorruption(8f);
                     break;
             }
+        }
+
+        private bool AddWeightedPathOffer(List<CombatRewardOption> selected, HashSet<string> usedKeys)
+        {
+            if (combatLoadout == null)
+            {
+                return false;
+            }
+
+            var candidates = new List<(CombatRewardOption reward, float weight)>();
+            foreach (var weapon in combatLoadout.Weapons)
+            {
+                AddPathCandidate(weapon, WeaponUpgradePath.PathA, candidates, usedKeys);
+                AddPathCandidate(weapon, WeaponUpgradePath.PathB, candidates, usedKeys);
+            }
+
+            if (candidates.Count == 0)
+            {
+                return false;
+            }
+
+            var chosen = SelectWeighted(candidates);
+            selected.Add(chosen.reward);
+            usedKeys.Add(BuildOfferKey(chosen.reward));
+            return true;
+        }
+
+        private void AddPathCandidate(
+            PlayerWeaponRuntime weapon,
+            WeaponUpgradePath path,
+            List<(CombatRewardOption reward, float weight)> candidates,
+            HashSet<string> usedKeys)
+        {
+            if (weapon == null || !weapon.TryBuildPathReward(path, out var reward))
+            {
+                return;
+            }
+
+            var key = BuildOfferKey(reward);
+            if (usedKeys.Contains(key))
+            {
+                return;
+            }
+
+            candidates.Add((reward, weapon.GetPathSelectionWeight(path)));
+        }
+
+        private void AddNewWeaponOrGlobalOffer(List<CombatRewardOption> selected, HashSet<string> usedKeys)
+        {
+            var candidates = new List<(CombatRewardOption reward, float weight)>();
+            if (combatLoadout != null)
+            {
+                foreach (var definition in combatLoadout.GetAvailableWeaponOffers())
+                {
+                    var reward = new CombatRewardOption(
+                        CombatRewardKind.AcquireWeapon,
+                        $"Claim {definition.DisplayName}",
+                        definition.Description,
+                        definition);
+                    if (!usedKeys.Contains(BuildOfferKey(reward)))
+                    {
+                        candidates.Add((reward, GetWeaponOfferWeight(definition.WeaponId)));
+                    }
+                }
+            }
+
+            AddGlobalCandidates(candidates, usedKeys);
+            if (candidates.Count == 0)
+            {
+                return;
+            }
+
+            var chosen = SelectWeighted(candidates);
+            selected.Add(chosen.reward);
+            usedKeys.Add(BuildOfferKey(chosen.reward));
+        }
+
+        private bool AddGlobalOffer(List<CombatRewardOption> selected, HashSet<string> usedKeys)
+        {
+            var candidates = new List<(CombatRewardOption reward, float weight)>();
+            AddGlobalCandidates(candidates, usedKeys);
+            if (candidates.Count == 0)
+            {
+                return false;
+            }
+
+            var chosen = SelectWeighted(candidates);
+            selected.Add(chosen.reward);
+            usedKeys.Add(BuildOfferKey(chosen.reward));
+            return true;
+        }
+
+        private void AddGlobalCandidates(List<(CombatRewardOption reward, float weight)> candidates, HashSet<string> usedKeys)
+        {
+            var healthReward = new CombatRewardOption(
+                CombatRewardKind.MaxHealth,
+                "Salt-Hardened",
+                "Increase max health.");
+            if (!usedKeys.Contains(BuildOfferKey(healthReward)))
+            {
+                candidates.Add((healthReward, 4f));
+            }
+
+            var corruptionReward = new CombatRewardOption(
+                CombatRewardKind.CorruptionPulse,
+                "Tide of Dagon",
+                "Gain corruption and empower the run.");
+            if (!usedKeys.Contains(BuildOfferKey(corruptionReward)))
+            {
+                candidates.Add((corruptionReward, 4f));
+            }
+        }
+
+        private static string BuildOfferKey(CombatRewardOption reward)
+        {
+            return $"{reward.Kind}:{reward.TargetWeaponId}:{reward.UpgradePath}:{reward.Title}";
+        }
+
+        private static float GetWeaponOfferWeight(string weaponId)
+        {
+            return weaponId switch
+            {
+                "weapon.anchor_chain" => 10f,
+                "weapon.rot_lantern" => 9f,
+                "weapon.bilge_spray" => 8f,
+                _ => 5f
+            };
+        }
+
+        private static (CombatRewardOption reward, float weight) SelectWeighted(List<(CombatRewardOption reward, float weight)> candidates)
+        {
+            var totalWeight = 0f;
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                totalWeight += Mathf.Max(0.01f, candidates[i].weight);
+            }
+
+            var roll = UnityEngine.Random.value * totalWeight;
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                roll -= Mathf.Max(0.01f, candidates[i].weight);
+                if (roll <= 0f)
+                {
+                    return candidates[i];
+                }
+            }
+
+            return candidates[candidates.Count - 1];
         }
     }
 }

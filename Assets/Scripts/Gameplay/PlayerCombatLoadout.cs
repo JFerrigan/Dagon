@@ -106,7 +106,6 @@ namespace Dagon.Gameplay
             var existing = GetWeapon(definition.WeaponId);
             if (existing != null)
             {
-                existing.RankUp();
                 return existing;
             }
 
@@ -116,7 +115,7 @@ namespace Dagon.Gameplay
             return runtime;
         }
 
-        public bool UpgradeWeapon(string weaponId, CombatRewardKind rewardKind)
+        public bool UpgradeWeapon(string weaponId, WeaponUpgradePath path)
         {
             var weapon = GetWeapon(weaponId);
             if (weapon == null)
@@ -124,20 +123,7 @@ namespace Dagon.Gameplay
                 return false;
             }
 
-            switch (rewardKind)
-            {
-                case CombatRewardKind.UpgradeWeaponAttackRate:
-                    weapon.ModifyAttackRate(0.2f);
-                    return true;
-                case CombatRewardKind.UpgradeWeaponDamage:
-                    weapon.ModifyProjectileDamage(0.5f);
-                    return true;
-                case CombatRewardKind.UpgradeWeaponProjectileCount:
-                    weapon.ModifyProjectileCount(1);
-                    return true;
-                default:
-                    return false;
-            }
+            return weapon.ApplyPathUpgrade(path);
         }
 
         public void ModifyAllWeaponsAttackRate(float amount)
@@ -209,6 +195,9 @@ namespace Dagon.Gameplay
             return definition.RuntimeKind switch
             {
                 WeaponRuntimeKind.ProjectileLauncher => gameObject.AddComponent<HarpoonLauncher>(),
+                WeaponRuntimeKind.AnchorChain => gameObject.AddComponent<AnchorChainWeapon>(),
+                WeaponRuntimeKind.RotLantern => gameObject.AddComponent<RotLanternWeapon>(),
+                WeaponRuntimeKind.BilgeSpray => gameObject.AddComponent<BilgeSprayWeapon>(),
                 _ => gameObject.AddComponent<HarpoonLauncher>()
             };
         }

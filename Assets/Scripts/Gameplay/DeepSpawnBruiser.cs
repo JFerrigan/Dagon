@@ -9,8 +9,10 @@ namespace Dagon.Gameplay
         [SerializeField] private float driftSpeed = 1.1f;
         [SerializeField] private float chargeSpeed = 4.2f;
         [SerializeField] private float chargeTriggerDistance = 6.5f;
+        [SerializeField] private float windupDuration = 0.55f;
         [SerializeField] private float chargeDuration = 1.2f;
-        [SerializeField] private float recoveryDuration = 1.6f;
+        [SerializeField] private float recoveryDuration = 1.4f;
+        [SerializeField] private EnemySlowReceiver slowReceiver;
 
         private float stateTimer;
         private State state;
@@ -18,8 +20,17 @@ namespace Dagon.Gameplay
         private enum State
         {
             Drift,
+            Windup,
             Charge,
             Recover
+        }
+
+        private void Awake()
+        {
+            if (slowReceiver == null)
+            {
+                slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
         }
 
         private void Update()
@@ -44,6 +55,14 @@ namespace Dagon.Gameplay
                 case State.Drift:
                     Drift(toTarget);
                     if (toTarget.sqrMagnitude <= chargeTriggerDistance * chargeTriggerDistance && stateTimer <= 0f)
+                    {
+                        state = State.Windup;
+                        stateTimer = windupDuration;
+                    }
+                    break;
+                case State.Windup:
+                    Drift(toTarget * 0.15f);
+                    if (stateTimer <= 0f)
                     {
                         state = State.Charge;
                         stateTimer = chargeDuration;
@@ -84,7 +103,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            transform.position += toTarget.normalized * (driftSpeed * Time.deltaTime);
+            var effectiveSpeed = driftSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            transform.position += toTarget.normalized * (effectiveSpeed * Time.deltaTime);
         }
 
         private void Charge(Vector3 toTarget)
@@ -94,7 +114,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            transform.position += toTarget.normalized * (chargeSpeed * Time.deltaTime);
+            var effectiveSpeed = chargeSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            transform.position += toTarget.normalized * (effectiveSpeed * Time.deltaTime);
         }
     }
 }
