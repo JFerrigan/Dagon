@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using Dagon.Core;
+using Dagon.UI;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace Dagon.Gameplay
@@ -11,6 +13,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private SpawnDirector spawnDirector;
+        [SerializeField] private ExperienceController experienceController;
         [SerializeField] private HarpoonProjectile bossProjectilePrefab;
         [SerializeField] private string nextSceneName;
         [SerializeField] private string menuSceneName = "MainMenu";
@@ -26,15 +29,21 @@ namespace Dagon.Gameplay
         private bool bossWaveStarted;
         private bool runEnded;
         private bool playerWon;
+        private bool pauseMenuOpen;
         private float bossWaveBannerTimer;
 
         public float RunTimer => runTimer;
         public bool RunEnded => runEnded;
         public bool BossWaveStarted => bossWaveStarted;
+        public bool PauseMenuOpen => pauseMenuOpen;
 
         private void Start()
         {
             whiteTexture = Texture2D.whiteTexture;
+            if (experienceController == null)
+            {
+                experienceController = FindObjectOfType<ExperienceController>();
+            }
 
             if (player != null)
             {
@@ -74,6 +83,14 @@ namespace Dagon.Gameplay
 
         private void Update()
         {
+            if (!runEnded && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                if (!IsUpgradeOverlayOpen())
+                {
+                    TogglePauseMenu();
+                }
+            }
+
             if (runEnded)
             {
                 return;
@@ -151,9 +168,9 @@ namespace Dagon.Gameplay
             boss.transform.position = player.position + new Vector3(offset.x, 0.6f, offset.z);
 
             var collider = boss.AddComponent<CapsuleCollider>();
-            collider.center = new Vector3(0f, 1.1f, 0f);
-            collider.height = 2.8f;
-            collider.radius = 0.9f;
+            collider.center = new Vector3(0f, 1.15f, 0f);
+            collider.height = 3.2f;
+            collider.radius = 1.15f;
             collider.isTrigger = true;
 
             var rigidbody = boss.AddComponent<Rigidbody>();
@@ -161,9 +178,11 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var bossHealth = boss.AddComponent<Health>();
-            bossHealth.SetMaxHealth(140f, true);
+            bossHealth.SetMaxHealth(35f, true);
             bossHealth.Died += HandleBossDied;
             activeBosses.Add(bossHealth);
+            boss.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, bossHealth);
+            boss.AddComponent<KnockbackReceiver>().Configure(0.18f, 22f, 2.4f);
 
             var contactDamage = boss.AddComponent<ContactDamage>();
             contactDamage.Configure(4f);
@@ -173,6 +192,9 @@ namespace Dagon.Gameplay
 
             var rewards = boss.AddComponent<EnemyDeathRewards>();
             rewards.Configure(20, 20f);
+
+            var healthBar = boss.AddComponent<EnemyHealthBar>();
+            healthBar.Configure(worldCamera, new Vector3(0f, 2.45f, 0f), false);
 
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(boss.transform, false);
@@ -209,6 +231,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
+            pauseMenuOpen = false;
             runEnded = true;
             playerWon = won;
             Time.timeScale = 0f;
@@ -224,6 +247,12 @@ namespace Dagon.Gameplay
                 return;
             }
 
+            if (pauseMenuOpen)
+            {
+                DrawPauseMenu();
+                return;
+            }
+
             GUI.Label(new Rect(Screen.width - 220f, 18f, 200f, 22f), $"Run: {runTimer:0.0}s");
             if (!bossWaveStarted)
             {
@@ -232,7 +261,6 @@ namespace Dagon.Gameplay
             }
             else
             {
-                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Bosses left: {activeBosses.Count}");
                 DrawBossHealthBar();
                 DrawBossWaveBanner();
             }
@@ -264,9 +292,9 @@ namespace Dagon.Gameplay
             }
 
             const float width = 420f;
-            const float height = 16f;
+            const float height = 10f;
             var x = (Screen.width - width) * 0.5f;
-            var y = 18f;
+            var y = Screen.height - 34f;
             var progress = Mathf.Clamp01(totalCurrent / totalMax);
 
             var previous = GUI.color;
@@ -276,7 +304,9 @@ namespace Dagon.Gameplay
             GUI.DrawTexture(new Rect(x, y, width * progress, height), whiteTexture, ScaleMode.StretchToFill, false);
             GUI.color = previous;
 
-            var label = activeBosses.Count == 1 ? "Mire Colossus" : $"Boss Wave x{activeBosses.Count}";
+            var label = activeBosses.Count == 1
+                ? $"Mire Colossus  {Mathf.CeilToInt(totalCurrent)} / {Mathf.CeilToInt(totalMax)}"
+                : $"Boss Wave x{activeBosses.Count}  {Mathf.CeilToInt(totalCurrent)} / {Mathf.CeilToInt(totalMax)}";
             GUI.Label(new Rect(x, y - 18f, width, 18f), label);
         }
 
@@ -353,6 +383,76 @@ namespace Dagon.Gameplay
             GUI.matrix = previousMatrix;
             GUI.color = previousColor;
             GUI.backgroundColor = previousBackground;
+        }
+
+        private void DrawPauseMenu()
+        {
+            var previousMatrix = GUI.matrix;
+            var previousColor = GUI.color;
+            var previousBackground = GUI.backgroundColor;
+
+            var scale = Mathf.Max(1.05f, Mathf.Min(Screen.width / 1600f, Screen.height / 900f) * 1.1f);
+            var width = 520f;
+            var height = 340f;
+            var scaledWidth = Screen.width / scale;
+            var scaledHeight = Screen.height / scale;
+            var box = new Rect((scaledWidth - width) * 0.5f, (scaledHeight - height) * 0.5f, width, height);
+
+            GUI.color = new Color(0.02f, 0.04f, 0.04f, 0.46f);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), whiteTexture, ScaleMode.StretchToFill, false);
+
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
+            DrawPanel(box);
+
+            GUI.Label(new Rect(box.x + 36f, box.y + 28f, box.width - 72f, 34f), "Paused", endTitleStyle);
+            GUI.Label(new Rect(box.x + 48f, box.y + 74f, box.width - 96f, 42f), "The run is on hold. Resume, restart, or return to the menu.", endBodyStyle);
+
+            GUI.backgroundColor = new Color(0.16f, 0.28f, 0.22f, 0.92f);
+            if (GUI.Button(new Rect(box.x + 76f, box.y + 138f, box.width - 152f, 50f), "Resume", endButtonStyle))
+            {
+                ClosePauseMenu();
+            }
+
+            GUI.backgroundColor = new Color(0.18f, 0.24f, 0.20f, 0.92f);
+            if (GUI.Button(new Rect(box.x + 76f, box.y + 200f, box.width - 152f, 50f), "Restart", endButtonStyle))
+            {
+                pauseMenuOpen = false;
+                LoadScene(SceneManager.GetActiveScene().name);
+            }
+
+            GUI.backgroundColor = new Color(0.14f, 0.22f, 0.20f, 0.9f);
+            if (GUI.Button(new Rect(box.x + 76f, box.y + 262f, box.width - 152f, 50f), "Main Menu", endButtonStyle))
+            {
+                pauseMenuOpen = false;
+                LoadScene(menuSceneName);
+            }
+
+            GUI.matrix = previousMatrix;
+            GUI.color = previousColor;
+            GUI.backgroundColor = previousBackground;
+        }
+
+        private bool IsUpgradeOverlayOpen()
+        {
+            return experienceController != null && experienceController.HasPendingChoice;
+        }
+
+        private void TogglePauseMenu()
+        {
+            if (pauseMenuOpen)
+            {
+                ClosePauseMenu();
+                return;
+            }
+
+            pauseMenuOpen = true;
+            Time.timeScale = 0f;
+        }
+
+        private void ClosePauseMenu()
+        {
+            pauseMenuOpen = false;
+            Time.timeScale = 1f;
         }
 
         private static void LoadScene(string sceneName)

@@ -115,6 +115,58 @@ namespace Dagon.Gameplay
             return runtime;
         }
 
+        public void ResetWeaponsToStartingLoadout()
+        {
+            ClearWeapons();
+            if (startingLoadout?.StartingBaseWeapon != null)
+            {
+                AddWeapon(startingLoadout.StartingBaseWeapon, true);
+            }
+        }
+
+        public void SetWeapons(IEnumerable<WeaponDefinition> definitions, string baseWeaponId = null)
+        {
+            ClearWeapons();
+            if (definitions == null)
+            {
+                ResetWeaponsToStartingLoadout();
+                return;
+            }
+
+            var uniqueDefinitions = definitions
+                .Where(definition => definition != null)
+                .GroupBy(definition => definition.WeaponId)
+                .Select(group => group.First())
+                .ToList();
+
+            if (uniqueDefinitions.Count == 0)
+            {
+                ResetWeaponsToStartingLoadout();
+                return;
+            }
+
+            var resolvedBaseWeaponId = !string.IsNullOrWhiteSpace(baseWeaponId)
+                ? baseWeaponId
+                : uniqueDefinitions[0].WeaponId;
+
+            for (var index = 0; index < uniqueDefinitions.Count; index++)
+            {
+                var definition = uniqueDefinitions[index];
+                var isBaseWeapon = definition.WeaponId == resolvedBaseWeaponId;
+                AddWeapon(definition, isBaseWeapon);
+            }
+
+            if (BaseWeapon == null && weapons.Count > 0)
+            {
+                ClearWeapons();
+                AddWeapon(uniqueDefinitions[0], true);
+                for (var index = 1; index < uniqueDefinitions.Count; index++)
+                {
+                    AddWeapon(uniqueDefinitions[index], false);
+                }
+            }
+        }
+
         public bool UpgradeWeapon(string weaponId, WeaponUpgradePath path)
         {
             var weapon = GetWeapon(weaponId);
@@ -188,6 +240,19 @@ namespace Dagon.Gameplay
             runtime.InitializeRuntime(definition, slotIndex, worldCamera);
             activeSlots[slotIndex] = runtime;
             return runtime;
+        }
+
+        private void ClearWeapons()
+        {
+            for (var index = weapons.Count - 1; index >= 0; index--)
+            {
+                if (weapons[index] != null)
+                {
+                    Destroy(weapons[index]);
+                }
+            }
+
+            weapons.Clear();
         }
 
         private PlayerWeaponRuntime CreateWeaponRuntime(WeaponDefinition definition)

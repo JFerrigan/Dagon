@@ -165,20 +165,20 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                var damageable = hit.GetComponentInParent<IDamageable>();
-                damageable?.ApplyDamage(damage, gameObject);
+                var hitTarget = CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage);
+
+                if (!hitTarget)
+                {
+                    continue;
+                }
 
                 var slowReceiver = hit.GetComponentInParent<EnemySlowReceiver>();
-                if (slowReceiver == null)
+                if (slowReceiver == null && CombatResolver.TryResolveTarget(hit, CombatTeam.Player, gameObject, out var hurtbox))
                 {
-                    var health = hit.GetComponentInParent<Health>();
-                    if (health != null)
+                    slowReceiver = hurtbox.Health != null ? hurtbox.Health.GetComponent<EnemySlowReceiver>() : null;
+                    if (slowReceiver == null && hurtbox.Health != null)
                     {
-                        slowReceiver = health.GetComponent<EnemySlowReceiver>();
-                        if (slowReceiver == null)
-                        {
-                            slowReceiver = health.gameObject.AddComponent<EnemySlowReceiver>();
-                        }
+                        slowReceiver = hurtbox.Health.gameObject.AddComponent<EnemySlowReceiver>();
                     }
                 }
 

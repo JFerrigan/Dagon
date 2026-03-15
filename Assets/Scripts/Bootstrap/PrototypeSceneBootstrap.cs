@@ -11,22 +11,31 @@ namespace Dagon.Bootstrap
         private enum StageKind
         {
             BlackMireRun,
-            MireColossusBoss
+            MireColossusBoss,
+            DeveloperSandbox
         }
 
         private const string RuntimeRootName = "DagonStageRuntime";
 
         [SerializeField] private StageKind stageKind = StageKind.BlackMireRun;
         [SerializeField] private string runtimeRootName = RuntimeRootName;
+        [Header("Black Mire Run")]
+        [SerializeField] private int blackMireSpawnQuota = 14;
+        [SerializeField] private int blackMireStartingEnemies = 4;
+        [SerializeField] private int blackMireMaxAliveEnemies = 6;
+        [SerializeField] private int blackMireEliteSpawnEvery = 8;
+        [SerializeField] private float blackMireMinSpawnInterval = 0.8f;
+        [SerializeField] private float blackMireMaxSpawnInterval = 1.35f;
 
         private void Awake()
         {
+            Time.timeScale = 1f;
             EnsureBuilt();
         }
 
         private void EnsureBuilt()
         {
-            if (GameObject.FindGameObjectWithTag("Player") != null || GameObject.Find(runtimeRootName) != null)
+            if (GameObject.Find(runtimeRootName) != null)
             {
                 return;
             }
@@ -43,7 +52,7 @@ namespace Dagon.Bootstrap
             ConfigurePlayerCombat(player, cameraObject);
             CreateLight(root);
             CreateGround(root, player.transform);
-            CreateProps(root, cameraObject);
+            CreateProps(root, cameraObject, player.transform);
             CreateStageRuntimeSystems(root, player, cameraObject);
         }
 
@@ -66,6 +75,7 @@ namespace Dagon.Bootstrap
 
             player.AddComponent<Health>();
             player.AddComponent<CorruptionMeter>();
+            player.AddComponent<Hurtbox>().Configure(CombatTeam.Player, player.GetComponent<Health>());
 
             player.AddComponent<PlayerMover>();
             player.AddComponent<PlayerCombatLoadout>();
@@ -166,13 +176,13 @@ namespace Dagon.Bootstrap
             tiler.Build();
         }
 
-        private static void CreateProps(Transform root, Camera camera)
+        private static void CreateProps(Transform root, Camera camera, Transform player)
         {
             var scatterer = root.gameObject.AddComponent<MirePropScatterer>();
-            scatterer.Configure(camera);
+            scatterer.Configure(camera, player);
         }
 
-        private static void CreateCommonRuntimeSystems(Transform root, GameObject player, Camera camera)
+        private static void CreateCommonRuntimeSystems(Transform root, GameObject player, Camera camera, bool includeRunStateManager)
         {
             var sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mire_wretch");
             var acolyteProjectile = RuntimeOrbProjectileFactory.Create(camera);
@@ -182,24 +192,49 @@ namespace Dagon.Bootstrap
             root.gameObject.AddComponent<ExperienceHud>();
             player.GetComponent<CorruptionRuntimeEffects>().Configure(spawnDirector);
 
-            var runState = root.gameObject.AddComponent<RunStateManager>();
-            runState.Configure(player.transform, camera, spawnDirector, sprite, acolyteProjectile);
+            if (includeRunStateManager)
+            {
+                var runState = root.gameObject.AddComponent<RunStateManager>();
+                runState.Configure(player.transform, camera, spawnDirector, sprite, acolyteProjectile);
+            }
         }
 
         private void CreateStageRuntimeSystems(Transform root, GameObject player, Camera camera)
         {
-            CreateCommonRuntimeSystems(root, player, camera);
+            CreateCommonRuntimeSystems(root, player, camera, includeRunStateManager: true);
 
             var spawnDirector = root.GetComponent<SpawnDirector>();
             var runState = root.GetComponent<RunStateManager>();
 
-            if (stageKind == StageKind.BlackMireRun)
+            if (stageKind == StageKind.MireColossusBoss)
             {
-                spawnDirector?.ConfigureCampaign(30, 7, 20, 10, 0.35f, 0.7f);
-                runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
+                ConfigureBossScene(spawnDirector, runState);
                 return;
             }
 
+            ConfigureBlackMireRun(spawnDirector, runState);
+
+            if (stageKind == StageKind.DeveloperSandbox)
+            {
+                var sandboxController = root.gameObject.AddComponent<DeveloperSandboxController>();
+                sandboxController.Configure(player.GetComponent<PlayerCombatLoadout>());
+            }
+        }
+
+        private void ConfigureBlackMireRun(SpawnDirector spawnDirector, RunStateManager runState)
+        {
+            spawnDirector?.ConfigureCampaign(
+                blackMireSpawnQuota,
+                blackMireStartingEnemies,
+                blackMireMaxAliveEnemies,
+                blackMireEliteSpawnEvery,
+                blackMireMinSpawnInterval,
+                blackMireMaxSpawnInterval);
+            runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
+        }
+
+        private static void ConfigureBossScene(SpawnDirector spawnDirector, RunStateManager runState)
+        {
             // Boss scene starts directly in the boss phase by leaving no regular wave to clear.
             spawnDirector?.ConfigureCampaign(0, 0, 1, 1, 0.4f, 0.75f);
             runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 1);

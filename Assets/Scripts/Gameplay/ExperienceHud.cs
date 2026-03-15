@@ -19,7 +19,6 @@ namespace Dagon.Gameplay
         [SerializeField] private Health playerHealth;
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private PlayerCombatLoadout combatLoadout;
-
         private Texture2D heartTexture;
         private Texture2D whiteTexture;
         private GUIStyle centeredTitleStyle;
@@ -69,10 +68,6 @@ namespace Dagon.Gameplay
 
             if (!experienceController.HasPendingChoice)
             {
-                if (Time.timeScale == 0f)
-                {
-                    Time.timeScale = 1f;
-                }
                 return;
             }
 
@@ -119,8 +114,8 @@ namespace Dagon.Gameplay
         private void DrawExperienceBar()
         {
             const float barWidth = 240f;
-            const float barHeight = 18f;
-            const float topMargin = 18f;
+            const float barHeight = 10f;
+            const float topMargin = 20f;
 
             var progress = experienceController.RequiredXp > 0
                 ? Mathf.Clamp01(experienceController.CurrentXp / (float)experienceController.RequiredXp)
@@ -130,7 +125,7 @@ namespace Dagon.Gameplay
 
             GUI.Label(new Rect(barX, barY - 16f, 180f, 18f), $"Level {experienceController.Level}");
             DrawMeter(new Rect(barX, barY, barWidth, barHeight), progress, XpFill, XpBackground);
-            GUI.Label(new Rect(barX + 6f, barY + 1f, barWidth - 12f, 18f), $"XP {experienceController.CurrentXp}/{experienceController.RequiredXp}");
+            GUI.Label(new Rect(barX + barWidth + 8f, barY - 4f, 96f, 18f), $"{experienceController.CurrentXp}/{experienceController.RequiredXp}");
         }
 
         private void DrawCooldownPanel()

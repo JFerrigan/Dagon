@@ -17,6 +17,7 @@ namespace Dagon.Gameplay
         private float hazardTickDamage = 0.5f;
         private float hazardTickInterval = 0.5f;
         private Camera worldCamera;
+        private CombatTeam sourceTeam;
 
         public void Initialize(
             GameObject projectileOwner,
@@ -38,6 +39,7 @@ namespace Dagon.Gameplay
             hazardTickDamage = zoneTickDamage;
             hazardTickInterval = zoneTickInterval;
             worldCamera = cameraReference;
+            sourceTeam = CombatResolver.GetTeam(projectileOwner);
         }
 
         private void Update()
@@ -57,18 +59,14 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var damageable = other.GetComponentInParent<IDamageable>();
-            if (damageable != null && (other.CompareTag("Player") || other.GetComponentInParent<PlayerMover>() != null))
-            {
-                damageable.ApplyDamage(impactDamage, owner);
-            }
+            CombatResolver.TryApplyDamage(other, sourceTeam, owner, impactDamage);
 
             Explode();
         }
 
         private void Explode()
         {
-            EnemyHazardZone.Spawn(
+            EnemyHazardZone.SpawnForTeam(
                 transform.position,
                 hazardRadius,
                 hazardDuration,
@@ -76,6 +74,8 @@ namespace Dagon.Gameplay
                 hazardTickInterval,
                 worldCamera,
                 new Color(0.38f, 0.82f, 0.52f, 0.48f),
+                CombatTeam.Player,
+                owner,
                 "AcolyteHazardZone");
             Destroy(gameObject);
         }

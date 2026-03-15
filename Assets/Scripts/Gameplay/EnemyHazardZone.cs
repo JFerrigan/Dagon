@@ -1,4 +1,3 @@
-using Dagon.Core;
 using UnityEngine;
 
 namespace Dagon.Gameplay
@@ -12,6 +11,8 @@ namespace Dagon.Gameplay
         private float tickInterval;
         private Camera worldCamera;
         private float tickTimer;
+        private CombatTeam targetTeam = CombatTeam.Player;
+        private GameObject sourceOwner;
 
         public static void Spawn(
             Vector3 position,
@@ -27,7 +28,26 @@ namespace Dagon.Gameplay
             zone.transform.position = position + Vector3.up * 0.08f;
 
             var component = zone.AddComponent<EnemyHazardZone>();
-            component.Initialize(radius, duration, tickDamage, tickInterval, camera, tint);
+            component.Initialize(radius, duration, tickDamage, tickInterval, camera, tint, CombatTeam.Player, null);
+        }
+
+        public static void SpawnForTeam(
+            Vector3 position,
+            float radius,
+            float duration,
+            float tickDamage,
+            float tickInterval,
+            Camera camera,
+            Color tint,
+            CombatTeam newTargetTeam,
+            GameObject owner,
+            string name = "EnemyHazardZone")
+        {
+            var zone = new GameObject(name);
+            zone.transform.position = position + Vector3.up * 0.08f;
+
+            var component = zone.AddComponent<EnemyHazardZone>();
+            component.Initialize(radius, duration, tickDamage, tickInterval, camera, tint, newTargetTeam, owner);
         }
 
         private void Update()
@@ -46,7 +66,15 @@ namespace Dagon.Gameplay
             }
         }
 
-        private void Initialize(float zoneRadius, float zoneDuration, float damage, float interval, Camera camera, Color tint)
+        private void Initialize(
+            float zoneRadius,
+            float zoneDuration,
+            float damage,
+            float interval,
+            Camera camera,
+            Color tint,
+            CombatTeam newTargetTeam,
+            GameObject owner)
         {
             radius = Mathf.Max(0.1f, zoneRadius);
             duration = Mathf.Max(0.1f, zoneDuration);
@@ -54,6 +82,8 @@ namespace Dagon.Gameplay
             tickInterval = Mathf.Max(0.1f, interval);
             tickTimer = tickInterval;
             worldCamera = camera;
+            targetTeam = newTargetTeam;
+            sourceOwner = owner;
 
             PlaceholderWeaponVisual.Spawn(
                 "EnemyHazardVisual",
@@ -70,15 +100,10 @@ namespace Dagon.Gameplay
             var colliders = Physics.OverlapSphere(transform.position, radius, ~0, QueryTriggerInteraction.Collide);
             for (var i = 0; i < colliders.Length; i++)
             {
-                var damageable = colliders[i].GetComponentInParent<IDamageable>();
-                if (damageable == null)
+                if (CombatResolver.TryResolveTarget(colliders[i], CombatTeam.Neutral, sourceOwner, out var hurtbox) &&
+                    hurtbox.Team == targetTeam)
                 {
-                    continue;
-                }
-
-                if (colliders[i].CompareTag("Player") || colliders[i].GetComponentInParent<PlayerMover>() != null)
-                {
-                    damageable.ApplyDamage(tickDamage, gameObject);
+                    hurtbox.Damageable.ApplyDamage(tickDamage, sourceOwner != null ? sourceOwner : gameObject);
                 }
             }
         }

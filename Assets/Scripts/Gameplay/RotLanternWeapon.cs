@@ -137,8 +137,7 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                var damageable = hit.GetComponentInParent<IDamageable>();
-                damageable?.ApplyDamage(damage, gameObject);
+                CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage);
             }
 
             PlaceholderWeaponVisual.Spawn(

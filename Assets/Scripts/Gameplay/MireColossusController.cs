@@ -369,19 +369,10 @@ namespace Dagon.Gameplay
             var colliders = Physics.OverlapSphere(transform.position, slamRadius, ~0, QueryTriggerInteraction.Collide);
             for (var i = 0; i < colliders.Length; i++)
             {
-                var damageable = colliders[i].GetComponentInParent<IDamageable>();
-                if (damageable == null)
-                {
-                    continue;
-                }
-
-                if (colliders[i].CompareTag("Player") || colliders[i].GetComponentInParent<PlayerMover>() != null)
-                {
-                    damageable.ApplyDamage(slamDamage, gameObject);
-                }
+                CombatResolver.TryApplyDamage(colliders[i], CombatTeam.Enemy, gameObject, slamDamage);
             }
 
-            EnemyHazardZone.Spawn(
+            EnemyHazardZone.SpawnForTeam(
                 transform.position,
                 slamRadius,
                 slamHazardDuration,
@@ -389,6 +380,8 @@ namespace Dagon.Gameplay
                 slamHazardTickInterval,
                 worldCamera,
                 new Color(0.28f, 0.68f, 0.36f, 0.42f),
+                CombatTeam.Player,
+                gameObject,
                 "ColossusSlamHazard");
         }
     }

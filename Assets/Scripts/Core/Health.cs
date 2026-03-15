@@ -16,6 +16,7 @@ namespace Dagon.Core
         private bool isDead;
 
         public event Action<Health, GameObject> Died;
+        public event Action<Health> Changed;
 
         public float CurrentHealth => currentHealth;
         public float MaxHealth => maxHealth;
@@ -30,11 +31,21 @@ namespace Dagon.Core
         {
             if (isDead || amount <= 0f)
             {
+                Dagon.Gameplay.CombatDebug.Log(
+                    "Health",
+                    $"target={name} amount={amount:0.##} source={(source != null ? source.name : "null")} applied=false isDead={isDead}",
+                    this);
                 return;
             }
 
+            var previousHealth = currentHealth;
             currentHealth = Mathf.Max(0f, currentHealth - amount);
+            Dagon.Gameplay.CombatDebug.Log(
+                "Health",
+                $"target={name} amount={amount:0.##} source={(source != null ? source.name : "null")} hp={previousHealth:0.##}->{currentHealth:0.##}",
+                this);
             onDamaged?.Invoke();
+            Changed?.Invoke(this);
 
             if (currentHealth > 0f)
             {
@@ -42,6 +53,10 @@ namespace Dagon.Core
             }
 
             isDead = true;
+            Dagon.Gameplay.CombatDebug.Log(
+                "Health",
+                $"target={name} died source={(source != null ? source.name : "null")}",
+                this);
             onDeath?.Invoke();
             Died?.Invoke(this, source);
 
@@ -55,6 +70,7 @@ namespace Dagon.Core
         {
             isDead = false;
             currentHealth = maxHealth;
+            Changed?.Invoke(this);
         }
 
         public void SetMaxHealth(float value, bool refillHealth)
@@ -67,6 +83,7 @@ namespace Dagon.Core
             else
             {
                 currentHealth = Mathf.Min(currentHealth, maxHealth);
+                Changed?.Invoke(this);
             }
         }
     }

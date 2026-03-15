@@ -15,6 +15,8 @@ namespace Dagon.Gameplay
         [SerializeField] private float spreadAngle = 8f;
         [SerializeField] private bool autoFire = true;
         [SerializeField] private WeaponProjectileVisualKind projectileVisualKind = WeaponProjectileVisualKind.Harpoon;
+        [SerializeField] private bool hitKnockbackEnabled = true;
+        [SerializeField] private float hitKnockbackStrength = 1.2f;
 
         private float cooldownTimer;
 
@@ -33,6 +35,10 @@ namespace Dagon.Gameplay
         {
             if (!autoFire || projectilePrefab == null || attacksPerSecond <= 0f)
             {
+                if (autoFire && projectilePrefab == null)
+                {
+                    CombatDebug.Log("HarpoonFire", $"weapon={name} fired=false reason=no_projectile_prefab", this);
+                }
                 return;
             }
 
@@ -89,24 +95,33 @@ namespace Dagon.Gameplay
 
         public void FireVolley()
         {
-            var origin = spawnPoint != null ? spawnPoint.position : transform.position;
             var baseDirection = playerMover != null ? playerMover.AimDirection : transform.forward;
             if (baseDirection.sqrMagnitude < 0.001f)
             {
                 baseDirection = transform.forward;
             }
 
+            baseDirection = baseDirection.normalized;
+            var origin = spawnPoint != null
+                ? spawnPoint.position
+                : transform.position + (baseDirection * 0.6f) + (Vector3.up * 0.35f);
+
             var count = Mathf.Max(1, projectilesPerVolley);
             var startAngle = -spreadAngle * 0.5f * (count - 1);
+
+            CombatDebug.Log(
+                "HarpoonFire",
+                $"weapon={name} origin={origin} baseDirection={baseDirection} count={count} damage={projectileDamage:0.##} speed={projectileSpeed:0.##}",
+                this);
 
             for (var i = 0; i < count; i++)
             {
                 var yaw = startAngle + (spreadAngle * i);
                 var rotation = Quaternion.AngleAxis(yaw, Vector3.up);
-                var direction = rotation * baseDirection.normalized;
+                var direction = rotation * baseDirection;
                 var projectile = Instantiate(projectilePrefab, origin, Quaternion.LookRotation(direction, Vector3.up));
                 projectile.gameObject.SetActive(true);
-                projectile.Initialize(gameObject, direction, projectileSpeed, projectileDamage);
+                projectile.Initialize(gameObject, direction, projectileSpeed, projectileDamage, hitKnockbackEnabled, hitKnockbackStrength);
             }
         }
 

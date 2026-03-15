@@ -1,5 +1,6 @@
 using Dagon.Core;
 using Dagon.Rendering;
+using Dagon.UI;
 using UnityEngine;
 
 namespace Dagon.Gameplay
@@ -30,6 +31,9 @@ namespace Dagon.Gameplay
         private EnemyDeathRewards rewards;
         private ContactDamage contactDamage;
         private DeepSpawnBruiser bruiser;
+        private Hurtbox hurtbox;
+        private KnockbackReceiver knockbackReceiver;
+        private EnemyHealthBar healthBar;
         private BillboardSprite billboard;
         private SpriteRenderer spriteRenderer;
         private Transform visualsRoot;
@@ -57,6 +61,7 @@ namespace Dagon.Gameplay
             rewards.Configure(experienceReward, corruptionReward);
             bruiser.Configure(target, driftSpeed, chargeSpeed);
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
+            healthBar.Configure(worldCamera, new Vector3(0f, 1.68f, 0f), false);
         }
 
         private void EnsureSetup()
@@ -65,6 +70,9 @@ namespace Dagon.Gameplay
             rewards = GetOrAddComponent(rewards);
             contactDamage = GetOrAddComponent(contactDamage);
             bruiser = GetOrAddComponent(bruiser);
+            hurtbox = GetOrAddComponent(hurtbox);
+            knockbackReceiver = GetOrAddComponent(knockbackReceiver);
+            healthBar = GetOrAddComponent(healthBar);
 
             var capsuleCollider = GetOrAddComponent<CapsuleCollider>(null);
             capsuleCollider.center = colliderCenter;
@@ -75,6 +83,9 @@ namespace Dagon.Gameplay
             var body = GetOrAddComponent<Rigidbody>(null);
             body.isKinematic = true;
             body.useGravity = false;
+
+            hurtbox.Configure(CombatTeam.Enemy, health);
+            knockbackReceiver.Configure(0.45f, 20f, 4.5f);
 
             if (visualsRoot == null)
             {

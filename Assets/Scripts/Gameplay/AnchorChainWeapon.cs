@@ -164,9 +164,10 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                var damageable = hit.GetComponentInParent<IDamageable>();
-                damageable?.ApplyDamage(damage, gameObject);
-                ApplyKnockback(hit.transform, toTarget.normalized);
+                if (CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage))
+                {
+                    ApplyKnockback(hit.transform, toTarget.normalized);
+                }
             }
 
             var yaw = Mathf.Atan2(baseDirection.x, baseDirection.z) * Mathf.Rad2Deg;

@@ -9,7 +9,6 @@ namespace Dagon.Gameplay
         [SerializeField] private float wanderRadius = 8f;
         [SerializeField] private float moveSpeed = 1.9f;
         [SerializeField] private float stoppingDistance = 0.75f;
-        [SerializeField] private float chaseDistance = 6f;
         [SerializeField] private float retargetIntervalMin = 1.2f;
         [SerializeField] private float retargetIntervalMax = 2.6f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
@@ -60,7 +59,6 @@ namespace Dagon.Gameplay
             target = newTarget;
             moveSpeed = Mathf.Max(0.1f, newMoveSpeed);
             wanderRadius = Mathf.Max(0.5f, newWanderRadius);
-            chaseDistance = Mathf.Max(0.5f, newChaseDistance);
             origin = transform.position;
             PickRoamTarget();
         }
@@ -72,20 +70,7 @@ namespace Dagon.Gameplay
                 return roamTarget;
             }
 
-            var toPlayer = target.position - transform.position;
-            toPlayer.y = 0f;
-            if (toPlayer.sqrMagnitude <= chaseDistance * chaseDistance)
-            {
-                return target.position;
-            }
-
-            retargetTimer -= Time.deltaTime;
-            if (retargetTimer <= 0f)
-            {
-                PickRoamTarget();
-            }
-
-            return roamTarget;
+            return target.position;
         }
 
         private void PickRoamTarget()

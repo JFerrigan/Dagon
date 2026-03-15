@@ -13,7 +13,7 @@ namespace Dagon.Gameplay
 
             var collider = projectile.AddComponent<SphereCollider>();
             collider.isTrigger = true;
-            collider.radius = 0.12f;
+            collider.radius = 0.16f;
 
             var rigidbody = projectile.AddComponent<Rigidbody>();
             rigidbody.useGravity = false;
@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
             renderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Weapons/harpoon_projectile");
             renderer.color = Color.white;
             renderer.sortingOrder = 12;
-            visuals.transform.localScale = new Vector3(0.035f, 0.035f, 1f);
+            visuals.transform.localScale = new Vector3(0.06f, 0.06f, 1f);
 
             var orienter = visuals.AddComponent<ProjectileBillboardVisual>();
             orienter.Configure(camera, projectile.transform);

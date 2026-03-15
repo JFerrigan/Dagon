@@ -13,7 +13,7 @@ namespace Dagon.Gameplay
 
             var collider = projectile.AddComponent<SphereCollider>();
             collider.isTrigger = true;
-            collider.radius = 0.2f;
+            collider.radius = 0.28f;
 
             var rigidbody = projectile.AddComponent<Rigidbody>();
             rigidbody.useGravity = false;
@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
             renderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mire_wretch");
             renderer.color = new Color(0.6f, 0.9f, 0.62f, 1f);
             renderer.sortingOrder = 11;
-            visuals.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
+            visuals.transform.localScale = new Vector3(0.22f, 0.22f, 1f);
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);

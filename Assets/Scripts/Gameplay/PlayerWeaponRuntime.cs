@@ -9,6 +9,7 @@ namespace Dagon.Gameplay
         private int pathAUpgradesTaken;
         private int pathBUpgradesTaken;
 
+        public WeaponDefinition Definition => definition;
         public string WeaponId => definition != null ? definition.WeaponId : string.Empty;
         public string DisplayName => definition != null ? definition.DisplayName : name;
         public bool IsBaseWeapon { get; private set; }

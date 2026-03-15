@@ -1,5 +1,7 @@
 using Dagon.Core;
+using Dagon.Bootstrap.Spawning;
 using Dagon.Rendering;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Dagon.Bootstrap
@@ -7,6 +9,16 @@ namespace Dagon.Bootstrap
     [DisallowMultipleComponent]
     public sealed class MirePropScatterer : MonoBehaviour
     {
+        private sealed class SpawnedProp
+        {
+            public SpawnedProp(GameObject root)
+            {
+                Root = root;
+            }
+
+            public GameObject Root { get; }
+        }
+
         private readonly struct PropDefinition
         {
             public PropDefinition(string name, string resourcePath, Vector3 baseScale, int sortingOrder)
@@ -49,58 +61,126 @@ namespace Dagon.Bootstrap
         };
 
         [SerializeField] private Camera worldCamera;
-        [SerializeField] private int propCount = 12;
-        [SerializeField] private float innerRadius = 4f;
-        [SerializeField] private float outerRadius = 14f;
+        [SerializeField] private int visibleRadiusInCells = 4;
+        [SerializeField] private float cellSize = 8f;
+        [SerializeField] private float propSpawnChance = 0.6f;
+        [SerializeField] private Transform scatterCenter;
 
-        public void Configure(Camera cameraReference)
+        private PropVisual[] loadedPropVisuals;
+        private readonly Dictionary<Vector2Int, SpawnedProp> activeProps = new();
+        private readonly List<Vector2Int> cellBuffer = new();
+        private Vector2Int currentCenterCell = new(int.MinValue, int.MinValue);
+        private PropScatterPlanner planner;
+
+        public void Configure(Camera cameraReference, Transform scatterCenterReference = null)
         {
             worldCamera = cameraReference;
+            scatterCenter = scatterCenterReference;
         }
 
         private void Start()
         {
-            var propVisuals = LoadPropVisuals();
+            loadedPropVisuals = LoadPropVisuals();
 
             if (worldCamera == null)
             {
                 return;
             }
 
-            if (propVisuals.Length == 0)
+            if (loadedPropVisuals.Length == 0)
             {
                 return;
             }
 
-            for (var i = 0; i < propCount; i++)
+            planner = new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
+            RefreshProps(force: true);
+        }
+
+        private void Update()
+        {
+            if (loadedPropVisuals == null || loadedPropVisuals.Length == 0)
             {
-                var selectedVisual = propVisuals[Random.Range(0, propVisuals.Length)];
-                if (selectedVisual.Sprite == null)
+                return;
+            }
+
+            planner ??= new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
+            RefreshProps(force: false);
+        }
+
+        private void RefreshProps(bool force)
+        {
+            planner ??= new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
+            var centerCell = planner.WorldToCell(scatterCenter != null ? scatterCenter.position : transform.position);
+            if (!force && centerCell == currentCenterCell)
+            {
+                return;
+            }
+
+            currentCenterCell = centerCell;
+            cellBuffer.Clear();
+            foreach (var key in activeProps.Keys)
+            {
+                cellBuffer.Add(key);
+            }
+
+            var visibleCells = planner.GetVisibleCells(centerCell);
+            for (var i = 0; i < visibleCells.Count; i++)
+            {
+                var cell = visibleCells[i];
+                if (activeProps.ContainsKey(cell))
+                {
+                    cellBuffer.Remove(cell);
+                    continue;
+                }
+
+                TryCreateProp(cell);
+            }
+
+            for (var i = 0; i < cellBuffer.Count; i++)
+            {
+                var cell = cellBuffer[i];
+                if (!activeProps.TryGetValue(cell, out var prop))
                 {
                     continue;
                 }
 
-                var angle = Random.Range(0f, Mathf.PI * 2f);
-                var radius = Random.Range(innerRadius, outerRadius);
-                var position = new Vector3(Mathf.Cos(angle) * radius, 0.03f, Mathf.Sin(angle) * radius);
+                if (prop.Root != null)
+                {
+                    Destroy(prop.Root);
+                }
 
-                var prop = new GameObject($"{selectedVisual.Name}_{i + 1}");
-                prop.transform.SetParent(transform);
-                prop.transform.position = position;
-
-                var visuals = new GameObject("Visuals");
-                visuals.transform.SetParent(prop.transform, false);
-                visuals.transform.localPosition = Vector3.zero;
-                visuals.transform.localScale = selectedVisual.BaseScale * Random.Range(0.8f, 1.15f);
-
-                var renderer = visuals.AddComponent<SpriteRenderer>();
-                renderer.sprite = selectedVisual.Sprite;
-                renderer.sortingOrder = selectedVisual.SortingOrder;
-                renderer.color = new Color(1f, 1f, 1f, 0.92f);
-
-                var billboard = visuals.AddComponent<BillboardSprite>();
-                billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
+                activeProps.Remove(cell);
             }
+        }
+
+        private void TryCreateProp(Vector2Int cell)
+        {
+            planner ??= new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
+            if (!planner.TryPlanProp(cell, loadedPropVisuals.Length, out var placement))
+            {
+                return;
+            }
+
+            var visual = loadedPropVisuals[placement.VisualIndex];
+
+            var prop = new GameObject($"{visual.Name}_{cell.x}_{cell.y}");
+            prop.transform.SetParent(transform, true);
+            prop.transform.position = placement.Position;
+
+            var visuals = new GameObject("Visuals");
+            visuals.transform.SetParent(prop.transform, false);
+            visuals.transform.localPosition = Vector3.zero;
+            visuals.transform.localScale = visual.BaseScale * placement.ScaleMultiplier;
+
+            var renderer = visuals.AddComponent<SpriteRenderer>();
+            renderer.sprite = visual.Sprite;
+            renderer.sortingOrder = visual.SortingOrder;
+            renderer.color = new Color(1f, 1f, 1f, 0.92f);
+
+            var billboard = visuals.AddComponent<BillboardSprite>();
+            billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
+
+            activeProps[cell] = new SpawnedProp(prop);
         }
 
         private static PropVisual[] LoadPropVisuals()
