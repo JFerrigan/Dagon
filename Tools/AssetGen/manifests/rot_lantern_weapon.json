@@ -1,0 +1,13 @@
+{
+  "asset_id": "rot_lantern_weapon",
+  "asset_type": "weapon_effect_sprite",
+  "prompt": "A cursed green lantern with baleful flame and a surrounding rot-light ring for a close-range pulse weapon.",
+  "output_path": "Assets/Resources/Sprites/Weapons/rot_lantern.png",
+  "source_image": "Tools/AssetGen/generated/rot_lantern.png",
+  "processed_image": "Tools/AssetGen/processed/rot_lantern.png",
+  "size": [256, 256],
+  "palette_notes": "sickly green flame, oxidized brass, black brine haze, corpse-light highlights",
+  "orientation": "top_down_weapon_aura",
+  "provider": "chat_attachment_inbox",
+  "notes": "Rot Lantern weapon art imported from the local inbox."
+}

@@ -54,7 +54,7 @@ namespace Dagon.Gameplay
                 var distance = step.magnitude;
                 var hits = Physics.SphereCastAll(transform.position, collisionRadius, direction, distance, ~0, QueryTriggerInteraction.Collide);
                 var nearestDistance = float.MaxValue;
-                Collider nearestValidHit = null;
+                CombatHitResult nearestHit = default;
                 for (var i = 0; i < hits.Length; i++)
                 {
                     var candidate = hits[i];
@@ -63,23 +63,24 @@ namespace Dagon.Gameplay
                         continue;
                     }
 
-                    if (!CombatResolver.TryResolveTarget(candidate.collider, sourceTeam, owner, out _))
+                    var resolvedHit = CombatResolver.ResolveHit(candidate.collider, sourceTeam, owner);
+                    if (!resolvedHit.BlocksImpact)
                     {
                         continue;
                     }
 
                     nearestDistance = candidate.distance;
-                    nearestValidHit = candidate.collider;
+                    nearestHit = resolvedHit;
                 }
 
-                if (nearestValidHit != null)
+                if (nearestHit.Collider != null)
                 {
                     CombatDebug.Log(
                         "HarpoonSweep",
-                        $"projectile={name} owner={CombatDebug.NameOf(owner)} nearestValidHit={CombatDebug.NameOf(nearestValidHit)} distance={nearestDistance:0.###}",
+                        $"projectile={name} owner={CombatDebug.NameOf(owner)} nearestValidHit={CombatDebug.NameOf(nearestHit.Collider)} distance={nearestDistance:0.###} result={nearestHit.Type}",
                         this);
                     transform.position += direction * nearestDistance;
-                    if (TryImpact(nearestValidHit))
+                    if (TryImpact(nearestHit))
                     {
                         return;
                     }
@@ -99,48 +100,44 @@ namespace Dagon.Gameplay
         {
             CombatDebug.Log(
                 "HarpoonTrigger",
-                $"projectile={name} owner={CombatDebug.NameOf(owner)} hit={CombatDebug.NameOf(other)}",
+                $"projectile={name} owner={CombatDebug.NameOf(owner)} hit={CombatDebug.NameOf(other)} ignored=true reason=sweep_authority",
                 this);
-            TryImpact(other);
         }
 
-        private bool TryImpact(Collider other)
+        private bool TryImpact(CombatHitResult hit)
         {
-            if (impacted || other == null)
+            if (impacted || hit.Collider == null)
             {
-                CombatDebug.Log("HarpoonImpact", $"projectile={name} impactSkipped=true reason=already_impacted_or_null hit={CombatDebug.NameOf(other)}", this);
+                CombatDebug.Log("HarpoonImpact", $"projectile={name} impactSkipped=true reason=already_impacted_or_null hit={CombatDebug.NameOf(hit.Collider)}", this);
                 return false;
             }
 
-            if (other.attachedRigidbody != null && other.attachedRigidbody.gameObject == owner)
+            if (!hit.BlocksImpact)
             {
-                CombatDebug.Log("HarpoonImpact", $"projectile={name} impactSkipped=true reason=owner_rigidbody hit={CombatDebug.NameOf(other)}", this);
+                CombatDebug.Log("HarpoonImpact", $"projectile={name} impactSkipped=true reason=non_blocking hit={CombatDebug.NameOf(hit.Collider)}", this);
                 return false;
             }
 
-            if (other.gameObject == owner)
-            {
-                CombatDebug.Log("HarpoonImpact", $"projectile={name} impactSkipped=true reason=owner_object hit={CombatDebug.NameOf(other)}", this);
-                return false;
-            }
-
-            if (!CombatResolver.TryApplyDamage(other, sourceTeam, owner, damage))
+            if (!hit.CanApplyDamage)
             {
                 CombatDebug.Log(
                     "HarpoonImpact",
-                    $"projectile={name} owner={CombatDebug.NameOf(owner)} hit={CombatDebug.NameOf(other)} applied=false",
+                    $"projectile={name} owner={CombatDebug.NameOf(owner)} hit={CombatDebug.NameOf(hit.Collider)} applied=false result={hit.Type} reason={hit.Reason}",
                     this);
-                return false;
+                impacted = true;
+                Destroy(gameObject);
+                return true;
             }
 
+            hit.Damageable.ApplyDamage(damage, owner);
             if (applyKnockback)
             {
-                CombatKnockback.TryApply(other, direction, knockbackStrength);
+                CombatKnockback.TryApply(hit.Collider, direction, knockbackStrength);
             }
 
             CombatDebug.Log(
                 "HarpoonImpact",
-                $"projectile={name} owner={CombatDebug.NameOf(owner)} hit={CombatDebug.NameOf(other)} applied=true",
+                $"projectile={name} owner={CombatDebug.NameOf(owner)} hit={CombatDebug.NameOf(hit.Collider)} applied=true",
                 this);
             impacted = true;
             Destroy(gameObject);

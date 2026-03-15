@@ -1,0 +1,13 @@
+{
+  "asset_id": "carcass2_prop",
+  "asset_type": "background_prop_sprite",
+  "prompt": "Rotting skull mound and carcass heap with bones, fungal protrusions, and luminous mire ooze for black mire background generation.",
+  "output_path": "Assets/Resources/Sprites/Props/carcass2_prop.png",
+  "source_image": "Tools/AssetGen/generated/carcass2_prop.png",
+  "processed_image": "Tools/AssetGen/processed/carcass2_prop.png",
+  "size": [256, 256],
+  "palette_notes": "rotted bone beige, muck black, fungal yellow-green, dead flesh gray",
+  "orientation": "isometric_ground_prop",
+  "provider": "chat_attachment_inbox",
+  "notes": "Secondary carcass prop variant sourced from local inbox art."
+}

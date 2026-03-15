@@ -10,6 +10,6 @@
   "palette_notes": "muted maritime browns, tarnished brass, grime, restrained blood accents",
   "orientation": "horizontal_side_view_tip_right",
   "seed": 1,
-  "provider": "chatgpt_browser",
-  "notes": "Canonical projectile direction: the right side of the sprite is the spear tip and must face the direction of travel. Keep projectile sprites compact, horizontally oriented, and using relatively few pixels so they stay readable at small runtime scales."
+  "provider": "chat_attachment_inbox",
+  "notes": "Updated projectile art imported from the local inbox. Canonical projectile direction: the right side of the sprite is the spear tip and must face the direction of travel. Keep projectile sprites compact, horizontally oriented, and using relatively few pixels so they stay readable at small runtime scales."
 }

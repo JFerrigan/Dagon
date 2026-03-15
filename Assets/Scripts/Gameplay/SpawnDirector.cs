@@ -3,6 +3,7 @@ using Dagon.Core;
 using Dagon.Rendering;
 using Dagon.UI;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Dagon.Gameplay
 {
@@ -26,20 +27,54 @@ namespace Dagon.Gameplay
         [SerializeField] private GameObject deepSpawnPrefab;
         [SerializeField] private DrownedAcolyteProjectile acolyteProjectilePrefab;
         [SerializeField] private float spawnRadius = 10f;
+        [SerializeField] private float spawnHeightOffset = 0f;
         [SerializeField] private float despawnRadius = 28f;
-        [SerializeField] private float minSpawnInterval = 0.5f;
-        [SerializeField] private float maxSpawnInterval = 1.2f;
-        [SerializeField] private int maxAliveEnemies = 24;
-        [SerializeField] private int startingEnemies = 6;
-        [SerializeField] private int eliteSpawnEvery = 14;
-        [SerializeField] private int regularSpawnQuota = 30;
+        [SerializeField] private float minSpawnInterval = 2.4f;
+        [SerializeField] private float maxSpawnInterval = 3.6f;
+        [SerializeField] private int maxAliveEnemies = 3;
+        [SerializeField] private int startingEnemies = 0;
+        [SerializeField] private int eliteSpawnEvery = 12;
+        [SerializeField] private int regularSpawnQuota = 999;
+        [SerializeField] private bool openingWaveEnabled = false;
+        [SerializeField] private bool enemyHealthBarsAlwaysVisible = false;
+        [SerializeField] private float enemyHealthBarVisibleDuration = 2.25f;
+        [SerializeField] private bool useSpawnRamp = true;
+        [SerializeField] private float spawnRampDelaySeconds = 25f;
+        [SerializeField] private float spawnRampDurationSeconds = 120f;
+        [SerializeField] private float spawnRampMaxIntervalReduction = 1.2f;
 
         private float spawnTimer;
+        private float configuredMinSpawnInterval;
+        private float configuredMaxSpawnInterval;
+        private float pressureIntervalReduction;
+        private float runtimeStartedAt;
         private int defeatedEnemies;
         private int totalSpawned;
         private bool spawningStopped;
         private bool quotaNotified;
+        private bool initialized;
         private readonly HashSet<GameObject> activeEnemies = new();
+
+        private void Awake()
+        {
+            configuredMinSpawnInterval = minSpawnInterval;
+            configuredMaxSpawnInterval = maxSpawnInterval;
+
+            var directors = FindObjectsByType<SpawnDirector>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            for (var i = 0; i < directors.Length; i++)
+            {
+                if (directors[i] == this)
+                {
+                    continue;
+                }
+
+                Debug.LogWarning(
+                    $"Disabling duplicate SpawnDirector on scene '{SceneManager.GetActiveScene().name}' to prevent stacked spawning.",
+                    this);
+                enabled = false;
+                return;
+            }
+        }
 
         public event System.Action SpawnQuotaCompleted;
         public event System.Action BattlefieldCleared;
@@ -50,15 +85,22 @@ namespace Dagon.Gameplay
         public int RemainingSpawns => Mathf.Max(0, regularSpawnQuota - totalSpawned);
         public bool SpawnQuotaMet => totalSpawned >= regularSpawnQuota;
         public bool IsBattlefieldClear => SpawnQuotaMet && activeEnemies.Count <= 0;
+        public bool EnemyHealthBarsAlwaysVisible => enemyHealthBarsAlwaysVisible;
+        public bool Initialized => initialized;
+        public bool OpeningWaveEnabled => openingWaveEnabled;
 
         private void Start()
         {
-            SpawnOpeningWave();
-            ResetTimer();
+            TryInitializeRuntime("Start");
         }
 
         private void Update()
         {
+            if (!initialized && !TryInitializeRuntime("Update"))
+            {
+                return;
+            }
+
             if (player == null || worldCamera == null)
             {
                 return;
@@ -100,8 +142,35 @@ namespace Dagon.Gameplay
             eliteSpawnEvery = Mathf.Max(1, newEliteSpawnEvery);
             minSpawnInterval = Mathf.Max(0.1f, newMinSpawnInterval);
             maxSpawnInterval = Mathf.Max(minSpawnInterval + 0.05f, newMaxSpawnInterval);
+            configuredMinSpawnInterval = minSpawnInterval;
+            configuredMaxSpawnInterval = maxSpawnInterval;
+            pressureIntervalReduction = 0f;
             spawningStopped = false;
             quotaNotified = false;
+        }
+
+        public void ConfigureHealthBars(bool alwaysVisible, float visibleDurationAfterDamage = 2.25f)
+        {
+            enemyHealthBarsAlwaysVisible = alwaysVisible;
+            enemyHealthBarVisibleDuration = Mathf.Max(0.1f, visibleDurationAfterDamage);
+        }
+
+        public void ConfigureSpawnFlow(bool enableOpeningWave)
+        {
+            openingWaveEnabled = enableOpeningWave;
+        }
+
+        public void ConfigureSpawnRamp(bool enabled, float delaySeconds, float durationSeconds, float maxIntervalReduction)
+        {
+            useSpawnRamp = enabled;
+            spawnRampDelaySeconds = Mathf.Max(0f, delaySeconds);
+            spawnRampDurationSeconds = Mathf.Max(1f, durationSeconds);
+            spawnRampMaxIntervalReduction = Mathf.Max(0f, maxIntervalReduction);
+        }
+
+        public bool InitializeRuntime(string contextLabel = "Explicit")
+        {
+            return TryInitializeRuntime(contextLabel, emitWarnings: true);
         }
 
         public void StopSpawning()
@@ -121,8 +190,46 @@ namespace Dagon.Gameplay
         public void TightenPressure(float intervalReduction, int additionalAliveCap)
         {
             _ = additionalAliveCap;
-            minSpawnInterval = Mathf.Max(0.15f, minSpawnInterval - intervalReduction);
-            maxSpawnInterval = Mathf.Max(minSpawnInterval + 0.05f, maxSpawnInterval - intervalReduction);
+            pressureIntervalReduction = Mathf.Max(0f, pressureIntervalReduction + intervalReduction);
+        }
+
+        private bool TryInitializeRuntime(string contextLabel, bool emitWarnings = false)
+        {
+            if (initialized)
+            {
+                return true;
+            }
+
+            if (player == null || worldCamera == null || mireSprite == null)
+            {
+                if (emitWarnings)
+                {
+                    Debug.LogWarning(
+                        $"SpawnDirector on scene '{SceneManager.GetActiveScene().name}' could not initialize from {contextLabel}. " +
+                        $"Player assigned: {player != null}, camera assigned: {worldCamera != null}, mire sprite assigned: {mireSprite != null}.",
+                        this);
+                }
+
+                return false;
+            }
+
+            initialized = true;
+            runtimeStartedAt = Time.time;
+            if (openingWaveEnabled)
+            {
+                SpawnOpeningWave();
+            }
+
+            ResetTimer();
+            Debug.Log(
+                $"SpawnDirector initialized for scene '{SceneManager.GetActiveScene().name}' via {contextLabel}. " +
+                $"Quota={regularSpawnQuota}, Starting={startingEnemies}, MaxAlive={maxAliveEnemies}, " +
+                $"EliteEvery={eliteSpawnEvery}, Interval={minSpawnInterval:0.00}-{maxSpawnInterval:0.00}, OpeningWaveEnabled={openingWaveEnabled}, " +
+                $"BarsAlwaysVisible={enemyHealthBarsAlwaysVisible}, BarVisibleDuration={enemyHealthBarVisibleDuration:0.00}, " +
+                $"SpawnRamp={useSpawnRamp}, RampDelay={spawnRampDelaySeconds:0.0}, RampDuration={spawnRampDurationSeconds:0.0}, " +
+                $"RampMaxReduction={spawnRampMaxIntervalReduction:0.00}.",
+                this);
+            return true;
         }
 
         private void SpawnOpeningWave()
@@ -269,7 +376,7 @@ namespace Dagon.Gameplay
                 return false;
             }
 
-            deepSpawn.Configure(player, worldCamera);
+            deepSpawn.Configure(player, worldCamera, enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
 
             var health = deepSpawn.HealthComponent;
             if (health == null)
@@ -299,7 +406,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => new Vector3(0f, 1.4f, 0f),
                 _ => new Vector3(0f, 1.68f, 0f)
             };
-            bar.Configure(worldCamera, offset, false);
+            bar.Configure(worldCamera, offset, !enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
         }
 
         private void HandleEnemyDied(Health health, GameObject source)
@@ -321,7 +428,41 @@ namespace Dagon.Gameplay
 
         private void ResetTimer()
         {
-            spawnTimer = Random.Range(minSpawnInterval, maxSpawnInterval);
+            var currentMinInterval = GetCurrentMinSpawnInterval();
+            var currentMaxInterval = GetCurrentMaxSpawnInterval(currentMinInterval);
+            spawnTimer = Random.Range(currentMinInterval, currentMaxInterval);
+        }
+
+        private float GetCurrentMinSpawnInterval()
+        {
+            return Mathf.Max(0.15f, configuredMinSpawnInterval - GetCurrentIntervalReduction());
+        }
+
+        private float GetCurrentMaxSpawnInterval(float currentMinInterval)
+        {
+            return Mathf.Max(currentMinInterval + 0.05f, configuredMaxSpawnInterval - GetCurrentIntervalReduction());
+        }
+
+        private float GetCurrentIntervalReduction()
+        {
+            return pressureIntervalReduction + GetSpawnRampReduction();
+        }
+
+        private float GetSpawnRampReduction()
+        {
+            if (!useSpawnRamp || !initialized || spawnRampMaxIntervalReduction <= 0f)
+            {
+                return 0f;
+            }
+
+            var elapsed = Time.time - runtimeStartedAt - spawnRampDelaySeconds;
+            if (elapsed <= 0f)
+            {
+                return 0f;
+            }
+
+            var progress = Mathf.Clamp01(elapsed / spawnRampDurationSeconds);
+            return spawnRampMaxIntervalReduction * progress;
         }
 
         private void NotifyQuotaCompletedIfNeeded()
@@ -417,7 +558,9 @@ namespace Dagon.Gameplay
             }
 
             direction2D.Normalize();
-            return player.position + new Vector3(direction2D.x, 0.5f, direction2D.y) * spawnRadius;
+            var position = player.position + new Vector3(direction2D.x, 0f, direction2D.y) * spawnRadius;
+            position.y = player.position.y + spawnHeightOffset;
+            return position;
         }
 
         private static float GetMaxHealth(EnemyKind enemyKind)

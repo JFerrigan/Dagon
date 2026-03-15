@@ -75,6 +75,64 @@ namespace Dagon.Tests.Editor
             Object.DestroyImmediate(enemy);
         }
 
+        [Test]
+        public void ResolveHit_NonCombatTriggerIsIgnored()
+        {
+            var player = CreateActor("Player", "Player", CombatTeam.Player, out _);
+            var trigger = new GameObject("NeutralTrigger");
+            trigger.AddComponent<SphereCollider>().isTrigger = true;
+
+            var result = CombatResolver.ResolveHit(
+                trigger.GetComponent<Collider>(),
+                CombatResolver.GetTeam(player),
+                player);
+
+            Assert.AreEqual(CombatHitType.Ignored, result.Type);
+            Assert.IsFalse(result.BlocksImpact);
+
+            Object.DestroyImmediate(player);
+            Object.DestroyImmediate(trigger);
+        }
+
+        [Test]
+        public void ResolveHit_ProjectileBlockerBlocksImpact()
+        {
+            var player = CreateActor("Player", "Player", CombatTeam.Player, out _);
+            var blocker = new GameObject("Blocker");
+            blocker.AddComponent<BoxCollider>().isTrigger = true;
+            blocker.AddComponent<ProjectileBlocker>();
+
+            var result = CombatResolver.ResolveHit(
+                blocker.GetComponent<Collider>(),
+                CombatResolver.GetTeam(player),
+                player);
+
+            Assert.AreEqual(CombatHitType.Blocked, result.Type);
+            Assert.IsTrue(result.BlocksImpact);
+            Assert.IsFalse(result.CanApplyDamage);
+
+            Object.DestroyImmediate(player);
+            Object.DestroyImmediate(blocker);
+        }
+
+        [Test]
+        public void ResolveHit_SameTeamTargetIsIgnoredInsteadOfBlocking()
+        {
+            var enemyA = CreateActor("EnemyA", null, CombatTeam.Enemy, out _);
+            var enemyB = CreateActor("EnemyB", null, CombatTeam.Enemy, out _);
+
+            var result = CombatResolver.ResolveHit(
+                enemyB.GetComponent<Collider>(),
+                CombatResolver.GetTeam(enemyA),
+                enemyA);
+
+            Assert.AreEqual(CombatHitType.Ignored, result.Type);
+            Assert.IsFalse(result.BlocksImpact);
+
+            Object.DestroyImmediate(enemyA);
+            Object.DestroyImmediate(enemyB);
+        }
+
         private static GameObject CreateActor(string name, string tag, CombatTeam team, out Health health)
         {
             var actor = new GameObject(name);

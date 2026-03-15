@@ -1,0 +1,13 @@
+{
+  "asset_id": "fish_pile_prop",
+  "asset_type": "background_prop_sprite",
+  "prompt": "Spoiled fish pile and mire barrel dressing prop with collapsed carcasses, muck, and rot for black mire background generation.",
+  "output_path": "Assets/Resources/Sprites/Props/fish_pile_prop.png",
+  "source_image": "Tools/AssetGen/generated/fish_pile_prop.png",
+  "processed_image": "Tools/AssetGen/processed/fish_pile_prop.png",
+  "size": [256, 256],
+  "palette_notes": "ash gray fish flesh, mud browns, algae greens, rotten bone highlights",
+  "orientation": "isometric_ground_prop",
+  "provider": "chat_attachment_inbox",
+  "notes": "Background prop sprite sourced from local inbox art."
+}

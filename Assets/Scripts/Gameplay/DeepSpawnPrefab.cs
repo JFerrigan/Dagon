@@ -52,7 +52,7 @@ namespace Dagon.Gameplay
             EnsureSetup();
         }
 
-        public void Configure(Transform target, Camera worldCamera)
+        public void Configure(Transform target, Camera worldCamera, bool healthBarsAlwaysVisible = true, float visibleDurationAfterDamage = 2.25f)
         {
             EnsureSetup();
 
@@ -61,7 +61,7 @@ namespace Dagon.Gameplay
             rewards.Configure(experienceReward, corruptionReward);
             bruiser.Configure(target, driftSpeed, chargeSpeed);
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
-            healthBar.Configure(worldCamera, new Vector3(0f, 1.68f, 0f), false);
+            healthBar.Configure(worldCamera, new Vector3(0f, 1.68f, 0f), !healthBarsAlwaysVisible, visibleDurationAfterDamage);
         }
 
         private void EnsureSetup()

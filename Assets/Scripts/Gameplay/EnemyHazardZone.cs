@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace Dagon.Gameplay
 {
@@ -10,9 +11,10 @@ namespace Dagon.Gameplay
         private float tickDamage;
         private float tickInterval;
         private Camera worldCamera;
-        private float tickTimer;
         private CombatTeam targetTeam = CombatTeam.Player;
         private GameObject sourceOwner;
+        private readonly Dictionary<Hurtbox, float> nextTickTimes = new();
+        private readonly HashSet<Hurtbox> occupants = new();
 
         public static void Spawn(
             Vector3 position,
@@ -53,10 +55,8 @@ namespace Dagon.Gameplay
         private void Update()
         {
             duration -= Time.deltaTime;
-            tickTimer -= Time.deltaTime;
-            if (tickTimer <= 0f)
+            if (occupants.Count > 0)
             {
-                tickTimer = tickInterval;
                 TickDamage();
             }
 
@@ -80,10 +80,17 @@ namespace Dagon.Gameplay
             duration = Mathf.Max(0.1f, zoneDuration);
             tickDamage = Mathf.Max(0.01f, damage);
             tickInterval = Mathf.Max(0.1f, interval);
-            tickTimer = tickInterval;
             worldCamera = camera;
             targetTeam = newTargetTeam;
             sourceOwner = owner;
+
+            var sphere = GetOrAddComponent<SphereCollider>();
+            sphere.isTrigger = true;
+            sphere.radius = radius;
+
+            var body = GetOrAddComponent<Rigidbody>();
+            body.useGravity = false;
+            body.isKinematic = true;
 
             PlaceholderWeaponVisual.Spawn(
                 "EnemyHazardVisual",
@@ -95,16 +102,110 @@ namespace Dagon.Gameplay
                 1f);
         }
 
+        private T GetOrAddComponent<T>() where T : Component
+        {
+            if (gameObject.TryGetComponent<T>(out var component))
+            {
+                return component;
+            }
+
+            return gameObject.AddComponent<T>();
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            TryTrackOccupant(other);
+        }
+
+        private void OnTriggerStay(Collider other)
+        {
+            TryTrackOccupant(other);
+        }
+
+        private void OnTriggerExit(Collider other)
+        {
+            if (!TryResolveOccupant(other, out var hurtbox))
+            {
+                return;
+            }
+
+            occupants.Remove(hurtbox);
+            nextTickTimes.Remove(hurtbox);
+        }
+
+        private void TryTrackOccupant(Collider other)
+        {
+            if (!TryResolveOccupant(other, out var hurtbox))
+            {
+                return;
+            }
+
+            occupants.Add(hurtbox);
+            if (!nextTickTimes.ContainsKey(hurtbox))
+            {
+                nextTickTimes[hurtbox] = Time.time + tickInterval;
+            }
+        }
+
+        private bool TryResolveOccupant(Collider other, out Hurtbox hurtbox)
+        {
+            hurtbox = null;
+            if (!CombatResolver.TryResolveTarget(other, CombatTeam.Neutral, sourceOwner, out hurtbox))
+            {
+                return false;
+            }
+
+            return hurtbox != null && hurtbox.Team == targetTeam;
+        }
+
         private void TickDamage()
         {
-            var colliders = Physics.OverlapSphere(transform.position, radius, ~0, QueryTriggerInteraction.Collide);
-            for (var i = 0; i < colliders.Length; i++)
+            var now = Time.time;
+            var staleTargets = ListPool<Hurtbox>.Get();
+            foreach (var hurtbox in occupants)
             {
-                if (CombatResolver.TryResolveTarget(colliders[i], CombatTeam.Neutral, sourceOwner, out var hurtbox) &&
-                    hurtbox.Team == targetTeam)
+                if (hurtbox == null)
                 {
-                    hurtbox.Damageable.ApplyDamage(tickDamage, sourceOwner != null ? sourceOwner : gameObject);
+                    staleTargets.Add(hurtbox);
+                    continue;
                 }
+
+                if (!nextTickTimes.TryGetValue(hurtbox, out var nextTickTime) || now < nextTickTime)
+                {
+                    continue;
+                }
+
+                hurtbox.Damageable.ApplyDamage(tickDamage, sourceOwner != null ? sourceOwner : gameObject);
+                nextTickTimes[hurtbox] = now + tickInterval;
+            }
+
+            for (var i = 0; i < staleTargets.Count; i++)
+            {
+                occupants.Remove(staleTargets[i]);
+                nextTickTimes.Remove(staleTargets[i]);
+            }
+
+            ListPool<Hurtbox>.Release(staleTargets);
+        }
+
+        private static class ListPool<T>
+        {
+            private static readonly Stack<List<T>> Pool = new();
+
+            public static List<T> Get()
+            {
+                return Pool.Count > 0 ? Pool.Pop() : new List<T>();
+            }
+
+            public static void Release(List<T> list)
+            {
+                if (list == null)
+                {
+                    return;
+                }
+
+                list.Clear();
+                Pool.Push(list);
             }
         }
     }

@@ -7,6 +7,8 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class ExperiencePickup : MonoBehaviour
     {
+        private const string PickupSpriteResourcePath = "Sprites/Pickups/barnacle_shard";
+
         [SerializeField] private int experienceValue = 1;
         [SerializeField] private float corruptionValue = 0.5f;
         [SerializeField] private float attractDistance = 3f;
@@ -38,10 +40,10 @@ namespace Dagon.Gameplay
             visuals.transform.SetParent(pickup.transform, false);
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Weapons/harpoon_projectile");
-            renderer.color = new Color(0.62f, 0.92f, 0.66f, 0.95f);
+            renderer.sprite = RuntimeSpriteLibrary.LoadSprite(PickupSpriteResourcePath, 256f);
+            renderer.color = Color.white;
             renderer.sortingOrder = 14;
-            visuals.transform.localScale = new Vector3(0.02f, 0.02f, 1f);
+            visuals.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);

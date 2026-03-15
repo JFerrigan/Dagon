@@ -1,0 +1,13 @@
+{
+  "asset_id": "anchor_chain_weapon",
+  "asset_type": "weapon_effect_sprite",
+  "prompt": "A heavy rusted anchor chain whipping through brine spray in a crescent arc for a maritime horror weapon effect.",
+  "output_path": "Assets/Resources/Sprites/Weapons/anchor_chain.png",
+  "source_image": "Tools/AssetGen/generated/anchor_chain.png",
+  "processed_image": "Tools/AssetGen/processed/anchor_chain.png",
+  "size": [256, 256],
+  "palette_notes": "rusted iron orange, sea-brine white, blackened shadow, wet metal highlights",
+  "orientation": "curved_arc_weapon_effect",
+  "provider": "chat_attachment_inbox",
+  "notes": "Anchor Chain weapon art imported from the local inbox."
+}

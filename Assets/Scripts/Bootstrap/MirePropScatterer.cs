@@ -57,6 +57,7 @@ namespace Dagon.Bootstrap
             new PropDefinition("BarrelProp", "Sprites/Props/barrel_ground_prop", new Vector3(0.11f, 0.11f, 1f), 2),
             new PropDefinition("FishPileProp", "Sprites/Props/fish_pile_prop", new Vector3(0.11f, 0.11f, 1f), 1),
             new PropDefinition("LeviathanCarcassProp", "Sprites/Props/leviathan_carcass_prop", new Vector3(0.16f, 0.16f, 1f), 0),
+            new PropDefinition("Carcass2Prop", "Sprites/Props/carcass2_prop", new Vector3(0.15f, 0.15f, 1f), 0),
             new PropDefinition("SkullMoundProp", "Sprites/Props/skull_mound_prop", new Vector3(0.15f, 0.15f, 1f), 0)
         };
 

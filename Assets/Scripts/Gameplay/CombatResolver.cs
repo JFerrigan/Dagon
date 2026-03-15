@@ -55,11 +55,12 @@ namespace Dagon.Gameplay
 
         public static bool TryApplyDamage(Collider hit, CombatTeam sourceTeam, GameObject sourceOwner, float damage)
         {
-            if (!TryResolveDamageTarget(hit, sourceTeam, sourceOwner, out var damageable, out _, out _))
+            var result = ResolveHit(hit, sourceTeam, sourceOwner);
+            if (!result.CanApplyDamage)
             {
                 CombatDebug.Log(
                     "ApplyDamage",
-                    $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} damage={damage:0.##} applied=false",
+                    $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} damage={damage:0.##} applied=false result={result.Type} reason={result.Reason}",
                     hit);
                 return false;
             }
@@ -68,13 +69,56 @@ namespace Dagon.Gameplay
                 "ApplyDamage",
                 $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} damage={damage:0.##} applied=true",
                 hit);
-            damageable.ApplyDamage(damage, sourceOwner);
+            result.Damageable.ApplyDamage(damage, sourceOwner);
             return true;
         }
 
         public static bool CanDamage(Collider hit, CombatTeam sourceTeam, GameObject sourceOwner)
         {
-            return TryResolveDamageTarget(hit, sourceTeam, sourceOwner, out _, out _, out _);
+            return ResolveHit(hit, sourceTeam, sourceOwner).CanApplyDamage;
+        }
+
+        public static CombatHitResult ResolveHit(Collider hit, CombatTeam sourceTeam, GameObject sourceOwner)
+        {
+            if (TryResolveDamageTarget(hit, sourceTeam, sourceOwner, out var damageable, out var targetTeam, out var targetRoot, out var hurtbox, out var failureReason))
+            {
+                return new CombatHitResult(
+                    CombatHitType.Damageable,
+                    hit,
+                    damageable,
+                    hurtbox,
+                    targetTeam,
+                    targetRoot);
+            }
+
+            if (failureReason == "self_target" ||
+                failureReason == "same_root" ||
+                failureReason == "same_team" ||
+                failureReason == "null_hit")
+            {
+                return new CombatHitResult(CombatHitType.Ignored, hit, targetTeam: targetTeam, targetRoot: targetRoot, reason: failureReason);
+            }
+
+            var blocker = hit != null ? hit.GetComponentInParent<ProjectileBlocker>() : null;
+            if (blocker != null)
+            {
+                CombatDebug.Log(
+                    "ResolveHit",
+                    $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} result=Blocked reason=projectile_blocker",
+                    hit);
+                return new CombatHitResult(
+                    CombatHitType.Blocked,
+                    hit,
+                    targetTeam: targetTeam,
+                    targetRoot: blocker.gameObject,
+                    reason: "projectile_blocker");
+            }
+
+            CombatDebug.Log(
+                "ResolveHit",
+                $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} result=Ignored reason={failureReason}",
+                hit);
+            return new CombatHitResult(CombatHitType.Ignored, hit, targetTeam: targetTeam, targetRoot: targetRoot, reason: failureReason);
         }
 
         private static bool TryResolveDamageTarget(
@@ -83,19 +127,24 @@ namespace Dagon.Gameplay
             GameObject sourceOwner,
             out IDamageable damageable,
             out CombatTeam targetTeam,
-            out GameObject targetRoot)
+            out GameObject targetRoot,
+            out Hurtbox hurtbox,
+            out string failureReason)
         {
             damageable = null;
             targetTeam = CombatTeam.Neutral;
             targetRoot = null;
+            hurtbox = null;
+            failureReason = string.Empty;
 
             if (hit == null)
             {
                 CombatDebug.Log("ResolveDamageTarget", "resolved=false reason=null_hit");
+                failureReason = "null_hit";
                 return false;
             }
 
-            var hurtbox = hit.GetComponentInParent<Hurtbox>();
+            hurtbox = hit.GetComponentInParent<Hurtbox>();
             if (hurtbox != null && hurtbox.Damageable != null)
             {
                 damageable = hurtbox.Damageable;
@@ -111,6 +160,7 @@ namespace Dagon.Gameplay
                         "ResolveDamageTarget",
                         $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} resolved=false reason=no_health",
                         hit);
+                    failureReason = "no_health";
                     return false;
                 }
 
@@ -127,6 +177,7 @@ namespace Dagon.Gameplay
                         "ResolveDamageTarget",
                         $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} resolved=false reason=self_target",
                         hit);
+                    failureReason = "self_target";
                     return false;
                 }
 
@@ -140,6 +191,7 @@ namespace Dagon.Gameplay
                         "ResolveDamageTarget",
                         $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} target={CombatDebug.NameOf(targetRoot)} resolved=false reason=same_root",
                         hit);
+                    failureReason = "same_root";
                     return false;
                 }
             }
@@ -150,6 +202,7 @@ namespace Dagon.Gameplay
                     "ResolveDamageTarget",
                     $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} target={CombatDebug.NameOf(targetRoot)} targetTeam={targetTeam} resolved=false reason=same_team",
                     hit);
+                failureReason = "same_team";
                 return false;
             }
 

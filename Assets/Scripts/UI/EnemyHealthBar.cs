@@ -24,6 +24,9 @@ namespace Dagon.UI
         private BillboardSprite billboard;
         private float visibleUntilTime;
 
+        public bool HideWhenFull => hideWhenFull;
+        public float VisibleDurationAfterDamage => visibleDurationAfterDamage;
+
         private void Awake()
         {
             if (health == null)
@@ -150,23 +153,8 @@ namespace Dagon.UI
                 sharedBarSprite = CreateBarSprite();
             }
 
-            if (backgroundRenderer == null)
-            {
-                var background = GetOrCreateChild("Background");
-                backgroundTransform = background;
-                backgroundRenderer = background.GetComponent<SpriteRenderer>() ?? background.gameObject.AddComponent<SpriteRenderer>();
-            }
-            else if (backgroundTransform == null)
-            {
-                backgroundTransform = backgroundRenderer.transform;
-            }
-
-            if (fillTransform == null || fillRenderer == null)
-            {
-                var fill = GetOrCreateChild("Fill");
-                fillTransform = fill;
-                fillRenderer = fill.GetComponent<SpriteRenderer>() ?? fill.gameObject.AddComponent<SpriteRenderer>();
-            }
+            EnsureChildRenderer("Background", ref backgroundTransform, ref backgroundRenderer);
+            EnsureChildRenderer("Fill", ref fillTransform, ref fillRenderer);
 
             backgroundRenderer.sprite = sharedBarSprite;
             backgroundRenderer.sortingOrder = 60;
@@ -248,6 +236,24 @@ namespace Dagon.UI
             var childObject = new GameObject(childName);
             childObject.transform.SetParent(barRoot, false);
             return childObject.transform;
+        }
+
+        private void EnsureChildRenderer(string childName, ref Transform childTransform, ref SpriteRenderer renderer)
+        {
+            if (childTransform == null)
+            {
+                childTransform = GetOrCreateChild(childName);
+            }
+
+            if (renderer == null || renderer.gameObject != childTransform.gameObject)
+            {
+                renderer = childTransform.GetComponent<SpriteRenderer>();
+            }
+
+            if (renderer == null)
+            {
+                renderer = childTransform.gameObject.AddComponent<SpriteRenderer>();
+            }
         }
 
         private static Sprite CreateBarSprite()

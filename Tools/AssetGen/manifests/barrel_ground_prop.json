@@ -1,0 +1,13 @@
+{
+  "asset_id": "barrel_ground_prop",
+  "asset_type": "background_prop_sprite",
+  "prompt": "Weathered mire barrel cluster with broken staves, rot-stained wood, reed growth, and algae seepage for background dressing in the black mire.",
+  "output_path": "Assets/Resources/Sprites/Props/barrel_ground_prop.png",
+  "source_image": "Tools/AssetGen/generated/barrel_ground_prop.png",
+  "processed_image": "Tools/AssetGen/processed/barrel_ground_prop.png",
+  "size": [256, 256],
+  "palette_notes": "wet wood browns, murky reeds, algae green seepage, mud-stained highlights",
+  "orientation": "isometric_ground_prop",
+  "provider": "chat_attachment_inbox",
+  "notes": "Background prop sprite sourced from local inbox art."
+}

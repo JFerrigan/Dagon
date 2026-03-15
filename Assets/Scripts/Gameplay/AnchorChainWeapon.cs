@@ -7,6 +7,8 @@ namespace Dagon.Gameplay
 {
     public sealed class AnchorChainWeapon : PlayerWeaponRuntime
     {
+        private const string ChainSpritePath = "Sprites/Weapons/anchor_chain";
+
         [SerializeField] private PlayerMover playerMover;
         [SerializeField] private float attacksPerSecond = 0.85f;
         [SerializeField] private float damage = 1.8f;
@@ -174,13 +176,17 @@ namespace Dagon.Gameplay
             var offset = baseDirection * (radius * 0.45f) + Vector3.up * 0.2f;
             PlaceholderWeaponVisual.Spawn(
                 "AnchorChainSweep",
-                transform.position + offset,
+                transform.position + offset + Vector3.up * 0.05f,
                 new Vector3(radius * 1.2f, radius * 0.7f, 1f),
                 worldCamera,
-                new Color(0.70f, 0.84f, 0.76f, 0.72f),
-                0.2f,
-                1.05f,
-                yaw + (sweepIndex * 4f));
+                new Color(0.70f, 0.84f, 0.76f, 0.24f),
+                0.22f,
+                1.04f,
+                yaw + (sweepIndex * 4f),
+                spritePath: ChainSpritePath,
+                pixelsPerUnit: 256f,
+                sortingOrder: 4,
+                groundPlane: true);
         }
 
         private Vector3 ResolveAimDirection()

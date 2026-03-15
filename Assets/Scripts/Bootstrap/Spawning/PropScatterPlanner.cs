@@ -56,19 +56,39 @@ namespace Dagon.Bootstrap.Spawning
         public bool TryPlanProp(Vector2Int cell, int visualCount, out PropPlacement placement)
         {
             placement = default;
-            if (visualCount <= 0 || Sample01(cell.x, cell.y, 0) > propSpawnChance)
+            if (visualCount <= 0 || Sample01(cell.x, cell.y, 0) > GetLocalSpawnChance(cell))
             {
                 return false;
             }
 
             var visualIndex = Mathf.Clamp(Mathf.FloorToInt(Sample01(cell.x, cell.y, 1) * visualCount), 0, visualCount - 1);
-            var offsetX = Mathf.Lerp(-cellSize * 0.35f, cellSize * 0.35f, Sample01(cell.x, cell.y, 3));
-            var offsetZ = Mathf.Lerp(-cellSize * 0.35f, cellSize * 0.35f, Sample01(cell.x, cell.y, 4));
+            var drift = GetClusterDrift(cell);
+            var offsetX = Mathf.Lerp(-cellSize * 0.48f, cellSize * 0.48f, Sample01(cell.x, cell.y, 3)) + drift.x;
+            var offsetZ = Mathf.Lerp(-cellSize * 0.48f, cellSize * 0.48f, Sample01(cell.x, cell.y, 4)) + drift.y;
+            offsetX = Mathf.Clamp(offsetX, -cellSize * 0.62f, cellSize * 0.62f);
+            offsetZ = Mathf.Clamp(offsetZ, -cellSize * 0.62f, cellSize * 0.62f);
             var position = new Vector3((cell.x * cellSize) + offsetX, 0.03f, (cell.y * cellSize) + offsetZ);
             var scaleMultiplier = Mathf.Lerp(0.8f, 1.15f, Sample01(cell.x, cell.y, 2));
 
             placement = new PropPlacement(cell, visualIndex, position, scaleMultiplier);
             return true;
+        }
+
+        private float GetLocalSpawnChance(Vector2Int cell)
+        {
+            var coarseX = Mathf.FloorToInt(cell.x * 0.5f);
+            var coarseZ = Mathf.FloorToInt(cell.y * 0.5f);
+            var clusterBias = Mathf.Lerp(-0.18f, 0.14f, Sample01(coarseX, coarseZ, 6));
+            return Mathf.Clamp01(propSpawnChance + clusterBias);
+        }
+
+        private Vector2 GetClusterDrift(Vector2Int cell)
+        {
+            var coarseX = Mathf.FloorToInt(cell.x * 0.5f);
+            var coarseZ = Mathf.FloorToInt(cell.y * 0.5f);
+            var driftX = Mathf.Lerp(-cellSize * 0.16f, cellSize * 0.16f, Sample01(coarseX, coarseZ, 7));
+            var driftZ = Mathf.Lerp(-cellSize * 0.16f, cellSize * 0.16f, Sample01(coarseX, coarseZ, 8));
+            return new Vector2(driftX, driftZ);
         }
 
         public static float Sample01(int x, int z, int salt)

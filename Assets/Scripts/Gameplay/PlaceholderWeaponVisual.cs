@@ -25,7 +25,8 @@ namespace Dagon.Gameplay
             float yaw = 0f,
             string spritePath = "Sprites/Effects/brine_surge",
             float pixelsPerUnit = 256f,
-            int sortingOrder = 15)
+            int sortingOrder = 15,
+            bool groundPlane = false)
         {
             var sprite = RuntimeSpriteLibrary.LoadSprite(spritePath, pixelsPerUnit);
             if (sprite == null)
@@ -38,7 +39,7 @@ namespace Dagon.Gameplay
             effect.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
             var visual = effect.AddComponent<PlaceholderWeaponVisual>();
-            visual.Initialize(sprite, scale, camera, tint, duration, endScaleMultiplier, sortingOrder);
+            visual.Initialize(sprite, scale, camera, tint, duration, endScaleMultiplier, sortingOrder, groundPlane);
         }
 
         private void Update()
@@ -67,12 +68,13 @@ namespace Dagon.Gameplay
             Color visualTint,
             float visualDuration,
             float endScaleMultiplier,
-            int sortingOrder)
+            int sortingOrder,
+            bool groundPlane)
         {
             duration = Mathf.Max(0.05f, visualDuration);
             tint = visualTint;
-            startScale = scale;
-            endScale = scale * endScaleMultiplier;
+            startScale = ResolveAspectPreservingScale(sprite, scale);
+            endScale = startScale * endScaleMultiplier;
             transform.localScale = startScale;
 
             var rendererObject = new GameObject("Visuals");
@@ -82,8 +84,41 @@ namespace Dagon.Gameplay
             spriteRenderer.sortingOrder = sortingOrder;
             spriteRenderer.color = tint;
 
-            var billboard = rendererObject.AddComponent<BillboardSprite>();
-            billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
+            if (groundPlane)
+            {
+                rendererObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            }
+            else
+            {
+                var billboard = rendererObject.AddComponent<BillboardSprite>();
+                billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
+            }
+        }
+
+        private static Vector3 ResolveAspectPreservingScale(Sprite sprite, Vector3 requestedScale)
+        {
+            if (sprite == null)
+            {
+                return requestedScale;
+            }
+
+            var spriteWidth = Mathf.Max(1f, sprite.rect.width);
+            var spriteHeight = Mathf.Max(1f, sprite.rect.height);
+            var spriteAspect = spriteWidth / spriteHeight;
+
+            var maxWidth = Mathf.Max(0.0001f, requestedScale.x);
+            var maxHeight = Mathf.Max(0.0001f, requestedScale.y);
+
+            var resolvedWidth = maxWidth;
+            var resolvedHeight = resolvedWidth / spriteAspect;
+
+            if (resolvedHeight > maxHeight)
+            {
+                resolvedHeight = maxHeight;
+                resolvedWidth = resolvedHeight * spriteAspect;
+            }
+
+            return new Vector3(resolvedWidth, resolvedHeight, requestedScale.z);
         }
     }
 }

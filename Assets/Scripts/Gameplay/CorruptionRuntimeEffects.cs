@@ -53,11 +53,11 @@ namespace Dagon.Gameplay
                     break;
                 case 1:
                     combatLoadout?.GetActive(0)?.ModifyRadius(0.75f);
-                    spawnDirector?.TightenPressure(0.12f, 3);
+                    spawnDirector?.TightenPressure(0.04f, 0);
                     break;
                 case 2:
                     combatLoadout?.ModifyAllWeaponsDamage(0.8f);
-                    spawnDirector?.TightenPressure(0.1f, 5);
+                    spawnDirector?.TightenPressure(0.03f, 0);
                     break;
             }
         }

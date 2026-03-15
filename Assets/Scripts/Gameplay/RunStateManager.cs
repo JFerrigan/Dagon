@@ -18,6 +18,9 @@ namespace Dagon.Gameplay
         [SerializeField] private string nextSceneName;
         [SerializeField] private string menuSceneName = "MainMenu";
         [SerializeField] private int bossesInWave = 1;
+        [SerializeField] private bool useTimedBossTransition;
+        [SerializeField] private float bossTransitionDelaySeconds = 45f;
+        [SerializeField] private bool showSpawnProgressUi = true;
 
         private readonly List<Health> activeBosses = new();
         private Health playerHealth;
@@ -31,6 +34,7 @@ namespace Dagon.Gameplay
         private bool playerWon;
         private bool pauseMenuOpen;
         private float bossWaveBannerTimer;
+        private bool bossTransitionArmed;
 
         public float RunTimer => runTimer;
         public bool RunEnded => runEnded;
@@ -103,7 +107,31 @@ namespace Dagon.Gameplay
 
             runTimer += Time.deltaTime;
             bossWaveBannerTimer = Mathf.Max(0f, bossWaveBannerTimer - Time.deltaTime);
-            if (!bossWaveStarted && spawnDirector != null && spawnDirector.IsBattlefieldClear)
+            if (bossWaveStarted || spawnDirector == null)
+            {
+                return;
+            }
+
+            if (useTimedBossTransition)
+            {
+                if (!bossTransitionArmed && runTimer >= bossTransitionDelaySeconds)
+                {
+                    bossTransitionArmed = true;
+                    spawnDirector.StopSpawning();
+                    Debug.Log(
+                        $"RunStateManager armed boss transition at {runTimer:0.0}s in scene '{SceneManager.GetActiveScene().name}'.",
+                        this);
+                }
+
+                if (bossTransitionArmed && spawnDirector.AliveEnemies <= 0)
+                {
+                    BeginBossWave();
+                }
+
+                return;
+            }
+
+            if (spawnDirector.IsBattlefieldClear)
             {
                 BeginBossWave();
             }
@@ -128,8 +156,26 @@ namespace Dagon.Gameplay
             bossesInWave = Mathf.Max(1, newBossesInWave);
         }
 
+        public void ConfigureBossTransition(bool useTimedTransition, float timedTransitionDelaySeconds, bool showSpawnProgress)
+        {
+            useTimedBossTransition = useTimedTransition;
+            bossTransitionDelaySeconds = Mathf.Max(1f, timedTransitionDelaySeconds);
+            showSpawnProgressUi = showSpawnProgress;
+            bossTransitionArmed = false;
+        }
+
         private void HandleBattlefieldCleared()
         {
+            if (useTimedBossTransition)
+            {
+                if (bossTransitionArmed && !bossWaveStarted && !runEnded)
+                {
+                    BeginBossWave();
+                }
+
+                return;
+            }
+
             if (!bossWaveStarted && !runEnded)
             {
                 BeginBossWave();
@@ -256,8 +302,11 @@ namespace Dagon.Gameplay
             GUI.Label(new Rect(Screen.width - 220f, 18f, 200f, 22f), $"Run: {runTimer:0.0}s");
             if (!bossWaveStarted)
             {
-                var enemiesLeft = spawnDirector != null ? spawnDirector.RemainingSpawns : 0;
-                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Kills Left: {enemiesLeft}");
+                if (showSpawnProgressUi)
+                {
+                    var enemiesLeft = spawnDirector != null ? spawnDirector.RemainingSpawns : 0;
+                    GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Kills Left: {enemiesLeft}");
+                }
             }
             else
             {

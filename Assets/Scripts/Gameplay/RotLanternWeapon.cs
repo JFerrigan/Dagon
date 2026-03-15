@@ -7,6 +7,9 @@ namespace Dagon.Gameplay
 {
     public sealed class RotLanternWeapon : PlayerWeaponRuntime
     {
+        private const string LanternSpritePath = "Sprites/Weapons/rot_lantern";
+        private const string PulseSpritePath = "Sprites/Effects/brine_surge";
+
         [SerializeField] private float pulseRate = 0.75f;
         [SerializeField] private float damage = 0.8f;
         [SerializeField] private float radius = 2.2f;
@@ -129,6 +132,20 @@ namespace Dagon.Gameplay
 
         private void Pulse()
         {
+            PlaceholderWeaponVisual.Spawn(
+                "RotLanternArea",
+                transform.position + Vector3.up * 0.05f,
+                new Vector3(radius * 1.35f, radius * 1.35f, 1f),
+                worldCamera,
+                new Color(0.56f, 0.92f, 0.62f, 0.32f),
+                0.32f,
+                1.04f,
+                0f,
+                spritePath: PulseSpritePath,
+                pixelsPerUnit: 256f,
+                sortingOrder: 4,
+                groundPlane: true);
+
             var colliders = Physics.OverlapSphere(transform.position, radius, enemyMask, QueryTriggerInteraction.Collide);
             foreach (var hit in colliders)
             {
@@ -143,11 +160,13 @@ namespace Dagon.Gameplay
             PlaceholderWeaponVisual.Spawn(
                 "RotLanternPulse",
                 transform.position + Vector3.up * 0.18f,
-                new Vector3(radius * 2f, radius * 2f, 1f),
+                new Vector3(radius * 0.55f, radius * 0.55f, 1f),
                 worldCamera,
                 new Color(0.72f, 0.96f, 0.72f, 0.5f),
                 0.24f,
-                1.18f);
+                1.18f,
+                spritePath: LanternSpritePath,
+                pixelsPerUnit: 256f);
         }
     }
 }

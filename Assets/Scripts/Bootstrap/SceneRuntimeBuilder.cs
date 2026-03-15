@@ -3,46 +3,37 @@ using Dagon.Data;
 using Dagon.Gameplay;
 using Dagon.Rendering;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Dagon.Bootstrap
 {
-    public sealed class PrototypeSceneBootstrap : MonoBehaviour
+    public sealed class SceneRuntimeBuilder : MonoBehaviour
     {
-        private enum StageKind
-        {
-            BlackMireRun,
-            MireColossusBoss,
-            DeveloperSandbox
-        }
-
         private const string RuntimeRootName = "DagonStageRuntime";
 
-        [SerializeField] private StageKind stageKind = StageKind.BlackMireRun;
         [SerializeField] private string runtimeRootName = RuntimeRootName;
-        [Header("Black Mire Run")]
-        [SerializeField] private int blackMireSpawnQuota = 14;
-        [SerializeField] private int blackMireStartingEnemies = 4;
-        [SerializeField] private int blackMireMaxAliveEnemies = 6;
-        [SerializeField] private int blackMireEliteSpawnEvery = 8;
-        [SerializeField] private float blackMireMinSpawnInterval = 0.8f;
-        [SerializeField] private float blackMireMaxSpawnInterval = 1.35f;
+        [SerializeField] private RuntimeStageConfig stageConfig;
 
         private void Awake()
         {
             Time.timeScale = 1f;
+            WarnAboutDuplicateBuilders();
             EnsureBuilt();
         }
 
         private void EnsureBuilt()
         {
-            if (GameObject.Find(runtimeRootName) != null)
+            var existingRuntimeRoot = GameObject.Find(runtimeRootName);
+            if (existingRuntimeRoot != null)
             {
+                WarnAboutDuplicateRuntimeSystems();
                 return;
             }
 
             var runtimeRoot = new GameObject(runtimeRootName);
             runtimeRoot.transform.SetParent(transform, false);
             CreateScene(runtimeRoot.transform);
+            WarnAboutDuplicateRuntimeSystems();
         }
 
         private void CreateScene(Transform root)
@@ -182,7 +173,7 @@ namespace Dagon.Bootstrap
             scatterer.Configure(camera, player);
         }
 
-        private static void CreateCommonRuntimeSystems(Transform root, GameObject player, Camera camera, bool includeRunStateManager)
+        private static SpawnDirector CreateCommonRuntimeSystems(Transform root, GameObject player, Camera camera, bool includeRunStateManager)
         {
             var sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mire_wretch");
             var acolyteProjectile = RuntimeOrbProjectileFactory.Create(camera);
@@ -197,47 +188,119 @@ namespace Dagon.Bootstrap
                 var runState = root.gameObject.AddComponent<RunStateManager>();
                 runState.Configure(player.transform, camera, spawnDirector, sprite, acolyteProjectile);
             }
+
+            return spawnDirector;
         }
 
         private void CreateStageRuntimeSystems(Transform root, GameObject player, Camera camera)
         {
-            CreateCommonRuntimeSystems(root, player, camera, includeRunStateManager: true);
-
-            var spawnDirector = root.GetComponent<SpawnDirector>();
+            var spawnDirector = CreateCommonRuntimeSystems(root, player, camera, includeRunStateManager: true);
             var runState = root.GetComponent<RunStateManager>();
+            var resolvedStage = ResolveStageConfig();
 
-            if (stageKind == StageKind.MireColossusBoss)
+            if (resolvedStage.StageKind == RuntimeStageConfig.StageKind.MireColossusBoss)
             {
-                ConfigureBossScene(spawnDirector, runState);
+                ConfigureBossScene(spawnDirector, runState, resolvedStage.Settings);
+                spawnDirector?.InitializeRuntime(resolvedStage.StageKind.ToString());
                 return;
             }
 
-            ConfigureBlackMireRun(spawnDirector, runState);
+            ApplyStageRuntimeConfig(spawnDirector, resolvedStage.Settings);
+            ConfigureBlackMireRun(runState, resolvedStage.Settings);
+            spawnDirector?.InitializeRuntime(resolvedStage.StageKind.ToString());
+            Debug.Log(
+                $"SceneRuntimeBuilder resolved {resolvedStage.StageKind} for scene '{SceneManager.GetActiveScene().name}' with " +
+                $"Quota={resolvedStage.Settings.spawnQuota}, Starting={resolvedStage.Settings.startingEnemies}, MaxAlive={resolvedStage.Settings.maxAliveEnemies}, " +
+                $"EliteEvery={resolvedStage.Settings.eliteSpawnEvery}, Interval={resolvedStage.Settings.minSpawnInterval:0.00}-{resolvedStage.Settings.maxSpawnInterval:0.00}, " +
+                $"OpeningWaveEnabled={resolvedStage.Settings.openingWaveEnabled}, BarsAlwaysVisible={resolvedStage.Settings.enemyHealthBarsAlwaysVisible}, " +
+                $"BarVisibleDuration={resolvedStage.Settings.enemyHealthBarVisibleDuration:0.00}, BossDelay={resolvedStage.Settings.bossTransitionDelaySeconds:0.0}, " +
+                $"ShowSpawnProgress={resolvedStage.Settings.showSpawnProgressUi}, SpawnRamp={resolvedStage.Settings.useSpawnRamp}, " +
+                $"RampDelay={resolvedStage.Settings.spawnRampDelaySeconds:0.0}, RampDuration={resolvedStage.Settings.spawnRampDurationSeconds:0.0}, " +
+                $"RampMaxReduction={resolvedStage.Settings.spawnRampMaxIntervalReduction:0.00}.",
+                this);
 
-            if (stageKind == StageKind.DeveloperSandbox)
+            if (resolvedStage.Settings.enableSandboxUi)
             {
                 var sandboxController = root.gameObject.AddComponent<DeveloperSandboxController>();
                 sandboxController.Configure(player.GetComponent<PlayerCombatLoadout>());
             }
         }
 
-        private void ConfigureBlackMireRun(SpawnDirector spawnDirector, RunStateManager runState)
+        private static void ApplyStageRuntimeConfig(SpawnDirector spawnDirector, RuntimeStageConfig.StageRuntimeSettings config)
         {
             spawnDirector?.ConfigureCampaign(
-                blackMireSpawnQuota,
-                blackMireStartingEnemies,
-                blackMireMaxAliveEnemies,
-                blackMireEliteSpawnEvery,
-                blackMireMinSpawnInterval,
-                blackMireMaxSpawnInterval);
-            runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
+                config.spawnQuota,
+                config.startingEnemies,
+                config.maxAliveEnemies,
+                config.eliteSpawnEvery,
+                config.minSpawnInterval,
+                config.maxSpawnInterval);
+            spawnDirector?.ConfigureSpawnFlow(config.openingWaveEnabled);
+            spawnDirector?.ConfigureSpawnRamp(
+                config.useSpawnRamp,
+                config.spawnRampDelaySeconds,
+                config.spawnRampDurationSeconds,
+                config.spawnRampMaxIntervalReduction);
+            spawnDirector?.ConfigureHealthBars(config.enemyHealthBarsAlwaysVisible, config.enemyHealthBarVisibleDuration);
         }
 
-        private static void ConfigureBossScene(SpawnDirector spawnDirector, RunStateManager runState)
+        private static void ConfigureBlackMireRun(RunStateManager runState, RuntimeStageConfig.StageRuntimeSettings config)
         {
-            // Boss scene starts directly in the boss phase by leaving no regular wave to clear.
-            spawnDirector?.ConfigureCampaign(0, 0, 1, 1, 0.4f, 0.75f);
+            runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
+            runState?.ConfigureBossTransition(true, config.bossTransitionDelaySeconds, config.showSpawnProgressUi);
+        }
+
+        private static void ConfigureBossScene(SpawnDirector spawnDirector, RunStateManager runState, RuntimeStageConfig.StageRuntimeSettings config)
+        {
+            spawnDirector?.ConfigureCampaign(
+                config.spawnQuota,
+                config.startingEnemies,
+                config.maxAliveEnemies,
+                config.eliteSpawnEvery,
+                config.minSpawnInterval,
+                config.maxSpawnInterval);
+            spawnDirector?.ConfigureSpawnFlow(config.openingWaveEnabled);
+            spawnDirector?.ConfigureHealthBars(config.enemyHealthBarsAlwaysVisible, config.enemyHealthBarVisibleDuration);
             runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 1);
+            runState?.ConfigureBossTransition(false, config.bossTransitionDelaySeconds, config.showSpawnProgressUi);
+        }
+
+        private RuntimeStageConfig.ResolvedStageConfig ResolveStageConfig()
+        {
+            if (stageConfig != null)
+            {
+                return stageConfig.Resolve();
+            }
+
+            var inferred = RuntimeStageConfig.ResolveForScene(SceneManager.GetActiveScene().name);
+            Debug.LogWarning(
+                $"Scene '{SceneManager.GetActiveScene().name}' is missing RuntimeStageConfig. Falling back to inferred stage {inferred.StageKind}.",
+                this);
+            return inferred;
+        }
+
+        private void WarnAboutDuplicateBuilders()
+        {
+            var builders = FindObjectsByType<SceneRuntimeBuilder>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            if (builders.Length > 1)
+            {
+                Debug.LogWarning(
+                    $"Scene '{SceneManager.GetActiveScene().name}' has {builders.Length} SceneRuntimeBuilder instances. " +
+                    "This can duplicate runtime setup and spawning.",
+                    this);
+            }
+        }
+
+        private void WarnAboutDuplicateRuntimeSystems()
+        {
+            var spawnDirectors = FindObjectsByType<SpawnDirector>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            if (spawnDirectors.Length > 1)
+            {
+                Debug.LogWarning(
+                    $"Scene '{SceneManager.GetActiveScene().name}' has {spawnDirectors.Length} SpawnDirector instances. " +
+                    "This can cause spawn-count divergence between editor play and builds.",
+                    this);
+            }
         }
 
         private static CharacterLoadoutDefinition CreateStartingLoadout()
@@ -279,7 +342,7 @@ namespace Dagon.Bootstrap
                     1.8f,
                     1,
                     0f,
-                    2.4f,
+                    4.8f,
                     105f,
                     4.5f),
                 WeaponDefinition.CreateRuntime(
@@ -293,7 +356,7 @@ namespace Dagon.Bootstrap
                     0.8f,
                     1,
                     0f,
-                    2.2f),
+                    4.4f),
                 WeaponDefinition.CreateRuntime(
                     "weapon.bilge_spray",
                     "Bilge Spray",
@@ -305,7 +368,7 @@ namespace Dagon.Bootstrap
                     0.7f,
                     1,
                     0f,
-                    3.2f,
+                    6.4f,
                     70f,
                     0f,
                     0.25f,

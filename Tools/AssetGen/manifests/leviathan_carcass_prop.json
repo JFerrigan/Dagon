@@ -1,0 +1,13 @@
+{
+  "asset_id": "leviathan_carcass_prop",
+  "asset_type": "background_prop_sprite",
+  "prompt": "Half-sunken leviathan carcass with exposed ribs, mire ooze, and decayed flesh for large black mire background dressing.",
+  "output_path": "Assets/Resources/Sprites/Props/leviathan_carcass_prop.png",
+  "source_image": "Tools/AssetGen/generated/leviathan_carcass_prop.png",
+  "processed_image": "Tools/AssetGen/processed/leviathan_carcass_prop.png",
+  "size": [256, 256],
+  "palette_notes": "bone ivory, swamp gray, rotten algae green, corpse mud browns",
+  "orientation": "isometric_ground_prop",
+  "provider": "chat_attachment_inbox",
+  "notes": "Primary large carcass prop sourced from local inbox art."
+}

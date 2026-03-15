@@ -7,6 +7,8 @@ namespace Dagon.Gameplay
 {
     public sealed class BilgeSprayWeapon : PlayerWeaponRuntime
     {
+        private const string BilgeSpraySpritePath = "Sprites/Weapons/bilge_spray";
+
         [SerializeField] private PlayerMover playerMover;
         [SerializeField] private float attacksPerSecond = 0.65f;
         [SerializeField] private float damage = 0.7f;
@@ -189,13 +191,17 @@ namespace Dagon.Gameplay
             var offset = aim * (range * 0.4f) + Vector3.up * 0.18f;
             PlaceholderWeaponVisual.Spawn(
                 "BilgeSpray",
-                transform.position + offset,
-                new Vector3(range * 1.4f, range * 0.95f, 1f),
+                transform.position + offset + Vector3.up * 0.05f,
+                new Vector3(range * 0.72f, range * 0.5f, 1f),
                 worldCamera,
-                new Color(0.58f, 0.88f, 0.62f, 0.55f),
-                0.18f,
-                1.05f,
-                yaw);
+                new Color(0.58f, 0.88f, 0.62f, 0.22f),
+                0.2f,
+                1.04f,
+                yaw,
+                spritePath: BilgeSpraySpritePath,
+                pixelsPerUnit: 256f,
+                sortingOrder: 4,
+                groundPlane: false);
         }
 
         private Vector3 ResolveAimDirection()
