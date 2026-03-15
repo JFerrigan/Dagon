@@ -2,7 +2,6 @@ using Dagon.Core;
 using Dagon.Gameplay;
 using Dagon.Rendering;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Dagon.Bootstrap
 {
@@ -15,36 +14,9 @@ namespace Dagon.Bootstrap
         }
 
         private const string RuntimeRootName = "DagonStageRuntime";
-        private const string BootstrapObjectName = "StageBootstrapRuntime";
 
         [SerializeField] private StageKind stageKind = StageKind.BlackMireRun;
         [SerializeField] private string runtimeRootName = RuntimeRootName;
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void EnsureStageBootstrapForScene()
-        {
-            var sceneName = SceneManager.GetActiveScene().name;
-            if (!TryGetStageKindForScene(sceneName, out var sceneStageKind))
-            {
-                return;
-            }
-
-            if (GameObject.FindGameObjectWithTag("Player") != null || GameObject.Find(RuntimeRootName) != null)
-            {
-                return;
-            }
-
-            var bootstrap = FindObjectOfType<PrototypeSceneBootstrap>();
-            if (bootstrap == null)
-            {
-                var bootstrapObject = new GameObject(BootstrapObjectName);
-                bootstrap = bootstrapObject.AddComponent<PrototypeSceneBootstrap>();
-            }
-
-            bootstrap.stageKind = sceneStageKind;
-            bootstrap.runtimeRootName = RuntimeRootName;
-            bootstrap.EnsureBuilt();
-        }
 
         private void Awake()
         {
@@ -180,17 +152,8 @@ namespace Dagon.Bootstrap
 
         private static void CreateGround(Transform root)
         {
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.name = "BlackMireGround";
-            ground.transform.SetParent(root);
-            ground.transform.position = Vector3.zero;
-            ground.transform.localScale = new Vector3(3.5f, 1f, 3.5f);
-
-            var renderer = ground.GetComponent<MeshRenderer>();
-            var material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            material.color = new Color(0.08f, 0.09f, 0.07f, 1f);
-            material.SetFloat("_Smoothness", 0.15f);
-            renderer.sharedMaterial = material;
+            var tiler = root.gameObject.AddComponent<MireGroundTiler>();
+            tiler.Build();
         }
 
         private static void CreateProps(Transform root, Camera camera)
@@ -220,30 +183,15 @@ namespace Dagon.Bootstrap
             var spawnDirector = root.GetComponent<SpawnDirector>();
             var runState = root.GetComponent<RunStateManager>();
 
-            if (stageKind != StageKind.MireColossusBoss)
+            if (stageKind == StageKind.BlackMireRun)
             {
+                spawnDirector?.ConfigureCampaign(30, 6, 18, 10, 0.6f, 1.1f);
+                runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
                 return;
             }
 
-            spawnDirector?.ConfigureStage(0, true);
-            runState?.ConfigureStage(0.5f);
-        }
-
-        private static bool TryGetStageKindForScene(string sceneName, out StageKind sceneStageKind)
-        {
-            switch (sceneName)
-            {
-                case "BlackMire":
-                case "SampleScene":
-                    sceneStageKind = StageKind.BlackMireRun;
-                    return true;
-                case "MireColossusBoss":
-                    sceneStageKind = StageKind.MireColossusBoss;
-                    return true;
-                default:
-                    sceneStageKind = StageKind.BlackMireRun;
-                    return false;
-            }
+            spawnDirector?.ConfigureCampaign(18, 4, 14, 8, 0.65f, 1.15f);
+            runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 2);
         }
     }
 }

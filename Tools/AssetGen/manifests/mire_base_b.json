@@ -1,0 +1,13 @@
+{
+  "asset_id": "mire_base_b",
+  "asset_type": "ground_tile",
+  "prompt": "Dark painterly pixel-art top-down ground tile for a Lovecraftian black mire, muted swamp palette, black mud, rot, damp organic texture, sea-floor horror influence, readable from gameplay camera height, seamless tile edges, no strong central subject, no characters, no UI, no frame, no border, square composition.",
+  "output_path": "Assets/Resources/Sprites/Tiles/mire_base_b.png",
+  "source_image": "Tools/AssetGen/generated/mire_base_b.png",
+  "processed_image": "Tools/AssetGen/processed/mire_base_b.png",
+  "size": [256, 256],
+  "palette_notes": "dark soil, root tangles, black water patches, faint algae",
+  "orientation": "top_down_tile",
+  "provider": "chat_attachment_inbox",
+  "notes": "Secondary black mire base tile."
+}

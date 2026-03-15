@@ -1,0 +1,13 @@
+{
+  "asset_id": "mire_puddle_a",
+  "asset_type": "ground_tile",
+  "prompt": "Dark painterly pixel-art top-down ground tile for a Lovecraftian black mire, muted swamp palette, black mud, rot, damp organic texture, sea-floor horror influence, readable from gameplay camera height, seamless tile edges, no characters, no UI, no frame, no border, square composition. Large stagnant puddle with green-black water, muddy rim, subtle corruption tint beneath the surface, accent tile for a mire floor.",
+  "output_path": "Assets/Resources/Sprites/Tiles/mire_puddle_a.png",
+  "source_image": "Tools/AssetGen/generated/mire_puddle_a.png",
+  "processed_image": "Tools/AssetGen/processed/mire_puddle_a.png",
+  "size": [256, 256],
+  "palette_notes": "black water, algae green, mud brown, wet reflective edges",
+  "orientation": "top_down_tile",
+  "provider": "chat_attachment_inbox",
+  "notes": "Accent puddle tile."
+}

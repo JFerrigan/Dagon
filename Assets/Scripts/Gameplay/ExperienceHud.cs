@@ -20,9 +20,11 @@ namespace Dagon.Gameplay
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private BrineSurgeAbility brineSurgeAbility;
 
-        private readonly Rect choiceRect = new(16f, 170f, 420f, 180f);
         private Texture2D heartTexture;
         private Texture2D whiteTexture;
+        private GUIStyle centeredTitleStyle;
+        private GUIStyle centeredBodyStyle;
+        private GUIStyle upgradeButtonStyle;
 
         private void Awake()
         {
@@ -57,6 +59,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
+            EnsureStyles();
+
             DrawHealthDisplay();
             DrawExperienceBar();
             DrawCooldownPanel();
@@ -72,18 +76,8 @@ namespace Dagon.Gameplay
             }
 
             var choices = experienceController.PeekChoices();
-            GUI.Box(choiceRect, "Choose an Upgrade");
-
             Time.timeScale = 0f;
-            for (var i = 0; i < choices.Options.Length; i++)
-            {
-                var buttonRect = new Rect(32f, 210f + (i * 42f), 380f, 30f);
-                if (GUI.Button(buttonRect, DescribeChoice(choices.Options[i])))
-                {
-                    Time.timeScale = 1f;
-                    experienceController.ApplyChoice(i);
-                }
-            }
+            DrawUpgradeOverlay(choices);
         }
 
         private static string DescribeChoice(UpgradeChoice choice)
@@ -207,6 +201,120 @@ namespace Dagon.Gameplay
             }
 
             GUI.color = previous;
+        }
+
+        private void EnsureStyles()
+        {
+            if (centeredTitleStyle != null && centeredBodyStyle != null && upgradeButtonStyle != null)
+            {
+                return;
+            }
+
+            centeredTitleStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 26,
+                fontStyle = FontStyle.Bold,
+                wordWrap = true
+            };
+            centeredTitleStyle.normal.textColor = new Color(0.92f, 0.96f, 0.90f, 1f);
+
+            centeredBodyStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 15,
+                wordWrap = true
+            };
+            centeredBodyStyle.normal.textColor = new Color(0.70f, 0.82f, 0.76f, 1f);
+
+            upgradeButtonStyle = new GUIStyle(GUI.skin.button)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 18,
+                fontStyle = FontStyle.Bold,
+                wordWrap = true,
+                padding = new RectOffset(18, 18, 16, 16),
+                margin = new RectOffset(0, 0, 0, 0)
+            };
+            upgradeButtonStyle.normal.background = whiteTexture;
+            upgradeButtonStyle.hover.background = whiteTexture;
+            upgradeButtonStyle.active.background = whiteTexture;
+            upgradeButtonStyle.focused.background = whiteTexture;
+            upgradeButtonStyle.normal.textColor = new Color(0.93f, 0.98f, 0.94f, 1f);
+            upgradeButtonStyle.hover.textColor = Color.white;
+            upgradeButtonStyle.active.textColor = Color.white;
+        }
+
+        private void DrawUpgradeOverlay(UpgradeChoiceSet choices)
+        {
+            if (whiteTexture == null)
+            {
+                return;
+            }
+
+            var previousColor = GUI.color;
+
+            GUI.color = new Color(0.02f, 0.04f, 0.04f, 0.72f);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), whiteTexture, ScaleMode.StretchToFill, false);
+
+            var scale = Mathf.Max(1.1f, Mathf.Min(Screen.width / 1400f, Screen.height / 900f) * 1.35f);
+            var panelWidth = 760f;
+            var panelHeight = 420f;
+            var scaledWidth = Screen.width / scale;
+            var scaledHeight = Screen.height / scale;
+            var panelX = (scaledWidth - panelWidth) * 0.5f;
+            var panelY = (scaledHeight - panelHeight) * 0.5f;
+
+            var previousMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
+
+            var panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
+
+            GUI.color = new Color(0.08f, 0.16f, 0.14f, 0.92f);
+            GUI.DrawTexture(panelRect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.25f, 0.48f, 0.38f, 0.95f);
+            GUI.DrawTexture(new Rect(panelRect.x + 4f, panelRect.y + 4f, panelRect.width - 8f, 6f), whiteTexture, ScaleMode.StretchToFill, false);
+
+            GUI.color = previousColor;
+            GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 30f, panelRect.width - 80f, 34f), "Choose an Upgrade", centeredTitleStyle);
+            GUI.Label(
+                new Rect(panelRect.x + 70f, panelRect.y + 72f, panelRect.width - 140f, 42f),
+                "The run is paused. Pick one boon before the mire closes in again.",
+                centeredBodyStyle);
+
+            var buttonWidth = panelRect.width - 120f;
+            var buttonHeight = 72f;
+            var buttonX = panelRect.x + 60f;
+            var buttonStartY = panelRect.y + 136f;
+            var buttonGap = 20f;
+
+            for (var i = 0; i < choices.Options.Length; i++)
+            {
+                var buttonRect = new Rect(buttonX, buttonStartY + (i * (buttonHeight + buttonGap)), buttonWidth, buttonHeight);
+                DrawUpgradeButton(buttonRect);
+                GUI.backgroundColor = new Color(1f, 1f, 1f, 0.02f);
+                if (GUI.Button(buttonRect, DescribeChoice(choices.Options[i]), upgradeButtonStyle))
+                {
+                    Time.timeScale = 1f;
+                    experienceController.ApplyChoice(i);
+                }
+            }
+
+            GUI.matrix = previousMatrix;
+            GUI.backgroundColor = Color.white;
+            GUI.color = previousColor;
+        }
+
+        private void DrawUpgradeButton(Rect rect)
+        {
+            var previousColor = GUI.color;
+            GUI.color = new Color(0.11f, 0.22f, 0.18f, 0.98f);
+            GUI.DrawTexture(rect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.33f, 0.62f, 0.47f, 0.9f);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, 8f, rect.height), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(1f, 1f, 1f, 0.06f);
+            GUI.DrawTexture(new Rect(rect.x + 8f, rect.y + 8f, rect.width - 16f, rect.height - 16f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = previousColor;
         }
     }
 }

@@ -1,6 +1,6 @@
+using System.Collections.Generic;
 using Dagon.Core;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace Dagon.Gameplay
@@ -12,18 +12,20 @@ namespace Dagon.Gameplay
         [SerializeField] private Camera worldCamera;
         [SerializeField] private SpawnDirector spawnDirector;
         [SerializeField] private HarpoonProjectile bossProjectilePrefab;
-        [SerializeField] private float bossSpawnTime = 80f;
+        [SerializeField] private string nextSceneName;
+        [SerializeField] private string menuSceneName = "MainMenu";
+        [SerializeField] private int bossesInWave = 1;
 
+        private readonly List<Health> activeBosses = new();
         private Health playerHealth;
-        private Health bossHealth;
         private float runTimer;
-        private bool bossSpawned;
+        private bool bossWaveStarted;
         private bool runEnded;
         private bool playerWon;
 
         public float RunTimer => runTimer;
-        public bool BossSpawned => bossSpawned;
         public bool RunEnded => runEnded;
+        public bool BossWaveStarted => bossWaveStarted;
 
         private void Start()
         {
@@ -35,6 +37,11 @@ namespace Dagon.Gameplay
                     playerHealth.Died += HandlePlayerDied;
                 }
             }
+
+            if (spawnDirector != null)
+            {
+                spawnDirector.BattlefieldCleared += HandleBattlefieldCleared;
+            }
         }
 
         private void OnDestroy()
@@ -44,9 +51,17 @@ namespace Dagon.Gameplay
                 playerHealth.Died -= HandlePlayerDied;
             }
 
-            if (bossHealth != null)
+            if (spawnDirector != null)
             {
-                bossHealth.Died -= HandleBossDied;
+                spawnDirector.BattlefieldCleared -= HandleBattlefieldCleared;
+            }
+
+            for (var i = 0; i < activeBosses.Count; i++)
+            {
+                if (activeBosses[i] != null)
+                {
+                    activeBosses[i].Died -= HandleBossDied;
+                }
             }
         }
 
@@ -54,11 +69,6 @@ namespace Dagon.Gameplay
         {
             if (runEnded)
             {
-                if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
-                {
-                    Time.timeScale = 1f;
-                    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-                }
                 return;
             }
 
@@ -68,9 +78,9 @@ namespace Dagon.Gameplay
             }
 
             runTimer += Time.deltaTime;
-            if (!bossSpawned && runTimer >= bossSpawnTime)
+            if (!bossWaveStarted && spawnDirector != null && spawnDirector.IsBattlefieldClear)
             {
-                SpawnBoss();
+                BeginBossWave();
             }
         }
 
@@ -82,30 +92,54 @@ namespace Dagon.Gameplay
             bossProjectilePrefab = projectilePrefab;
         }
 
-        public void ConfigureStage(float newBossSpawnTime)
+        public void ConfigureLevelFlow(string newNextSceneName, string newMenuSceneName, int newBossesInWave)
         {
-            bossSpawnTime = Mathf.Max(0.1f, newBossSpawnTime);
+            nextSceneName = newNextSceneName;
+            if (!string.IsNullOrWhiteSpace(newMenuSceneName))
+            {
+                menuSceneName = newMenuSceneName;
+            }
+
+            bossesInWave = Mathf.Max(1, newBossesInWave);
         }
 
-        private void SpawnBoss()
+        private void HandleBattlefieldCleared()
         {
-            if (player == null || worldCamera == null)
+            if (!bossWaveStarted && !runEnded)
+            {
+                BeginBossWave();
+            }
+        }
+
+        private void BeginBossWave()
+        {
+            if (player == null || worldCamera == null || bossWaveStarted)
             {
                 return;
             }
 
+            bossWaveStarted = true;
+            spawnDirector?.StopSpawning();
+
+            for (var i = 0; i < bossesInWave; i++)
+            {
+                SpawnBoss(i, bossesInWave);
+            }
+        }
+
+        private void SpawnBoss(int index, int totalBosses)
+        {
             var bossSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Bosses/mire_colossus", 256f);
             if (bossSprite == null)
             {
                 return;
             }
 
-            bossSpawned = true;
-            spawnDirector?.StopSpawning();
-
             var boss = new GameObject("MireColossus");
             boss.transform.SetParent(transform);
-            boss.transform.position = player.position + new Vector3(0f, 0.6f, 12f);
+            var angle = totalBosses <= 1 ? 0f : (360f / totalBosses) * index;
+            var offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.forward * 12f);
+            boss.transform.position = player.position + new Vector3(offset.x, 0.6f, offset.z);
 
             var collider = boss.AddComponent<CapsuleCollider>();
             collider.center = new Vector3(0f, 1.1f, 0f);
@@ -117,9 +151,10 @@ namespace Dagon.Gameplay
             rigidbody.isKinematic = true;
             rigidbody.useGravity = false;
 
-            bossHealth = boss.AddComponent<Health>();
+            var bossHealth = boss.AddComponent<Health>();
             bossHealth.SetMaxHealth(120f, true);
             bossHealth.Died += HandleBossDied;
+            activeBosses.Add(bossHealth);
 
             var contactDamage = boss.AddComponent<ContactDamage>();
             contactDamage.Configure(4f);
@@ -151,7 +186,11 @@ namespace Dagon.Gameplay
         private void HandleBossDied(Health health, GameObject source)
         {
             health.Died -= HandleBossDied;
-            EndRun(true);
+            activeBosses.Remove(health);
+            if (bossWaveStarted && activeBosses.Count == 0)
+            {
+                EndRun(true);
+            }
         }
 
         private void EndRun(bool won)
@@ -170,22 +209,68 @@ namespace Dagon.Gameplay
         {
             if (runEnded)
             {
-                GUI.Box(new Rect(Screen.width * 0.5f - 180f, Screen.height * 0.5f - 80f, 360f, 160f), playerWon ? "Run Cleared" : "Run Failed");
-                GUI.Label(new Rect(Screen.width * 0.5f - 150f, Screen.height * 0.5f - 25f, 300f, 24f), $"Time: {runTimer:0.0}s");
-                GUI.Label(new Rect(Screen.width * 0.5f - 150f, Screen.height * 0.5f + 5f, 300f, 24f), playerWon ? "The Mire Colossus sinks back into the mire." : "The black mire claims the sailor.");
-                GUI.Label(new Rect(Screen.width * 0.5f - 150f, Screen.height * 0.5f + 40f, 300f, 24f), "Press R to restart");
+                DrawEndScreen();
                 return;
             }
 
             GUI.Label(new Rect(Screen.width - 220f, 18f, 200f, 22f), $"Run: {runTimer:0.0}s");
-            if (!bossSpawned)
+            if (!bossWaveStarted)
             {
-                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Boss in: {Mathf.Max(0f, bossSpawnTime - runTimer):0.0}s");
+                var enemiesLeft = spawnDirector != null ? spawnDirector.RemainingSpawns : 0;
+                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Remaining: {enemiesLeft}");
             }
             else
             {
-                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), "Boss active");
+                GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Bosses left: {activeBosses.Count}");
             }
+        }
+
+        private void DrawEndScreen()
+        {
+            var box = new Rect(Screen.width * 0.5f - 180f, Screen.height * 0.5f - 100f, 360f, 200f);
+            GUI.Box(box, playerWon ? "Level Cleared" : "Run Failed");
+            GUI.Label(new Rect(box.x + 28f, box.y + 40f, 300f, 24f), $"Time: {runTimer:0.0}s");
+            GUI.Label(
+                new Rect(box.x + 28f, box.y + 68f, 300f, 24f),
+                playerWon ? "The mire falls silent. The path forward opens." : "The black mire claims the sailor.");
+
+            if (playerWon)
+            {
+                if (!string.IsNullOrWhiteSpace(nextSceneName))
+                {
+                    if (GUI.Button(new Rect(box.x + 28f, box.y + 110f, 132f, 34f), "Next Level"))
+                    {
+                        LoadScene(nextSceneName);
+                    }
+                }
+                else
+                {
+                    GUI.Label(new Rect(box.x + 28f, box.y + 110f, 220f, 24f), "Run complete");
+                }
+            }
+            else
+            {
+                if (GUI.Button(new Rect(box.x + 28f, box.y + 110f, 132f, 34f), "Retry"))
+                {
+                    LoadScene(SceneManager.GetActiveScene().name);
+                }
+            }
+
+            if (GUI.Button(new Rect(box.x + 28f, box.y + 150f, 132f, 34f), "Main Menu"))
+            {
+                LoadScene(menuSceneName);
+            }
+        }
+
+        private static void LoadScene(string sceneName)
+        {
+            if (string.IsNullOrWhiteSpace(sceneName))
+            {
+                return;
+            }
+
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(sceneName);
         }
     }
 }

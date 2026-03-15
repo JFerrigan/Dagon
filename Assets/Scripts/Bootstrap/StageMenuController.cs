@@ -16,24 +16,32 @@ namespace Dagon.Bootstrap
 
         private void OnGUI()
         {
-            var width = 420f;
-            var height = 270f;
-            var left = (Screen.width - width) * 0.5f;
-            var top = (Screen.height - height) * 0.5f;
+            var previousMatrix = GUI.matrix;
+            var scale = Mathf.Max(1.35f, Mathf.Min(Screen.width / 1280f, Screen.height / 720f));
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
 
-            GUI.Box(new Rect(left, top, width, height), "Dagon Test Stages");
-            GUI.Label(new Rect(left + 24f, top + 36f, width - 48f, 24f), "Choose a scene for focused testing.");
-            GUI.Label(new Rect(left + 24f, top + 62f, width - 48f, 60f), "Current content available: main Black Mire run flow and the Mire Colossus boss encounter.");
+            var width = 520f;
+            var height = 320f;
+            var scaledWidth = Screen.width / scale;
+            var scaledHeight = Screen.height / scale;
+            var left = (scaledWidth - width) * 0.5f;
+            var top = (scaledHeight - height) * 0.5f;
 
-            if (GUI.Button(new Rect(left + 24f, top + 126f, width - 48f, 40f), "Black Mire Run"))
+            GUI.Box(new Rect(left, top, width, height), "Dagon");
+            GUI.Label(new Rect(left + 28f, top + 42f, width - 56f, 32f), "Enter the black mire.");
+            GUI.Label(new Rect(left + 28f, top + 76f, width - 56f, 72f), "Start a run from level one or jump directly to the boss stage.");
+
+            if (GUI.Button(new Rect(left + 28f, top + 160f, width - 56f, 52f), "Start Run"))
             {
                 SceneManager.LoadScene(BlackMireSceneName);
             }
 
-            if (GUI.Button(new Rect(left + 24f, top + 176f, width - 48f, 40f), "Mire Colossus Boss Test"))
+            if (GUI.Button(new Rect(left + 28f, top + 224f, width - 56f, 52f), "Boss Stage"))
             {
                 SceneManager.LoadScene(MireColossusBossSceneName);
             }
+
+            GUI.matrix = previousMatrix;
         }
 
         private static void EnsureCamera()
