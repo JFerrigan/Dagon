@@ -26,7 +26,8 @@ namespace Dagon.Gameplay
             string spritePath = "Sprites/Effects/brine_surge",
             float pixelsPerUnit = 256f,
             int sortingOrder = 15,
-            bool groundPlane = false)
+            bool groundPlane = false,
+            Vector3? spriteLocalOffset = null)
         {
             var sprite = RuntimeSpriteLibrary.LoadSprite(spritePath, pixelsPerUnit);
             if (sprite == null)
@@ -39,7 +40,7 @@ namespace Dagon.Gameplay
             effect.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
             var visual = effect.AddComponent<PlaceholderWeaponVisual>();
-            visual.Initialize(sprite, scale, camera, tint, duration, endScaleMultiplier, sortingOrder, groundPlane);
+            visual.Initialize(sprite, scale, camera, tint, duration, endScaleMultiplier, sortingOrder, groundPlane, spriteLocalOffset ?? Vector3.zero);
         }
 
         private void Update()
@@ -69,7 +70,8 @@ namespace Dagon.Gameplay
             float visualDuration,
             float endScaleMultiplier,
             int sortingOrder,
-            bool groundPlane)
+            bool groundPlane,
+            Vector3 spriteLocalOffset)
         {
             duration = Mathf.Max(0.05f, visualDuration);
             tint = visualTint;
@@ -79,6 +81,7 @@ namespace Dagon.Gameplay
 
             var rendererObject = new GameObject("Visuals");
             rendererObject.transform.SetParent(transform, false);
+            rendererObject.transform.localPosition = spriteLocalOffset;
             spriteRenderer = rendererObject.AddComponent<SpriteRenderer>();
             spriteRenderer.sprite = sprite;
             spriteRenderer.sortingOrder = sortingOrder;

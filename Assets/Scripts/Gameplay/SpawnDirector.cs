@@ -193,6 +193,13 @@ namespace Dagon.Gameplay
             pressureIntervalReduction = Mathf.Max(0f, pressureIntervalReduction + intervalReduction);
         }
 
+        public void IncreaseSandboxPressure(float intervalReduction = 0.18f, int additionalAliveCap = 1)
+        {
+            TightenPressure(intervalReduction, additionalAliveCap);
+            maxAliveEnemies = Mathf.Max(1, maxAliveEnemies + additionalAliveCap);
+            spawnTimer = Mathf.Min(spawnTimer, minSpawnInterval);
+        }
+
         private bool TryInitializeRuntime(string contextLabel, bool emitWarnings = false)
         {
             if (initialized)

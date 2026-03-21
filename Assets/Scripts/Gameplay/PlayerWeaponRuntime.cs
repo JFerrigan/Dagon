@@ -80,6 +80,30 @@ namespace Dagon.Gameplay
             return true;
         }
 
+        public bool ApplySandboxPathUpgrade(WeaponUpgradePath path)
+        {
+            var nextStep = GetPathUpgradesTaken(path) + 1;
+            if (nextStep <= 3)
+            {
+                ApplyPathUpgrade(path, nextStep);
+            }
+            else
+            {
+                ApplySandboxOverflowUpgrade(path, nextStep);
+            }
+
+            if (path == WeaponUpgradePath.PathA)
+            {
+                pathAUpgradesTaken = nextStep;
+            }
+            else
+            {
+                pathBUpgradesTaken = nextStep;
+            }
+
+            return true;
+        }
+
         public bool TryBuildPathReward(WeaponUpgradePath path, out CombatRewardOption reward)
         {
             reward = default;
@@ -114,6 +138,19 @@ namespace Dagon.Gameplay
         protected abstract void ApplyDefinition(WeaponDefinition runtimeDefinition);
 
         protected abstract void ApplyPathUpgrade(WeaponUpgradePath path, int nextStep);
+
+        protected virtual void ApplySandboxOverflowUpgrade(WeaponUpgradePath path, int nextStep)
+        {
+            if (path == WeaponUpgradePath.PathA)
+            {
+                ModifyProjectileCount(1);
+                ModifyAttackRate(0.05f);
+                return;
+            }
+
+            ModifyProjectileDamage(0.35f);
+            ModifyAttackRate(0.02f);
+        }
 
         protected abstract string GetUpgradeTitle(WeaponUpgradePath path, int nextStep);
 

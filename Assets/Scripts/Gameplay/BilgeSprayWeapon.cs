@@ -8,6 +8,8 @@ namespace Dagon.Gameplay
     public sealed class BilgeSprayWeapon : PlayerWeaponRuntime
     {
         private const string BilgeSpraySpritePath = "Sprites/Weapons/bilge_spray";
+        private const float SprayReachMultiplier = 0.72f;
+        private const float SprayConeMultiplier = 0.8f;
 
         [SerializeField] private PlayerMover playerMover;
         [SerializeField] private float attacksPerSecond = 0.65f;
@@ -147,7 +149,9 @@ namespace Dagon.Gameplay
 
         private void Spray(Vector3 aim)
         {
-            var colliders = Physics.OverlapSphere(transform.position, range, enemyMask, QueryTriggerInteraction.Collide);
+            var sprayReach = range * SprayReachMultiplier;
+            var sprayHalfAngle = coneAngle * SprayConeMultiplier * 0.5f;
+            var colliders = Physics.OverlapSphere(transform.position, sprayReach, enemyMask, QueryTriggerInteraction.Collide);
             foreach (var hit in colliders)
             {
                 if (hit.transform == transform)
@@ -162,7 +166,12 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                if (Vector3.Angle(aim, toTarget.normalized) > coneAngle * 0.5f)
+                if (toTarget.sqrMagnitude > sprayReach * sprayReach)
+                {
+                    continue;
+                }
+
+                if (Vector3.Angle(aim, toTarget.normalized) > sprayHalfAngle)
                 {
                     continue;
                 }
@@ -188,20 +197,22 @@ namespace Dagon.Gameplay
             }
 
             var yaw = Mathf.Atan2(aim.x, aim.z) * Mathf.Rad2Deg;
-            var offset = aim * (range * 0.4f) + Vector3.up * 0.18f;
+            var effectScale = new Vector3(sprayReach, sprayReach, 1f);
+            var spriteOffset = new Vector3(effectScale.x * 0.5f, 0f, effectScale.y * 0.5f);
             PlaceholderWeaponVisual.Spawn(
                 "BilgeSpray",
-                transform.position + offset + Vector3.up * 0.05f,
-                new Vector3(range * 0.72f, range * 0.5f, 1f),
+                transform.position + Vector3.up * 0.05f,
+                effectScale,
                 worldCamera,
                 new Color(0.58f, 0.88f, 0.62f, 0.22f),
                 0.2f,
                 1.04f,
-                yaw,
+                yaw - 45f,
                 spritePath: BilgeSpraySpritePath,
                 pixelsPerUnit: 256f,
                 sortingOrder: 4,
-                groundPlane: false);
+                groundPlane: true,
+                spriteLocalOffset: spriteOffset);
         }
 
         private Vector3 ResolveAimDirection()

@@ -10,18 +10,25 @@ namespace Dagon.Bootstrap
     public sealed class DeveloperSandboxController : MonoBehaviour
     {
         [SerializeField] private PlayerCombatLoadout combatLoadout;
+        [SerializeField] private SpawnDirector spawnDirector;
         [SerializeField] private KeyCode togglePanelKey = KeyCode.F1;
 
         private readonly List<WeaponDefinition> availableWeapons = new();
         private readonly HashSet<string> selectedWeaponIds = new();
         private Vector2 scrollPosition;
         private bool panelVisible = true;
+        private int spawnBoostCount;
 
         private void Start()
         {
             if (combatLoadout == null)
             {
                 combatLoadout = FindObjectOfType<PlayerCombatLoadout>();
+            }
+
+            if (spawnDirector == null)
+            {
+                spawnDirector = FindObjectOfType<SpawnDirector>();
             }
 
             RebuildWeaponCatalog();
@@ -43,7 +50,7 @@ namespace Dagon.Bootstrap
                 return;
             }
 
-            const float width = 340f;
+            const float width = 492f;
             const float rowHeight = 28f;
             var panelHeight = Mathf.Min(360f, 132f + (availableWeapons.Count * rowHeight));
             var rect = new Rect(Screen.width - width - 16f, 16f, width, panelHeight);
@@ -68,7 +75,21 @@ namespace Dagon.Bootstrap
                 SyncSelectionFromLoadout();
             }
 
-            GUI.Label(new Rect(rect.x + 12f, rect.y + 106f, rect.width - 24f, 18f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
+            if (GUI.Button(new Rect(rect.x + 336f, rect.y + 76f, 68f, 24f), "A+ All"))
+            {
+                UpgradeAllActiveWeapons(WeaponUpgradePath.PathA);
+            }
+
+            if (GUI.Button(new Rect(rect.x + 412f, rect.y + 76f, 68f, 24f), "B+ All"))
+            {
+                UpgradeAllActiveWeapons(WeaponUpgradePath.PathB);
+            }
+
+            GUI.Label(new Rect(rect.x + 12f, rect.y + 106f, rect.width - 120f, 18f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
+            if (GUI.Button(new Rect(rect.x + rect.width - 96f, rect.y + 102f, 84f, 24f), $"Spawn +{spawnBoostCount}"))
+            {
+                IncreaseSpawnPressure();
+            }
 
             var viewRect = new Rect(rect.x + 12f, rect.y + 130f, rect.width - 24f, rect.height - 142f);
             var contentRect = new Rect(0f, 0f, viewRect.width - 18f, availableWeapons.Count * rowHeight);
@@ -85,6 +106,10 @@ namespace Dagon.Bootstrap
         public void Configure(PlayerCombatLoadout loadout)
         {
             combatLoadout = loadout;
+            if (spawnDirector == null)
+            {
+                spawnDirector = FindObjectOfType<SpawnDirector>();
+            }
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
         }
@@ -96,18 +121,31 @@ namespace Dagon.Bootstrap
             var isBaseWeapon = combatLoadout.BaseWeapon != null && combatLoadout.BaseWeapon.WeaponId == definition.WeaponId;
             var buttonLabel = isSelected ? "Remove" : "Add";
             var nameLabel = isBaseWeapon ? $"{definition.DisplayName} [Base]" : definition.DisplayName;
+            var runtimeWeapon = combatLoadout.GetWeapon(definition.WeaponId);
 
-            GUI.Label(new Rect(0f, top + 4f, width - 132f, 20f), nameLabel);
+            GUI.Label(new Rect(0f, top + 4f, width - 252f, 20f), nameLabel);
 
-            if (GUI.Button(new Rect(width - 126f, top + 2f, 58f, 24f), "Solo"))
+            if (GUI.Button(new Rect(width - 246f, top + 2f, 58f, 24f), "Solo"))
             {
                 EquipOnly(definition);
             }
 
-            if (GUI.Button(new Rect(width - 62f, top + 2f, 58f, 24f), buttonLabel))
+            if (GUI.Button(new Rect(width - 182f, top + 2f, 58f, 24f), buttonLabel))
             {
                 ToggleWeapon(definition);
             }
+
+            GUI.enabled = runtimeWeapon != null;
+            if (GUI.Button(new Rect(width - 118f, top + 2f, 54f, 24f), "A+"))
+            {
+                runtimeWeapon?.ApplySandboxPathUpgrade(WeaponUpgradePath.PathA);
+            }
+
+            if (GUI.Button(new Rect(width - 58f, top + 2f, 54f, 24f), "B+"))
+            {
+                runtimeWeapon?.ApplySandboxPathUpgrade(WeaponUpgradePath.PathB);
+            }
+            GUI.enabled = true;
         }
 
         private void RebuildWeaponCatalog()
@@ -222,6 +260,35 @@ namespace Dagon.Bootstrap
                 : chosenDefinitions[0].WeaponId;
             combatLoadout.SetWeapons(chosenDefinitions, baseWeaponId);
             SyncSelectionFromLoadout();
+        }
+
+        private void UpgradeAllActiveWeapons(WeaponUpgradePath path)
+        {
+            if (combatLoadout == null)
+            {
+                return;
+            }
+
+            foreach (var weapon in combatLoadout.Weapons)
+            {
+                weapon?.ApplySandboxPathUpgrade(path);
+            }
+        }
+
+        private void IncreaseSpawnPressure()
+        {
+            if (spawnDirector == null)
+            {
+                spawnDirector = FindObjectOfType<SpawnDirector>();
+            }
+
+            if (spawnDirector == null)
+            {
+                return;
+            }
+
+            spawnDirector.IncreaseSandboxPressure();
+            spawnBoostCount += 1;
         }
     }
 }
