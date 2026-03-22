@@ -49,6 +49,12 @@ namespace Dagon.Gameplay
 
             heartTexture = Resources.Load<Texture2D>("Sprites/UI/heart");
             whiteTexture = Texture2D.whiteTexture;
+
+            if (heartTexture != null)
+            {
+                heartTexture.filterMode = FilterMode.Point;
+                heartTexture.wrapMode = TextureWrapMode.Clamp;
+            }
         }
 
         private void OnGUI()

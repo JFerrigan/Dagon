@@ -12,6 +12,30 @@ namespace Dagon.Gameplay
     public sealed class SpawnDirector : MonoBehaviour
     {
         private const string DeepSpawnPrefabResourcePath = "Prefabs/Enemies/DeepSpawn";
+        private const float SpecialistHealthPickupDropChance = 0.2f;
+        private const float EliteHealthPickupDropChance = 0.5f;
+        private const float HealthPickupHealAmount = 2f;
+        private const float SpecialistUnlockTime = 22f;
+        private const float EliteUnlockTime = 58f;
+        private const float MermaidUnlockTime = 46f;
+        private const float WatcherEyeFodderUnlockTime = 24f;
+        private const float SpecialistBudgetGainPerSecond = 0.11f;
+        private const float EliteBudgetGainPerSecond = 0.045f;
+        private const float SpecialistSpawnCost = 1f;
+        private const float EliteSpawnCost = 1f;
+        private const float SpecialistBudgetCap = 2.35f;
+        private const float EliteBudgetCap = 1.6f;
+        private const float SpecialistBaseCooldown = 8.5f;
+        private const float SpecialistCooldownJitter = 2.25f;
+        private const float EliteBaseCooldown = 19f;
+        private const float EliteCooldownJitter = 5f;
+
+        private enum SpawnClass
+        {
+            Fodder,
+            Specialist,
+            Elite
+        }
 
         private enum EnemyKind
         {
@@ -55,6 +79,10 @@ namespace Dagon.Gameplay
         private float configuredMaxSpawnInterval;
         private float pressureIntervalReduction;
         private float runtimeStartedAt;
+        private float specialistBudget;
+        private float eliteBudget;
+        private float specialistCooldownRemaining;
+        private float eliteCooldownRemaining;
         private float bossPhaseIntervalMultiplier = 1f;
         private int defeatedEnemies;
         private int totalSpawned;
@@ -99,6 +127,7 @@ namespace Dagon.Gameplay
         public bool EnemyHealthBarsAlwaysVisible => enemyHealthBarsAlwaysVisible;
         public bool Initialized => initialized;
         public bool OpeningWaveEnabled => openingWaveEnabled;
+        public bool IsAutoSpawningStopped => spawningStopped;
 
         private void Start()
         {
@@ -117,6 +146,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
+            TickDirector(Time.deltaTime);
             DespawnFarEnemies();
 
             if (spawningStopped || SpawnQuotaMet || activeEnemies.Count >= GetCurrentMaxAliveEnemies())
@@ -164,6 +194,7 @@ namespace Dagon.Gameplay
             configuredMinSpawnInterval = minSpawnInterval;
             configuredMaxSpawnInterval = maxSpawnInterval;
             pressureIntervalReduction = 0f;
+            ResetDirectorState();
             spawningStopped = false;
             quotaNotified = false;
         }
@@ -209,6 +240,7 @@ namespace Dagon.Gameplay
             bossPhaseSpawnThrottleActive = false;
             bossPhaseIntervalMultiplier = 1f;
             bossPhaseAliveCap = 0;
+            ResetDirectorCooldowns();
             ResetTimer();
         }
 
@@ -304,6 +336,7 @@ namespace Dagon.Gameplay
 
             initialized = true;
             runtimeStartedAt = Time.time;
+            ResetDirectorState();
             if (openingWaveEnabled)
             {
                 SpawnOpeningWave();
@@ -404,7 +437,7 @@ namespace Dagon.Gameplay
                     knockbackReceiver.Configure(0.85f, 18f, 5f);
                     var shooter = mire.AddComponent<DrownedAcolyteShooter>();
                     shooter.Configure(player, acolyteProjectilePrefab, Random.Range(2.4f, 2.8f), 6f, 1.6f, worldCamera);
-                    rewards.Configure(3, 3f);
+                    rewards.Configure(3, 3f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.Mermaid:
@@ -412,7 +445,7 @@ namespace Dagon.Gameplay
                     knockbackReceiver.Configure(0.8f, 18f, 5f);
                     var mermaid = mire.AddComponent<MermaidController>();
                     mermaid.Configure(player, worldCamera, Random.Range(2.1f, 2.4f), 7.1f);
-                    rewards.Configure(4, 4.5f);
+                    rewards.Configure(4, 4.5f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.WatcherEye:
@@ -420,7 +453,7 @@ namespace Dagon.Gameplay
                     knockbackReceiver.Configure(0.7f, 18f, 5f);
                     var watcherEye = mire.AddComponent<WatcherEyeController>();
                     watcherEye.Configure(player, watcherEyeProjectilePrefab, worldCamera, Random.Range(2.2f, 2.5f), 7.8f);
-                    rewards.Configure(1, 1.75f);
+                    rewards.Configure(1, 1.75f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.DeepSpawn:
@@ -431,7 +464,7 @@ namespace Dagon.Gameplay
                     bruiser.Configure(player, 1.2f, 4.8f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
                     contactDamage.Configure(3f);
-                    rewards.Configure(6, 7f);
+                    rewards.Configure(6, 7f, EliteHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
             }
@@ -593,6 +626,32 @@ namespace Dagon.Gameplay
             spawnTimer = Random.Range(currentMinInterval, currentMaxInterval) * bossPhaseIntervalMultiplier;
         }
 
+        private void TickDirector(float deltaTime)
+        {
+            if (deltaTime <= 0f)
+            {
+                return;
+            }
+
+            specialistCooldownRemaining = Mathf.Max(0f, specialistCooldownRemaining - deltaTime);
+            eliteCooldownRemaining = Mathf.Max(0f, eliteCooldownRemaining - deltaTime);
+
+            var elapsed = GetElapsedRunTime();
+            if (elapsed >= SpecialistUnlockTime)
+            {
+                specialistBudget = Mathf.Min(
+                    SpecialistBudgetCap,
+                    specialistBudget + (SpecialistBudgetGainPerSecond * deltaTime));
+            }
+
+            if (elapsed >= EliteUnlockTime)
+            {
+                eliteBudget = Mathf.Min(
+                    EliteBudgetCap,
+                    eliteBudget + (EliteBudgetGainPerSecond * deltaTime));
+            }
+        }
+
         private float GetCurrentMinSpawnInterval()
         {
             return Mathf.Max(0.15f, configuredMinSpawnInterval - GetCurrentIntervalReduction());
@@ -715,78 +774,99 @@ namespace Dagon.Gameplay
 
         private EnemyKind ChooseNextEnemyKind()
         {
-            var nextSpawnIndex = totalSpawned + 1;
-            var deepSpawnEvery = currentBiomeProfile != null ? currentBiomeProfile.DeepSpawnSpawnEvery : eliteSpawnEvery;
-            var acolyteEvery = currentBiomeProfile != null ? currentBiomeProfile.DrownedAcolyteSpawnEvery : 5;
-            var mermaidEvery = currentBiomeProfile != null ? currentBiomeProfile.MermaidSpawnEvery : 8;
-            var watcherEyeEvery = currentBiomeProfile != null ? currentBiomeProfile.WatcherEyeSpawnEvery : 6;
-
-            if (deepSpawnEvery > 0 &&
-                nextSpawnIndex > 1 &&
-                nextSpawnIndex % deepSpawnEvery == 0 &&
-                deepSpawnPrefab != null)
+            return ChooseSpawnClass() switch
             {
-                return EnemyKind.DeepSpawn;
+                SpawnClass.Elite => ChooseEliteKind(),
+                SpawnClass.Specialist => ChooseSpecialistKind(),
+                _ => ChooseFodderKind()
+            };
+        }
+
+        private SpawnClass ChooseSpawnClass()
+        {
+            var elapsed = GetElapsedRunTime();
+            var aliveSpecialists = GetAliveCountForClass(SpawnClass.Specialist);
+            var aliveElites = GetAliveCountForClass(SpawnClass.Elite);
+
+            var specialistReady =
+                elapsed >= SpecialistUnlockTime &&
+                HasAvailableSpecialist(elapsed) &&
+                specialistBudget >= SpecialistSpawnCost &&
+                specialistCooldownRemaining <= 0f &&
+                aliveSpecialists < GetCurrentSpecialistCap(elapsed);
+
+            var eliteReady =
+                elapsed >= EliteUnlockTime &&
+                HasAvailableElite() &&
+                eliteBudget >= EliteSpawnCost &&
+                eliteCooldownRemaining <= 0f &&
+                aliveElites < GetCurrentEliteCap(elapsed);
+
+            if (!specialistReady && !eliteReady)
+            {
+                return SpawnClass.Fodder;
             }
 
-            var acolyteEligible = acolyteEvery > 0 && nextSpawnIndex % acolyteEvery == 0 && acolyteProjectilePrefab != null;
-            var mermaidEligible = mermaidSprite != null && mermaidEvery > 0 && nextSpawnIndex >= mermaidEvery && nextSpawnIndex % mermaidEvery == 0;
-            var watcherEyeEligible = watcherEyeSprite != null &&
-                                     watcherEyeProjectilePrefab != null &&
-                                     watcherEyeEvery > 0 &&
-                                     nextSpawnIndex >= watcherEyeEvery &&
-                                     nextSpawnIndex % watcherEyeEvery == 0;
+            var specialistWeight = specialistReady ? GetSpecialistDirectorWeight(elapsed) : 0f;
+            var eliteWeight = eliteReady ? GetEliteDirectorWeight(elapsed) : 0f;
+            var fodderWeight = GetFodderDirectorWeight(specialistReady, eliteReady);
+            var totalWeight = fodderWeight + specialistWeight + eliteWeight;
 
-            var specialistCount = 0;
-            specialistCount += acolyteEligible ? 1 : 0;
-            specialistCount += mermaidEligible ? 1 : 0;
-
-            if (specialistCount > 1)
+            if (totalWeight <= 0f)
             {
-                var elapsed = Mathf.Max(0f, Time.time - runtimeStartedAt - 20f);
-                var mermaidWeight = Mathf.Lerp(0.35f, 0.6f, Mathf.Clamp01(elapsed / 100f));
-                var totalWeight = 0f;
-                totalWeight += acolyteEligible ? 1f : 0f;
-                totalWeight += mermaidEligible ? mermaidWeight : 0f;
-
-                var roll = Random.value * totalWeight;
-                if (acolyteEligible)
-                {
-                    if (roll < 1f)
-                    {
-                        return EnemyKind.DrownedAcolyte;
-                    }
-
-                    roll -= 1f;
-                }
-
-                if (mermaidEligible)
-                {
-                    if (roll < mermaidWeight)
-                    {
-                        return EnemyKind.Mermaid;
-                    }
-
-                    roll -= mermaidWeight;
-                }
+                return SpawnClass.Fodder;
             }
 
-            if (acolyteEligible)
+            var roll = Random.value * totalWeight;
+            if (roll < fodderWeight)
             {
-                return EnemyKind.DrownedAcolyte;
+                return SpawnClass.Fodder;
             }
 
-            if (mermaidEligible)
+            roll -= fodderWeight;
+            if (roll < specialistWeight)
             {
-                return EnemyKind.Mermaid;
+                SpendSpecialistBudget();
+                return SpawnClass.Specialist;
             }
 
-            if (watcherEyeEligible)
+            SpendEliteBudget();
+            return SpawnClass.Elite;
+        }
+
+        private EnemyKind ChooseFodderKind()
+        {
+            var elapsed = GetElapsedRunTime();
+            var watcherAvailable = watcherEyeSprite != null &&
+                                   watcherEyeProjectilePrefab != null &&
+                                   elapsed >= WatcherEyeFodderUnlockTime;
+            if (!watcherAvailable)
             {
-                return EnemyKind.WatcherEye;
+                return EnemyKind.MireWretch;
             }
 
-            return EnemyKind.MireWretch;
+            var watcherWeight = Mathf.Lerp(0.2f, 0.45f, Mathf.Clamp01((elapsed - WatcherEyeFodderUnlockTime) / 90f));
+            return Random.value < watcherWeight ? EnemyKind.WatcherEye : EnemyKind.MireWretch;
+        }
+
+        private EnemyKind ChooseSpecialistKind()
+        {
+            var elapsed = GetElapsedRunTime();
+            var acolyteAvailable = acolyteSprite != null && acolyteProjectilePrefab != null;
+            var mermaidAvailable = mermaidSprite != null && elapsed >= MermaidUnlockTime;
+
+            if (!mermaidAvailable || !acolyteAvailable)
+            {
+                return mermaidAvailable ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
+            }
+
+            var mermaidWeight = Mathf.Lerp(0.28f, 0.58f, Mathf.Clamp01((elapsed - MermaidUnlockTime) / 100f));
+            return Random.value < mermaidWeight ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
+        }
+
+        private EnemyKind ChooseEliteKind()
+        {
+            return EnemyKind.DeepSpawn;
         }
 
         private Vector3 BuildSpawnPosition()
@@ -831,6 +911,149 @@ namespace Dagon.Gameplay
                 EnemyKind.DeepSpawn when deepSpawnSprite != null => deepSpawnSprite,
                 _ => mireSprite
             };
+        }
+
+        private float GetElapsedRunTime()
+        {
+            return initialized ? Mathf.Max(0f, Time.time - runtimeStartedAt) : 0f;
+        }
+
+        private int GetAliveCountForClass(SpawnClass spawnClass)
+        {
+            var count = 0;
+            foreach (var enemy in activeEnemies)
+            {
+                if (enemy == null)
+                {
+                    continue;
+                }
+
+                if (ResolveSpawnClass(enemy) == spawnClass)
+                {
+                    count += 1;
+                }
+            }
+
+            return count;
+        }
+
+        private static SpawnClass ResolveSpawnClass(GameObject enemy)
+        {
+            if (enemy == null)
+            {
+                return SpawnClass.Fodder;
+            }
+
+            if (enemy.GetComponent<DeepSpawnPrefab>() != null || enemy.GetComponent<DeepSpawnBruiser>() != null)
+            {
+                return SpawnClass.Elite;
+            }
+
+            if (enemy.GetComponent<DrownedAcolyteShooter>() != null || enemy.GetComponent<MermaidController>() != null)
+            {
+                return SpawnClass.Specialist;
+            }
+
+            return SpawnClass.Fodder;
+        }
+
+        private static int GetCurrentSpecialistCap(float elapsedTime)
+        {
+            if (elapsedTime < SpecialistUnlockTime)
+            {
+                return 0;
+            }
+
+            if (elapsedTime < 95f)
+            {
+                return 1;
+            }
+
+            if (elapsedTime < 180f)
+            {
+                return 2;
+            }
+
+            return 3;
+        }
+
+        private static int GetCurrentEliteCap(float elapsedTime)
+        {
+            if (elapsedTime < EliteUnlockTime)
+            {
+                return 0;
+            }
+
+            if (elapsedTime < 190f)
+            {
+                return 1;
+            }
+
+            return 2;
+        }
+
+        private float GetSpecialistDirectorWeight(float elapsedTime)
+        {
+            var timePressure = Mathf.Clamp01((elapsedTime - SpecialistUnlockTime) / 80f);
+            return 0.5f + (specialistBudget * 0.65f) + (timePressure * 0.35f);
+        }
+
+        private float GetEliteDirectorWeight(float elapsedTime)
+        {
+            var timePressure = Mathf.Clamp01((elapsedTime - EliteUnlockTime) / 110f);
+            return 0.28f + (eliteBudget * 0.75f) + (timePressure * 0.24f);
+        }
+
+        private static float GetFodderDirectorWeight(bool specialistReady, bool eliteReady)
+        {
+            if (specialistReady && eliteReady)
+            {
+                return 0.95f;
+            }
+
+            if (specialistReady || eliteReady)
+            {
+                return 1.2f;
+            }
+
+            return 1.5f;
+        }
+
+        private void SpendSpecialistBudget()
+        {
+            specialistBudget = Mathf.Max(0f, specialistBudget - SpecialistSpawnCost);
+            specialistCooldownRemaining = SpecialistBaseCooldown + Random.Range(0f, SpecialistCooldownJitter);
+        }
+
+        private void SpendEliteBudget()
+        {
+            eliteBudget = Mathf.Max(0f, eliteBudget - EliteSpawnCost);
+            eliteCooldownRemaining = EliteBaseCooldown + Random.Range(0f, EliteCooldownJitter);
+        }
+
+        private void ResetDirectorState()
+        {
+            specialistBudget = 0f;
+            eliteBudget = 0f;
+            ResetDirectorCooldowns();
+        }
+
+        private void ResetDirectorCooldowns()
+        {
+            specialistCooldownRemaining = 0f;
+            eliteCooldownRemaining = 0f;
+        }
+
+        private bool HasAvailableSpecialist(float elapsedTime)
+        {
+            var acolyteAvailable = acolyteSprite != null && acolyteProjectilePrefab != null;
+            var mermaidAvailable = mermaidSprite != null && elapsedTime >= MermaidUnlockTime;
+            return acolyteAvailable || mermaidAvailable;
+        }
+
+        private bool HasAvailableElite()
+        {
+            return deepSpawnPrefab != null;
         }
 
         private static Sprite LoadBiomeSprite(string preferredPath, string fallbackPath, Sprite fallbackSprite, float pixelsPerUnit = 256f)

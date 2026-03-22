@@ -8,6 +8,9 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class DeepSpawnPrefab : MonoBehaviour
     {
+        private const float HealthPickupDropChance = 0.5f;
+        private const float HealthPickupHealAmount = 2f;
+
         [Header("Stats")]
         [SerializeField] private float maxHealth = 24f;
         [SerializeField] private float driftSpeed = 1.2f;
@@ -58,7 +61,7 @@ namespace Dagon.Gameplay
 
             health.SetMaxHealth(maxHealth, true);
             contactDamage.Configure(contactDamageAmount);
-            rewards.Configure(experienceReward, corruptionReward);
+            rewards.Configure(experienceReward, corruptionReward, HealthPickupDropChance, HealthPickupHealAmount);
             bruiser.Configure(target, driftSpeed, chargeSpeed);
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
             healthBar.Configure(worldCamera, new Vector3(0f, 1.8f, 0f), !healthBarsAlwaysVisible, visibleDurationAfterDamage);

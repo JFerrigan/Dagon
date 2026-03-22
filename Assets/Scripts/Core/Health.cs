@@ -73,6 +73,17 @@ namespace Dagon.Core
             Changed?.Invoke(this);
         }
 
+        public void Restore(float amount)
+        {
+            if (isDead || amount <= 0f)
+            {
+                return;
+            }
+
+            currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
+            Changed?.Invoke(this);
+        }
+
         public void SetMaxHealth(float value, bool refillHealth)
         {
             maxHealth = Mathf.Max(0.01f, value);

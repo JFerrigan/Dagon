@@ -8,6 +8,8 @@ namespace Dagon.Gameplay
     {
         [SerializeField] private int experienceReward = 1;
         [SerializeField] private float corruptionReward = 1.5f;
+        [SerializeField] [Range(0f, 1f)] private float healthPickupDropChance;
+        [SerializeField] private float healthPickupHealAmount = 2f;
         [SerializeField] private Health health;
 
         private Camera worldCamera;
@@ -37,15 +39,22 @@ namespace Dagon.Gameplay
             }
         }
 
-        public void Configure(int newExperienceReward, float newCorruptionReward)
+        public void Configure(int newExperienceReward, float newCorruptionReward, float newHealthPickupDropChance = 0f, float newHealthPickupHealAmount = 2f)
         {
             experienceReward = Mathf.Max(0, newExperienceReward);
             corruptionReward = Mathf.Max(0f, newCorruptionReward);
+            healthPickupDropChance = Mathf.Clamp01(newHealthPickupDropChance);
+            healthPickupHealAmount = Mathf.Max(0.1f, newHealthPickupHealAmount);
         }
 
         private void HandleDeath(Health _, GameObject source)
         {
             ExperiencePickup.Create(transform.position, experienceReward, corruptionReward, worldCamera);
+
+            if (healthPickupDropChance > 0f && Random.value <= healthPickupDropChance)
+            {
+                HealthPickup.Create(transform.position, healthPickupHealAmount, worldCamera);
+            }
         }
     }
 }

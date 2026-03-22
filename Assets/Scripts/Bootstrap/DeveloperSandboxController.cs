@@ -53,7 +53,7 @@ namespace Dagon.Bootstrap
 
             const float width = 336f;
             const float rowHeight = 28f;
-            var panelHeight = Mathf.Min(Screen.height - 32f, 292f + (availableWeapons.Count * rowHeight));
+            var panelHeight = Mathf.Min(Screen.height - 32f, 324f + (availableWeapons.Count * rowHeight));
             var rect = new Rect(Screen.width - width - 16f, 16f, width, panelHeight);
 
             GUI.Box(rect, "Developer Sandbox");
@@ -92,34 +92,39 @@ namespace Dagon.Bootstrap
                 IncreaseSpawnPressure();
             }
 
-            GUI.Label(new Rect(rect.x + 12f, rect.y + 202f, rect.width - 24f, 18f), $"Manual enemy spawns: {manualSpawnCount}");
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 202f, rect.width - 24f, 24f), GetAutoSpawnToggleLabel()))
+            {
+                ToggleAutoSpawning();
+            }
 
-            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 224f, 152f, 24f), "Spawn Wretch"))
+            GUI.Label(new Rect(rect.x + 12f, rect.y + 232f, rect.width - 24f, 18f), $"Manual enemy spawns: {manualSpawnCount}");
+
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 254f, 152f, 24f), "Spawn Wretch"))
             {
                 SpawnEnemy(SpawnEnemyKind.MireWretch);
             }
 
-            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 224f, 152f, 24f), "Spawn Acolyte"))
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 254f, 152f, 24f), "Spawn Acolyte"))
             {
                 SpawnEnemy(SpawnEnemyKind.DrownedAcolyte);
             }
 
-            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 252f, 152f, 24f), "Spawn Mermaid"))
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 282f, 152f, 24f), "Spawn Mermaid"))
             {
                 SpawnEnemy(SpawnEnemyKind.Mermaid);
             }
 
-            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 252f, 152f, 24f), "Spawn Deep Spawn"))
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 282f, 152f, 24f), "Spawn Deep Spawn"))
             {
                 SpawnEnemy(SpawnEnemyKind.DeepSpawn);
             }
 
-            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 280f, rect.width - 24f, 24f), "Spawn Eye"))
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 310f, rect.width - 24f, 24f), "Spawn Eye"))
             {
                 SpawnEnemy(SpawnEnemyKind.WatcherEye);
             }
 
-            var viewRect = new Rect(rect.x + 12f, rect.y + 312f, rect.width - 24f, rect.height - 324f);
+            var viewRect = new Rect(rect.x + 12f, rect.y + 342f, rect.width - 24f, rect.height - 354f);
             var contentRect = new Rect(0f, 0f, viewRect.width - 18f, availableWeapons.Count * rowHeight);
             scrollPosition = GUI.BeginScrollView(viewRect, scrollPosition, contentRect);
 
@@ -319,13 +324,32 @@ namespace Dagon.Bootstrap
             spawnBoostCount += 1;
         }
 
-        private void SpawnEnemy(SpawnEnemyKind enemyKind)
+        private string GetAutoSpawnToggleLabel()
         {
+            EnsureSpawnDirector();
+            return spawnDirector != null && spawnDirector.IsAutoSpawningStopped ? "Start Auto Spawning" : "Stop Auto Spawning";
+        }
+
+        private void ToggleAutoSpawning()
+        {
+            EnsureSpawnDirector();
             if (spawnDirector == null)
             {
-                spawnDirector = FindObjectOfType<SpawnDirector>();
+                return;
             }
 
+            if (spawnDirector.IsAutoSpawningStopped)
+            {
+                spawnDirector.ResumeSpawning();
+                return;
+            }
+
+            spawnDirector.StopSpawning();
+        }
+
+        private void SpawnEnemy(SpawnEnemyKind enemyKind)
+        {
+            EnsureSpawnDirector();
             if (spawnDirector == null)
             {
                 return;
@@ -344,6 +368,14 @@ namespace Dagon.Bootstrap
             if (spawned)
             {
                 manualSpawnCount += 1;
+            }
+        }
+
+        private void EnsureSpawnDirector()
+        {
+            if (spawnDirector == null)
+            {
+                spawnDirector = FindObjectOfType<SpawnDirector>();
             }
         }
 
