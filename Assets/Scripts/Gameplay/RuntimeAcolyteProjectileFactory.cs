@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
             renderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Effects/brine_surge", 256f);
             renderer.color = new Color(0.68f, 0.95f, 0.74f, 0.95f);
             renderer.sortingOrder = 13;
-            visuals.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
+            visuals.transform.localScale = new Vector3(0.48f, 0.48f, 1f);
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);

@@ -387,8 +387,8 @@ namespace Dagon.Bootstrap
                     0.7f,
                     1,
                     0f,
-                    6.4f,
-                    70f,
+                    4.8f,
+                    120f,
                     0f,
                     0.25f,
                     1.5f)

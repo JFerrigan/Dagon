@@ -12,6 +12,7 @@ namespace Dagon.Gameplay
     public sealed class SpawnDirector : MonoBehaviour
     {
         private const string DeepSpawnPrefabResourcePath = "Prefabs/Enemies/DeepSpawn";
+        private const float ParasiteUnlockTime = 60f;
         private const float SpecialistHealthPickupDropChance = 0.2f;
         private const float EliteHealthPickupDropChance = 0.5f;
         private const float HealthPickupHealAmount = 2f;
@@ -43,6 +44,7 @@ namespace Dagon.Gameplay
             DrownedAcolyte,
             Mermaid,
             WatcherEye,
+            Parasite,
             DeepSpawn
         }
 
@@ -52,6 +54,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Sprite acolyteSprite;
         [SerializeField] private Sprite mermaidSprite;
         [SerializeField] private Sprite watcherEyeSprite;
+        [SerializeField] private Sprite parasiteSprite;
         [SerializeField] private Sprite deepSpawnSprite;
         [SerializeField] private GameObject deepSpawnPrefab;
         [SerializeField] private DrownedAcolyteProjectile acolyteProjectilePrefab;
@@ -172,6 +175,7 @@ namespace Dagon.Gameplay
             acolyteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/drowned_acolyte", 256f);
             mermaidSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mermaid", 64f);
             watcherEyeSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/watcher_eye", 64f);
+            parasiteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/parasite", 64f);
             deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 64f);
             deepSpawnPrefab = Resources.Load<GameObject>(DeepSpawnPrefabResourcePath);
             acolyteProjectilePrefab = RuntimeAcolyteProjectileFactory.Create(cameraReference);
@@ -299,6 +303,11 @@ namespace Dagon.Gameplay
             return TrySpawnSpecificEnemy(EnemyKind.WatcherEye, BuildSpawnPosition(), ignoreAliveCap: true);
         }
 
+        public bool SpawnSandboxParasite()
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.Parasite, BuildSpawnPosition(), ignoreAliveCap: true);
+        }
+
         public bool SpawnSandboxDeepSpawn()
         {
             return TrySpawnSpecificEnemy(EnemyKind.DeepSpawn, BuildSpawnPosition(), ignoreAliveCap: true);
@@ -311,6 +320,7 @@ namespace Dagon.Gameplay
             acolyteSprite = LoadBiomeSprite(profile != null ? profile.DrownedAcolyteSpritePath : null, "Sprites/Enemies/drowned_acolyte", acolyteSprite);
             mermaidSprite = LoadBiomeSprite(profile != null ? profile.MermaidSpritePath : null, "Sprites/Enemies/mermaid", mermaidSprite, 64f);
             watcherEyeSprite = LoadBiomeSprite(profile != null ? profile.WatcherEyeSpritePath : null, "Sprites/Enemies/watcher_eye", watcherEyeSprite, 64f);
+            parasiteSprite = LoadBiomeSprite(profile != null ? profile.ParasiteSpritePath : null, "Sprites/Enemies/parasite", parasiteSprite, 64f);
             deepSpawnSprite = LoadBiomeSprite(profile != null ? profile.DeepSpawnSpritePath : null, "Sprites/Enemies/deep_spawn", deepSpawnSprite, 64f);
         }
 
@@ -374,7 +384,10 @@ namespace Dagon.Gameplay
                 return false;
             }
 
-            var spawnedAny = TrySpawnSpecificEnemy(ChooseNextEnemyKind(), BuildSpawnPosition());
+            var nextEnemyKind = ChooseNextEnemyKind();
+            var spawnedAny = nextEnemyKind == EnemyKind.Parasite
+                ? TrySpawnParasitePack()
+                : TrySpawnSpecificEnemy(nextEnemyKind, BuildSpawnPosition());
             if (SpawnQuotaMet)
             {
                 NotifyQuotaCompletedIfNeeded();
@@ -456,6 +469,16 @@ namespace Dagon.Gameplay
                     rewards.Configure(1, 1.75f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
+                case EnemyKind.Parasite:
+                {
+                    knockbackReceiver.Configure(1.2f, 16f, 5.8f);
+                    var contactDamage = mire.AddComponent<ContactDamage>();
+                    contactDamage.Configure(1f);
+                    var parasite = mire.AddComponent<ParasiteChaser>();
+                    parasite.Configure(player, Random.Range(7.5f, 8f), 0.2f);
+                    rewards.Configure(1, 0f);
+                    break;
+                }
                 case EnemyKind.DeepSpawn:
                 default:
                 {
@@ -476,6 +499,41 @@ namespace Dagon.Gameplay
             return true;
         }
 
+        private bool TrySpawnParasitePack()
+        {
+            if (player == null)
+            {
+                return false;
+            }
+
+            var availableSlots = Mathf.Min(
+                regularSpawnQuota - totalSpawned,
+                GetCurrentMaxAliveEnemies() - activeEnemies.Count);
+            var maxPackSize = Mathf.Clamp(availableSlots, 1, 4);
+            var packSize = Random.Range(1, maxPackSize + 1);
+            var anchor = BuildSpawnPosition();
+            var toPlayer = player.position - anchor;
+            toPlayer.y = 0f;
+            var forward = toPlayer.sqrMagnitude > 0.001f ? toPlayer.normalized : Vector3.forward;
+            var lateral = new Vector3(-forward.z, 0f, forward.x);
+            var spacing = 1.15f;
+            var halfWidth = (packSize - 1) * 0.5f;
+            var spawnedAny = false;
+
+            for (var index = 0; index < packSize; index++)
+            {
+                var lateralOffset = (index - halfWidth) * spacing;
+                var position = anchor + (lateral * lateralOffset);
+                position.y = player.position.y + spawnHeightOffset;
+                if (TrySpawnSpecificEnemy(EnemyKind.Parasite, position))
+                {
+                    spawnedAny = true;
+                }
+            }
+
+            return spawnedAny;
+        }
+
         private void ConfigureVisuals(Transform enemyRoot, EnemyKind enemyKind)
         {
             var visuals = new GameObject("Visuals");
@@ -484,7 +542,7 @@ namespace Dagon.Gameplay
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = GetSprite(enemyKind);
-            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch ? 5 : 6;
+            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite ? 5 : 6;
             renderer.color = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
 
             if (enemyKind == EnemyKind.MireWretch)
@@ -503,6 +561,11 @@ namespace Dagon.Gameplay
             {
                 visuals.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
                 visuals.transform.localPosition = new Vector3(0f, 0.22f, 0f);
+            }
+            else if (enemyKind == EnemyKind.Parasite && parasiteSprite != null)
+            {
+                visuals.transform.localScale = new Vector3(1.25f, 1.25f, 1f);
+                visuals.transform.localPosition = new Vector3(0f, 0.12f, 0f);
             }
             else if (enemyKind == EnemyKind.DrownedAcolyte && acolyteSprite != null)
             {
@@ -560,6 +623,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => new Vector3(0f, 1.4f, 0f),
                 EnemyKind.Mermaid => new Vector3(0f, 2.6f, 0f),
                 EnemyKind.WatcherEye => new Vector3(0f, 1.7f, 0f),
+                EnemyKind.Parasite => new Vector3(0f, 1.1f, 0f),
                 _ => new Vector3(0f, 1.8f, 0f)
             };
             bar.Configure(worldCamera, offset, !enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
@@ -588,6 +652,11 @@ namespace Dagon.Gameplay
                     collider.center = new Vector3(0f, 0.72f, 0f);
                     collider.height = 1.45f;
                     collider.radius = 0.42f;
+                    break;
+                case EnemyKind.Parasite:
+                    collider.center = new Vector3(0f, 0.45f, 0f);
+                    collider.height = 0.9f;
+                    collider.radius = 0.38f;
                     break;
                 case EnemyKind.DeepSpawn:
                     collider.center = new Vector3(0f, 0.8f, 0f);
@@ -840,13 +909,38 @@ namespace Dagon.Gameplay
             var watcherAvailable = watcherEyeSprite != null &&
                                    watcherEyeProjectilePrefab != null &&
                                    elapsed >= WatcherEyeFodderUnlockTime;
-            if (!watcherAvailable)
+            var parasiteAvailable = parasiteSprite != null && elapsed >= ParasiteUnlockTime;
+            if (!watcherAvailable && !parasiteAvailable)
             {
                 return EnemyKind.MireWretch;
             }
 
-            var watcherWeight = Mathf.Lerp(0.2f, 0.45f, Mathf.Clamp01((elapsed - WatcherEyeFodderUnlockTime) / 90f));
-            return Random.value < watcherWeight ? EnemyKind.WatcherEye : EnemyKind.MireWretch;
+            var mireWeight = 1f;
+            var watcherWeight = watcherAvailable
+                ? Mathf.Lerp(0.2f, 0.45f, Mathf.Clamp01((elapsed - WatcherEyeFodderUnlockTime) / 90f))
+                : 0f;
+            var parasiteWeight = parasiteAvailable
+                ? Mathf.Lerp(0.3f, 0.75f, Mathf.Clamp01((elapsed - ParasiteUnlockTime) / 90f))
+                : 0f;
+            var totalWeight = mireWeight + watcherWeight + parasiteWeight;
+            if (totalWeight <= 0f)
+            {
+                return EnemyKind.MireWretch;
+            }
+
+            var roll = Random.value * totalWeight;
+            if (roll < mireWeight)
+            {
+                return EnemyKind.MireWretch;
+            }
+
+            roll -= mireWeight;
+            if (roll < watcherWeight)
+            {
+                return EnemyKind.WatcherEye;
+            }
+
+            return EnemyKind.Parasite;
         }
 
         private EnemyKind ChooseSpecialistKind()
@@ -896,6 +990,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => 5f,
                 EnemyKind.Mermaid => 6f,
                 EnemyKind.WatcherEye => 3f,
+                EnemyKind.Parasite => 1f,
                 EnemyKind.DeepSpawn => 24f,
                 _ => 3f
             };
@@ -908,6 +1003,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte when acolyteSprite != null => acolyteSprite,
                 EnemyKind.Mermaid when mermaidSprite != null => mermaidSprite,
                 EnemyKind.WatcherEye when watcherEyeSprite != null => watcherEyeSprite,
+                EnemyKind.Parasite when parasiteSprite != null => parasiteSprite,
                 EnemyKind.DeepSpawn when deepSpawnSprite != null => deepSpawnSprite,
                 _ => mireSprite
             };

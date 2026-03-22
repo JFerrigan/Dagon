@@ -1,0 +1,13 @@
+{
+  "asset_id": "wide_leech",
+  "asset_type": "enemy_sprite",
+  "prompt": "Wide leech boss summon, low broad mire leech horror with flattened body, hooked maw, crawling ground silhouette, melee chaser enemy, isolated transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Enemies/wide_leech.png",
+  "source_image": "Tools/AssetGen/generated/wide_leech.png",
+  "processed_image": "Tools/AssetGen/processed/wide_leech.png",
+  "size": [128, 128],
+  "palette_notes": "mud black, algae teal, corpse flesh, bruised red mouth accents",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Low-profile chasing leech summon. Preserve a broad horizontal silhouette and ground-hugging readability."
+}

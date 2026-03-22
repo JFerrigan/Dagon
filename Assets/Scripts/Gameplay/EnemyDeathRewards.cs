@@ -49,7 +49,10 @@ namespace Dagon.Gameplay
 
         private void HandleDeath(Health _, GameObject source)
         {
-            ExperiencePickup.Create(transform.position, experienceReward, corruptionReward, worldCamera);
+            if (experienceReward > 0 || corruptionReward > 0f)
+            {
+                ExperiencePickup.Create(transform.position, experienceReward, corruptionReward, worldCamera);
+            }
 
             if (healthPickupDropChance > 0f && Random.value <= healthPickupDropChance)
             {

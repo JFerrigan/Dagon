@@ -12,7 +12,7 @@ namespace Dagon.Gameplay
                 camera,
                 "Sprites/Enemies/mire_wretch",
                 new Color(0.6f, 0.9f, 0.62f, 1f),
-                new Vector3(0.22f, 0.22f, 1f),
+                new Vector3(0.88f, 0.88f, 1f),
                 256f);
         }
 

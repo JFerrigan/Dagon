@@ -28,7 +28,8 @@ namespace Dagon.Gameplay
             float pixelsPerUnit = 256f,
             int sortingOrder = 15,
             bool groundPlane = false,
-            Vector3? spriteLocalOffset = null)
+            Vector3? spriteLocalOffset = null,
+            Vector2? spriteAnchorNormalized = null)
         {
             var sprite = RuntimeSpriteLibrary.LoadSprite(spritePath, pixelsPerUnit);
             if (sprite == null)
@@ -41,7 +42,17 @@ namespace Dagon.Gameplay
             effect.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
             var visual = effect.AddComponent<PlaceholderWeaponVisual>();
-            visual.Initialize(sprite, scale, camera, tint, duration, endScaleMultiplier, sortingOrder, groundPlane, spriteLocalOffset ?? Vector3.zero);
+            visual.Initialize(
+                sprite,
+                scale,
+                camera,
+                tint,
+                duration,
+                endScaleMultiplier,
+                sortingOrder,
+                groundPlane,
+                spriteLocalOffset ?? Vector3.zero,
+                spriteAnchorNormalized ?? new Vector2(0.5f, 0f));
         }
 
         private void Update()
@@ -75,7 +86,8 @@ namespace Dagon.Gameplay
             float endScaleMultiplier,
             int sortingOrder,
             bool groundPlane,
-            Vector3 spriteLocalOffset)
+            Vector3 spriteLocalOffset,
+            Vector2 spriteAnchorNormalized)
         {
             duration = Mathf.Max(0.05f, visualDuration);
             tint = visualTint;
@@ -93,6 +105,7 @@ namespace Dagon.Gameplay
 
             var rendererObject = new GameObject("Visuals");
             rendererObject.transform.SetParent(scaleRoot, false);
+            rendererObject.transform.localPosition = ResolveAnchorOffset(sprite, startScale, spriteAnchorNormalized);
             spriteRenderer = rendererObject.AddComponent<SpriteRenderer>();
             spriteRenderer.sprite = sprite;
             spriteRenderer.sortingOrder = sortingOrder;
@@ -133,6 +146,27 @@ namespace Dagon.Gameplay
             }
 
             return new Vector3(resolvedWidth, resolvedHeight, requestedScale.z);
+        }
+
+        private static Vector3 ResolveAnchorOffset(Sprite sprite, Vector3 resolvedScale, Vector2 anchorNormalized)
+        {
+            if (sprite == null)
+            {
+                return Vector3.zero;
+            }
+
+            var pivot = sprite.pivot;
+            var rect = sprite.rect;
+            if (rect.width <= 0f || rect.height <= 0f)
+            {
+                return Vector3.zero;
+            }
+
+            var pivotNormalized = new Vector2(pivot.x / rect.width, pivot.y / rect.height);
+            return new Vector3(
+                (pivotNormalized.x - anchorNormalized.x) * resolvedScale.x,
+                (pivotNormalized.y - anchorNormalized.y) * resolvedScale.y,
+                0f);
         }
     }
 }

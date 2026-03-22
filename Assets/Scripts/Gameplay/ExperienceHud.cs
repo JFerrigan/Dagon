@@ -84,7 +84,7 @@ namespace Dagon.Gameplay
 
         private static string DescribeChoice(CombatRewardOption choice)
         {
-            return $"{choice.Title}: {choice.Description}";
+            return $"{choice.Title}\n{choice.Description}";
         }
 
         private void DrawHealthDisplay()
@@ -291,10 +291,10 @@ namespace Dagon.Gameplay
             GUI.DrawTexture(new Rect(panelRect.x + 4f, panelRect.y + 4f, panelRect.width - 8f, 6f), whiteTexture, ScaleMode.StretchToFill, false);
 
             GUI.color = previousColor;
-            GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 30f, panelRect.width - 80f, 34f), "Choose an Upgrade", centeredTitleStyle);
+            GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 30f, panelRect.width - 80f, 34f), "Choose Upgrade", centeredTitleStyle);
             GUI.Label(
                 new Rect(panelRect.x + 70f, panelRect.y + 72f, panelRect.width - 140f, 42f),
-                "The run is paused. Pick one boon before the mire closes in again.",
+                "Pick 1",
                 centeredBodyStyle);
 
             var buttonWidth = panelRect.width - 120f;

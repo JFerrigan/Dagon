@@ -8,7 +8,33 @@ namespace Dagon.Gameplay
 {
     public sealed class AnchorChainWeapon : PlayerWeaponRuntime
     {
-        private const string ChainSpritePath = "Sprites/Weapons/anchor_chain";
+        [System.Serializable]
+        internal struct VisualPreset
+        {
+            public string spriteResourcePath;
+            public Color tint;
+            public float heightOffset;
+            public float outerRadiusMultiplier;
+            public float innerRadiusFactor;
+            public float duration;
+            public float endScaleMultiplier;
+            public int sortingOrder;
+
+            public static VisualPreset CreateDefault()
+            {
+                return new VisualPreset
+                {
+                    spriteResourcePath = string.Empty,
+                    tint = new Color(0.70f, 0.84f, 0.76f, 0.26f),
+                    heightOffset = 0.05f,
+                    outerRadiusMultiplier = 1.05f,
+                    innerRadiusFactor = 0.28f,
+                    duration = 0.22f,
+                    endScaleMultiplier = 1.04f,
+                    sortingOrder = 4
+                };
+            }
+        }
 
         [SerializeField] private PlayerMover playerMover;
         [SerializeField] private float attacksPerSecond = 0.85f;
@@ -19,6 +45,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float eliteKnockbackMultiplier = 0.35f;
         [SerializeField] private int arcCount = 1;
         [SerializeField] private LayerMask enemyMask = ~0;
+        [SerializeField] private VisualPreset visualPreset;
 
         private Camera worldCamera;
         private float cooldownTimer;
@@ -33,6 +60,13 @@ namespace Dagon.Gameplay
             {
                 playerMover = GetComponent<PlayerMover>();
             }
+
+            EnsureVisualPreset();
+        }
+
+        private void OnValidate()
+        {
+            EnsureVisualPreset();
         }
 
         private void Update()
@@ -124,12 +158,12 @@ namespace Dagon.Gameplay
         {
             return path switch
             {
-                WeaponUpgradePath.PathA when nextStep == 1 => "Add a second chain sweep to each attack cycle.",
-                WeaponUpgradePath.PathA when nextStep == 2 => "Add a third chain sweep to each attack cycle.",
-                WeaponUpgradePath.PathA => "Increase chain sweep damage to 2.2.",
-                WeaponUpgradePath.PathB when nextStep == 1 => "Increase chain damage to 2.5.",
-                WeaponUpgradePath.PathB when nextStep == 2 => "Increase chain damage to 3.2.",
-                _ => "Increase chain damage to 4.0."
+                WeaponUpgradePath.PathA when nextStep == 1 => FlatCountDelta(1, "Sweep"),
+                WeaponUpgradePath.PathA when nextStep == 2 => FlatCountDelta(1, "Sweep"),
+                WeaponUpgradePath.PathA => "+4 Sweep DMG",
+                WeaponUpgradePath.PathB when nextStep == 1 => FlatDamageDelta(0.7f),
+                WeaponUpgradePath.PathB when nextStep == 2 => FlatDamageDelta(0.7f),
+                _ => FlatDamageDelta(0.8f)
             };
         }
 
@@ -180,21 +214,14 @@ namespace Dagon.Gameplay
                 }
             }
 
-            var yaw = Mathf.Atan2(baseDirection.x, baseDirection.z) * Mathf.Rad2Deg;
-            var offset = baseDirection * (radius * 0.45f) + Vector3.up * 0.2f;
-            PlaceholderWeaponVisual.Spawn(
-                "AnchorChainSweep",
-                transform.position + offset + Vector3.up * 0.05f,
-                new Vector3(radius * 1.2f, radius * 0.7f, 1f),
+            AnchorChainArcVisual.Spawn(
+                transform.position,
+                baseDirection,
+                radius,
+                arcAngle,
+                sweepIndex * 4f,
                 worldCamera,
-                new Color(0.70f, 0.84f, 0.76f, 0.24f),
-                0.22f,
-                1.04f,
-                yaw + (sweepIndex * 4f),
-                spritePath: ChainSpritePath,
-                pixelsPerUnit: 256f,
-                sortingOrder: 4,
-                groundPlane: true);
+                ResolveVisualPreset());
         }
 
         private Vector3 ResolveAimDirection()
@@ -217,6 +244,50 @@ namespace Dagon.Gameplay
         {
             return target.GetComponentInParent<DeepSpawnBruiser>() != null ||
                    target.GetComponentInParent<MireColossusController>() != null;
+        }
+
+        private void EnsureVisualPreset()
+        {
+            if (visualPreset.duration > 0f ||
+                visualPreset.endScaleMultiplier > 0f ||
+                visualPreset.outerRadiusMultiplier > 0f ||
+                visualPreset.sortingOrder != 0 ||
+                visualPreset.tint.a > 0f)
+            {
+                return;
+            }
+
+            visualPreset = VisualPreset.CreateDefault();
+        }
+
+        internal readonly struct VisualResolved
+        {
+            public readonly string SpriteResourcePath;
+            public readonly Color Tint;
+            public readonly float HeightOffset;
+            public readonly float OuterRadiusMultiplier;
+            public readonly float InnerRadiusFactor;
+            public readonly float Duration;
+            public readonly float EndScaleMultiplier;
+            public readonly int SortingOrder;
+
+            public VisualResolved(VisualPreset preset)
+            {
+                SpriteResourcePath = preset.spriteResourcePath;
+                Tint = preset.tint;
+                HeightOffset = preset.heightOffset;
+                OuterRadiusMultiplier = preset.outerRadiusMultiplier;
+                InnerRadiusFactor = preset.innerRadiusFactor;
+                Duration = preset.duration;
+                EndScaleMultiplier = preset.endScaleMultiplier;
+                SortingOrder = preset.sortingOrder;
+            }
+        }
+
+        internal VisualResolved ResolveVisualPreset()
+        {
+            EnsureVisualPreset();
+            return new VisualResolved(visualPreset);
         }
     }
 }

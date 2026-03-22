@@ -16,6 +16,7 @@ namespace Dagon.Bootstrap
             string drownedAcolyteSpritePath,
             string mermaidSpritePath,
             string watcherEyeSpritePath,
+            string parasiteSpritePath,
             string deepSpawnSpritePath,
             string bossSpritePath,
             Color groundTint,
@@ -42,6 +43,7 @@ namespace Dagon.Bootstrap
             DrownedAcolyteSpritePath = drownedAcolyteSpritePath;
             MermaidSpritePath = mermaidSpritePath;
             WatcherEyeSpritePath = watcherEyeSpritePath;
+            ParasiteSpritePath = parasiteSpritePath;
             DeepSpawnSpritePath = deepSpawnSpritePath;
             BossSpritePath = bossSpritePath;
             GroundTint = groundTint;
@@ -69,6 +71,7 @@ namespace Dagon.Bootstrap
         public string DrownedAcolyteSpritePath { get; }
         public string MermaidSpritePath { get; }
         public string WatcherEyeSpritePath { get; }
+        public string ParasiteSpritePath { get; }
         public string DeepSpawnSpritePath { get; }
         public string BossSpritePath { get; }
         public Color GroundTint { get; }
@@ -121,6 +124,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
                     new Color(1f, 1f, 1f, 1f),
@@ -147,6 +151,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
                     new Color(0.84f, 0.94f, 1f, 1f),
@@ -173,6 +178,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
                     new Color(0.96f, 0.92f, 0.84f, 1f),

@@ -15,8 +15,7 @@ namespace Dagon.Gameplay
         private enum Attack
         {
             None,
-            OrbLance,
-            EyeMark
+            OrbLance
         }
 
         [SerializeField] private Transform target;
@@ -30,24 +29,16 @@ namespace Dagon.Gameplay
         [SerializeField] private float orbWindup = 0.35f;
         [SerializeField] private float orbSpeed = 7.8f;
         [SerializeField] private float orbDamage = 0.9f;
-        [SerializeField] private float markCooldown = 4.4f;
-        [SerializeField] private float markWindup = 0.55f;
-        [SerializeField] private float markRadius = 1.2f;
-        [SerializeField] private float markDamage = 1.4f;
-        [SerializeField] private float markDelay = 0.65f;
-        [SerializeField] private float markLingerDuration = 0.22f;
         [SerializeField] private float recoveryDuration = 0.4f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
 
         private float orbCooldownTimer;
-        private float markCooldownTimer;
         private float stateTimer;
         private float hoverDirection = 1f;
         private float hoverSwapTimer;
         private State state;
         private Attack queuedAttack;
         private Vector3 queuedAimDirection = Vector3.forward;
-        private Vector3 queuedMarkPosition;
 
         private void Awake()
         {
@@ -70,7 +61,6 @@ namespace Dagon.Gameplay
             }
 
             orbCooldownTimer = Mathf.Max(0f, orbCooldownTimer - Time.deltaTime);
-            markCooldownTimer = Mathf.Max(0f, markCooldownTimer - Time.deltaTime);
             stateTimer -= Time.deltaTime;
 
             var toTarget = target.position - transform.position;
@@ -107,7 +97,6 @@ namespace Dagon.Gameplay
             preferredRange = Mathf.Max(4f, newPreferredRange);
             closeRange = Mathf.Max(2f, preferredRange - 3f);
             orbCooldownTimer = Random.Range(0.8f, 1.6f);
-            markCooldownTimer = Random.Range(1.3f, 2.2f);
             state = State.Hover;
             queuedAttack = Attack.None;
         }
@@ -172,37 +161,23 @@ namespace Dagon.Gameplay
             var distance = toTarget.magnitude;
             if (orbCooldownTimer <= 0f && distance <= preferredRange + 1.2f)
             {
-                QueueAttack(Attack.OrbLance, orbWindup, toTarget.normalized, target.position);
-                return;
-            }
-
-            if (markCooldownTimer <= 0f && distance <= preferredRange + 0.8f)
-            {
-                var predicted = target.position;
-                var mover = target.GetComponent<PlayerMover>();
-                if (mover != null && mover.MoveDirection.sqrMagnitude > 0.01f)
-                {
-                    predicted += mover.MoveDirection.normalized * 0.95f;
-                }
-
-                QueueAttack(Attack.EyeMark, markWindup, toTarget.normalized, predicted);
+                QueueAttack(Attack.OrbLance, orbWindup, toTarget.normalized);
             }
         }
 
-        private void QueueAttack(Attack attack, float windup, Vector3 aimDirection, Vector3 markedPosition)
+        private void QueueAttack(Attack attack, float windup, Vector3 aimDirection)
         {
             queuedAttack = attack;
             queuedAimDirection = aimDirection.sqrMagnitude > 0.001f ? aimDirection.normalized : transform.forward;
-            queuedMarkPosition = markedPosition;
             state = State.Windup;
             stateTimer = Mathf.Max(0.05f, windup);
 
             PlaceholderWeaponVisual.Spawn(
-                attack == Attack.OrbLance ? "WatcherEyeOrbWindup" : "WatcherEyeMarkWindup",
+                "WatcherEyeOrbWindup",
                 transform.position + Vector3.up * 0.2f,
-                attack == Attack.OrbLance ? new Vector3(0.9f, 0.9f, 1f) : new Vector3(1.15f, 1.15f, 1f),
+                new Vector3(0.9f, 0.9f, 1f),
                 worldCamera,
-                attack == Attack.OrbLance ? new Color(0.84f, 0.98f, 0.84f, 0.42f) : new Color(0.78f, 0.94f, 0.72f, 0.32f),
+                new Color(0.84f, 0.98f, 0.84f, 0.42f),
                 windup,
                 1.1f,
                 0f,
@@ -218,10 +193,6 @@ namespace Dagon.Gameplay
                 case Attack.OrbLance:
                     FireOrbLance();
                     orbCooldownTimer = orbCooldown;
-                    break;
-                case Attack.EyeMark:
-                    DropEyeMark();
-                    markCooldownTimer = markCooldown;
                     break;
             }
 
@@ -245,17 +216,5 @@ namespace Dagon.Gameplay
             projectile.Initialize(gameObject, queuedAimDirection, orbSpeed, orbDamage);
         }
 
-        private void DropEyeMark()
-        {
-            queuedMarkPosition.y = transform.position.y;
-            WatcherEyeMarkZone.Spawn(
-                queuedMarkPosition,
-                markRadius,
-                markDelay,
-                markDamage,
-                markLingerDuration,
-                worldCamera,
-                gameObject);
-        }
     }
 }

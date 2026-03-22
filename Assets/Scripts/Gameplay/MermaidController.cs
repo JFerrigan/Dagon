@@ -15,8 +15,7 @@ namespace Dagon.Gameplay
         private enum CastAbility
         {
             None,
-            SirenCall,
-            BrinePool
+            SirenCall
         }
 
         [SerializeField] private Transform target;
@@ -34,27 +33,16 @@ namespace Dagon.Gameplay
         [SerializeField] private float sirenPullStrength = 4f;
         [SerializeField] private float sirenSlowAmount = 0.2f;
         [SerializeField] private float sirenSlowDuration = 0.85f;
-        [SerializeField] private float brineWindupDuration = 0.45f;
-        [SerializeField] private float brineCooldown = 3.8f;
-        [SerializeField] private float brineCastRange = 8f;
-        [SerializeField] private float brineRadius = 1.55f;
-        [SerializeField] private float brineDuration = 2.6f;
-        [SerializeField] private float brineTickDamage = 0.45f;
-        [SerializeField] private float brineTickInterval = 0.5f;
-        [SerializeField] private float brineSlowAmount = 0.28f;
-        [SerializeField] private float brineSlowDuration = 1.1f;
         [SerializeField] private float recoveryDuration = 0.55f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
 
         private float stateTimer;
         private float sirenCooldownTimer;
-        private float brineCooldownTimer;
         private float strafeDirection = 1f;
         private float strafeSwapTimer;
         private State state;
         private CastAbility queuedAbility;
         private Vector3 queuedAimDirection = Vector3.forward;
-        private Vector3 queuedBrinePosition;
 
         private void Awake()
         {
@@ -77,7 +65,6 @@ namespace Dagon.Gameplay
             }
 
             sirenCooldownTimer = Mathf.Max(0f, sirenCooldownTimer - Time.deltaTime);
-            brineCooldownTimer = Mathf.Max(0f, brineCooldownTimer - Time.deltaTime);
             stateTimer -= Time.deltaTime;
 
             var toTarget = target.position - transform.position;
@@ -116,7 +103,6 @@ namespace Dagon.Gameplay
             state = State.Reposition;
             stateTimer = 0f;
             sirenCooldownTimer = Random.Range(1.2f, 2.4f);
-            brineCooldownTimer = Random.Range(0.8f, 1.8f);
             queuedAbility = CastAbility.None;
         }
 
@@ -181,45 +167,31 @@ namespace Dagon.Gameplay
             var distance = toTarget.magnitude;
             if (sirenCooldownTimer <= 0f && distance <= sirenRange && distance >= closeRange - 0.75f)
             {
-                StartWindup(CastAbility.SirenCall, sirenWindupDuration, toTarget.normalized, target.position);
-                return;
-            }
-
-            if (brineCooldownTimer <= 0f && distance <= brineCastRange)
-            {
-                var predictedPosition = target.position;
-                var mover = target.GetComponent<PlayerMover>();
-                if (mover != null && mover.MoveDirection.sqrMagnitude > 0.01f)
-                {
-                    predictedPosition += mover.MoveDirection.normalized * 0.8f;
-                }
-
-                StartWindup(CastAbility.BrinePool, brineWindupDuration, toTarget.normalized, predictedPosition);
+                StartWindup(CastAbility.SirenCall, sirenWindupDuration, toTarget.normalized);
             }
         }
 
-        private void StartWindup(CastAbility ability, float duration, Vector3 aimDirection, Vector3 targetPosition)
+        private void StartWindup(CastAbility ability, float duration, Vector3 aimDirection)
         {
             queuedAbility = ability;
             queuedAimDirection = aimDirection.sqrMagnitude > 0.001f ? aimDirection.normalized : Vector3.forward;
-            queuedBrinePosition = targetPosition;
             state = State.Windup;
             stateTimer = Mathf.Max(0.05f, duration);
 
             var yaw = Mathf.Atan2(queuedAimDirection.x, queuedAimDirection.z) * Mathf.Rad2Deg;
             PlaceholderWeaponVisual.Spawn(
-                ability == CastAbility.SirenCall ? "MermaidSirenWindup" : "MermaidBrineWindup",
+                "MermaidSirenWindup",
                 transform.position + Vector3.up * 0.15f,
-                ability == CastAbility.SirenCall ? new Vector3(1.45f, 1.45f, 1f) : new Vector3(1.1f, 1.1f, 1f),
+                new Vector3(1.45f, 1.45f, 1f),
                 worldCamera,
-                ability == CastAbility.SirenCall ? new Color(0.72f, 0.90f, 0.86f, 0.42f) : new Color(0.44f, 0.76f, 0.70f, 0.38f),
+                new Color(0.72f, 0.90f, 0.86f, 0.42f),
                 duration,
                 1.08f,
                 yaw,
                 spritePath: "Sprites/Effects/brine_surge",
                 pixelsPerUnit: 256f,
                 sortingOrder: 9,
-                groundPlane: ability != CastAbility.SirenCall);
+                groundPlane: false);
         }
 
         private void ExecuteQueuedAbility()
@@ -229,10 +201,6 @@ namespace Dagon.Gameplay
                 case CastAbility.SirenCall:
                     ExecuteSirenCall();
                     sirenCooldownTimer = sirenCooldown;
-                    break;
-                case CastAbility.BrinePool:
-                    ExecuteBrinePool();
-                    brineCooldownTimer = brineCooldown;
                     break;
             }
 
@@ -282,23 +250,6 @@ namespace Dagon.Gameplay
             }
 
             playerHurtbox.GetComponentInParent<PlayerSlowReceiver>()?.ApplySlow(sirenSlowAmount, sirenSlowDuration);
-        }
-
-        private void ExecuteBrinePool()
-        {
-            var clampedPosition = queuedBrinePosition;
-            clampedPosition.y = transform.position.y;
-
-            MermaidBrinePool.Spawn(
-                clampedPosition,
-                brineRadius,
-                brineDuration,
-                brineTickDamage,
-                brineTickInterval,
-                brineSlowAmount,
-                brineSlowDuration,
-                worldCamera,
-                gameObject);
         }
 
         private bool TryResolvePlayerTarget(out Hurtbox playerHurtbox, out Collider playerCollider)

@@ -183,12 +183,12 @@ namespace Dagon.Gameplay
         {
             return path switch
             {
-                WeaponUpgradePath.PathA when nextStep == 1 => "Increase harpoon count to 2 with a wider volley.",
-                WeaponUpgradePath.PathA when nextStep == 2 => "Increase harpoon count to 3 with a broader volley.",
-                WeaponUpgradePath.PathA => "Increase harpoon count to 4 and flood the lane.",
-                WeaponUpgradePath.PathB when nextStep == 1 => "Increase harpoon damage to 1.4.",
-                WeaponUpgradePath.PathB when nextStep == 2 => "Increase harpoon damage to 1.8.",
-                _ => "Increase harpoon damage to 2.2."
+                WeaponUpgradePath.PathA when nextStep == 1 => FlatCountDelta(1, "Harpoon"),
+                WeaponUpgradePath.PathA when nextStep == 2 => FlatCountDelta(1, "Harpoon"),
+                WeaponUpgradePath.PathA => FlatCountDelta(1, "Harpoon"),
+                WeaponUpgradePath.PathB when nextStep == 1 => FlatDamageDelta(0.4f),
+                WeaponUpgradePath.PathB when nextStep == 2 => FlatDamageDelta(0.4f),
+                _ => FlatDamageDelta(0.4f)
             };
         }
 

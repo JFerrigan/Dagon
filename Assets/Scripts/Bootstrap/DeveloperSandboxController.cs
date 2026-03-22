@@ -11,6 +11,7 @@ namespace Dagon.Bootstrap
     {
         [SerializeField] private PlayerCombatLoadout combatLoadout;
         [SerializeField] private SpawnDirector spawnDirector;
+        [SerializeField] private RunStateManager runStateManager;
         [SerializeField] private KeyCode togglePanelKey = KeyCode.F1;
 
         private readonly List<WeaponDefinition> availableWeapons = new();
@@ -30,6 +31,11 @@ namespace Dagon.Bootstrap
             if (spawnDirector == null)
             {
                 spawnDirector = FindObjectOfType<SpawnDirector>();
+            }
+
+            if (runStateManager == null)
+            {
+                runStateManager = FindObjectOfType<RunStateManager>();
             }
 
             RebuildWeaponCatalog();
@@ -53,7 +59,7 @@ namespace Dagon.Bootstrap
 
             const float width = 336f;
             const float rowHeight = 28f;
-            var panelHeight = Mathf.Min(Screen.height - 32f, 324f + (availableWeapons.Count * rowHeight));
+            var panelHeight = Mathf.Min(Screen.height - 32f, 380f + (availableWeapons.Count * rowHeight));
             var rect = new Rect(Screen.width - width - 16f, 16f, width, panelHeight);
 
             GUI.Box(rect, "Developer Sandbox");
@@ -119,12 +125,27 @@ namespace Dagon.Bootstrap
                 SpawnEnemy(SpawnEnemyKind.DeepSpawn);
             }
 
-            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 310f, rect.width - 24f, 24f), "Spawn Eye"))
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 310f, 152f, 24f), "Spawn Eye"))
             {
                 SpawnEnemy(SpawnEnemyKind.WatcherEye);
             }
 
-            var viewRect = new Rect(rect.x + 12f, rect.y + 342f, rect.width - 24f, rect.height - 354f);
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 310f, 152f, 24f), "Spawn Parasite"))
+            {
+                SpawnEnemy(SpawnEnemyKind.Parasite);
+            }
+
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 338f, 152f, 24f), "Spawn Mire Boss"))
+            {
+                SpawnBoss();
+            }
+
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 338f, 152f, 24f), "Spawn Monolith"))
+            {
+                SpawnMonolithBoss();
+            }
+
+            var viewRect = new Rect(rect.x + 12f, rect.y + 370f, rect.width - 24f, rect.height - 438f);
             var contentRect = new Rect(0f, 0f, viewRect.width - 18f, availableWeapons.Count * rowHeight);
             scrollPosition = GUI.BeginScrollView(viewRect, scrollPosition, contentRect);
 
@@ -142,6 +163,10 @@ namespace Dagon.Bootstrap
             if (spawnDirector == null)
             {
                 spawnDirector = FindObjectOfType<SpawnDirector>();
+            }
+            if (runStateManager == null)
+            {
+                runStateManager = FindObjectOfType<RunStateManager>();
             }
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
@@ -168,12 +193,13 @@ namespace Dagon.Bootstrap
                 ToggleWeapon(definition);
             }
 
-            GUI.enabled = runtimeWeapon != null;
+            GUI.enabled = runtimeWeapon != null && runtimeWeapon.CanUpgradePath(WeaponUpgradePath.PathA);
             if (GUI.Button(new Rect(width - 94f, top + 2f, 42f, 24f), "A+"))
             {
                 runtimeWeapon?.ApplySandboxPathUpgrade(WeaponUpgradePath.PathA);
             }
 
+            GUI.enabled = runtimeWeapon != null && runtimeWeapon.CanUpgradePath(WeaponUpgradePath.PathB);
             if (GUI.Button(new Rect(width - 48f, top + 2f, 42f, 24f), "B+"))
             {
                 runtimeWeapon?.ApplySandboxPathUpgrade(WeaponUpgradePath.PathB);
@@ -361,6 +387,7 @@ namespace Dagon.Bootstrap
                 SpawnEnemyKind.DrownedAcolyte => spawnDirector.SpawnSandboxDrownedAcolyte(),
                 SpawnEnemyKind.Mermaid => spawnDirector.SpawnSandboxMermaid(),
                 SpawnEnemyKind.WatcherEye => spawnDirector.SpawnSandboxWatcherEye(),
+                SpawnEnemyKind.Parasite => spawnDirector.SpawnSandboxParasite(),
                 SpawnEnemyKind.DeepSpawn => spawnDirector.SpawnSandboxDeepSpawn(),
                 _ => false
             };
@@ -379,12 +406,49 @@ namespace Dagon.Bootstrap
             }
         }
 
+        private void EnsureRunStateManager()
+        {
+            if (runStateManager == null)
+            {
+                runStateManager = FindObjectOfType<RunStateManager>();
+            }
+        }
+
+        private void SpawnBoss()
+        {
+            EnsureRunStateManager();
+            if (runStateManager == null)
+            {
+                return;
+            }
+
+            if (runStateManager.SpawnSandboxBoss())
+            {
+                manualSpawnCount += 1;
+            }
+        }
+
+        private void SpawnMonolithBoss()
+        {
+            EnsureRunStateManager();
+            if (runStateManager == null)
+            {
+                return;
+            }
+
+            if (runStateManager.SpawnSandboxMonolithBoss())
+            {
+                manualSpawnCount += 1;
+            }
+        }
+
         private enum SpawnEnemyKind
         {
             MireWretch,
             DrownedAcolyte,
             Mermaid,
             WatcherEye,
+            Parasite,
             DeepSpawn
         }
     }

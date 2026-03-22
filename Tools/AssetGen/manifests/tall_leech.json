@@ -1,0 +1,13 @@
+{
+  "asset_id": "tall_leech",
+  "asset_type": "enemy_sprite",
+  "prompt": "Tall leech boss summon, upright mire parasite with elongated body, rigid lamprey silhouette, fleshy sea-rot anatomy, eerie ranged support enemy, isolated transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Enemies/tall_leech.png",
+  "source_image": "Tools/AssetGen/generated/tall_leech.png",
+  "processed_image": "Tools/AssetGen/processed/tall_leech.png",
+  "size": [128, 128],
+  "palette_notes": "rotted flesh pink, algae green, mud black, bone ivory mouth details",
+  "orientation": "front",
+  "provider": "chat_attachment_inbox",
+  "notes": "Stationary projectile leech summon. Keep the silhouette tall, narrow, and readable at gameplay scale."
+}

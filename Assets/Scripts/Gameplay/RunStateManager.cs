@@ -11,6 +11,83 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class RunStateManager : MonoBehaviour
     {
+        private enum BossKind
+        {
+            MireColossus,
+            Monolith
+        }
+
+        private static readonly BossKind[] AllBossKinds =
+        {
+            BossKind.MireColossus,
+            BossKind.Monolith
+        };
+
+        private readonly struct BossRuntimeDefinition
+        {
+            public BossRuntimeDefinition(
+                BossKind bossKind,
+                string objectName,
+                string displayName,
+                string spritePath,
+                Color tint,
+                float maxHealth,
+                Vector3 colliderCenter,
+                float colliderHeight,
+                float colliderRadius,
+                Vector3 healthBarOffset,
+                Vector3 visualScale,
+                Vector3 visualOffset,
+                float spawnHeightOffset,
+                float wideSummonCooldown,
+                float tallSummonCooldown,
+                int maxWideLeeches,
+                int maxTallLeeches,
+                int experienceReward,
+                float corruptionReward)
+            {
+                BossKind = bossKind;
+                ObjectName = objectName;
+                DisplayName = displayName;
+                SpritePath = spritePath;
+                Tint = tint;
+                MaxHealth = maxHealth;
+                ColliderCenter = colliderCenter;
+                ColliderHeight = colliderHeight;
+                ColliderRadius = colliderRadius;
+                HealthBarOffset = healthBarOffset;
+                VisualScale = visualScale;
+                VisualOffset = visualOffset;
+                SpawnHeightOffset = spawnHeightOffset;
+                WideSummonCooldown = wideSummonCooldown;
+                TallSummonCooldown = tallSummonCooldown;
+                MaxWideLeeches = maxWideLeeches;
+                MaxTallLeeches = maxTallLeeches;
+                ExperienceReward = experienceReward;
+                CorruptionReward = corruptionReward;
+            }
+
+            public BossKind BossKind { get; }
+            public string ObjectName { get; }
+            public string DisplayName { get; }
+            public string SpritePath { get; }
+            public Color Tint { get; }
+            public float MaxHealth { get; }
+            public Vector3 ColliderCenter { get; }
+            public float ColliderHeight { get; }
+            public float ColliderRadius { get; }
+            public Vector3 HealthBarOffset { get; }
+            public Vector3 VisualScale { get; }
+            public Vector3 VisualOffset { get; }
+            public float SpawnHeightOffset { get; }
+            public float WideSummonCooldown { get; }
+            public float TallSummonCooldown { get; }
+            public int MaxWideLeeches { get; }
+            public int MaxTallLeeches { get; }
+            public int ExperienceReward { get; }
+            public float CorruptionReward { get; }
+        }
+
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private SpawnDirector spawnDirector;
@@ -25,6 +102,7 @@ namespace Dagon.Gameplay
         [SerializeField] private bool endRunOnBossDefeat = true;
 
         private readonly List<Health> activeBosses = new();
+        private readonly List<BossKind> remainingBossKinds = new();
         private Health playerHealth;
         private Texture2D whiteTexture;
         private GUIStyle endTitleStyle;
@@ -41,6 +119,10 @@ namespace Dagon.Gameplay
         private bool allowAmbientSpawningDuringBoss;
         private float bossAmbientSpawnIntervalMultiplier = 1f;
         private int bossAmbientAliveCap = 0;
+        private int bossesDefeatedCount;
+        private string biomeBossDisplayName = "Mire Colossus";
+        private Color biomeBossTint = Color.white;
+        private string biomeBossSpritePath = "Sprites/Bosses/mire_colossus";
         private string currentBossDisplayName = "Mire Colossus";
         private string currentBiomeDisplayName = "Black Mire";
         private Color currentBossTint = Color.white;
@@ -184,6 +266,27 @@ namespace Dagon.Gameplay
             bossAmbientAliveCap = Mathf.Max(0, aliveCap);
         }
 
+        public bool SpawnSandboxBoss()
+        {
+            return SpawnSandboxBoss(BossKind.MireColossus);
+        }
+
+        public bool SpawnSandboxMonolithBoss()
+        {
+            return SpawnSandboxBoss(BossKind.Monolith);
+        }
+
+        private bool SpawnSandboxBoss(BossKind bossKind)
+        {
+            if (player == null || worldCamera == null)
+            {
+                return false;
+            }
+
+            SpawnBoss(activeBosses.Count, Mathf.Max(1, activeBosses.Count + 1), ResolveBossDefinition(bossKind, bossesDefeatedCount));
+            return activeBosses.Count > 0;
+        }
+
         public void ConfigureBiome(RuntimeBiomeProfile profile)
         {
             if (profile == null)
@@ -191,10 +294,10 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            currentBossDisplayName = string.IsNullOrWhiteSpace(profile.BossDisplayName) ? currentBossDisplayName : profile.BossDisplayName;
+            biomeBossDisplayName = string.IsNullOrWhiteSpace(profile.BossDisplayName) ? biomeBossDisplayName : profile.BossDisplayName;
             currentBiomeDisplayName = string.IsNullOrWhiteSpace(profile.DisplayName) ? currentBiomeDisplayName : profile.DisplayName;
-            currentBossTint = profile.BossTint;
-            currentBossSpritePath = string.IsNullOrWhiteSpace(profile.BossSpritePath) ? currentBossSpritePath : profile.BossSpritePath;
+            biomeBossTint = profile.BossTint;
+            biomeBossSpritePath = string.IsNullOrWhiteSpace(profile.BossSpritePath) ? biomeBossSpritePath : profile.BossSpritePath;
             bossTransitionDelaySeconds = Mathf.Max(1f, profile.BossTransitionDelaySeconds);
         }
 
@@ -245,29 +348,33 @@ namespace Dagon.Gameplay
 
             for (var i = 0; i < bossesInWave; i++)
             {
-                SpawnBoss(i, bossesInWave);
+                var bossKind = SelectNextBossKind();
+                SpawnBoss(i, bossesInWave, ResolveBossDefinition(bossKind, bossesDefeatedCount));
             }
         }
 
-        private void SpawnBoss(int index, int totalBosses)
+        private void SpawnBoss(int index, int totalBosses, BossRuntimeDefinition definition)
         {
-            var bossSprite = RuntimeSpriteLibrary.LoadSprite(currentBossSpritePath, 256f) ??
+            currentBossDisplayName = definition.DisplayName;
+            currentBossTint = definition.Tint;
+
+            var bossSprite = RuntimeSpriteLibrary.LoadSprite(definition.SpritePath, 256f) ??
                 RuntimeSpriteLibrary.LoadSprite("Sprites/Bosses/mire_colossus", 256f);
             if (bossSprite == null)
             {
                 return;
             }
 
-            var boss = new GameObject("MireColossus");
+            var boss = new GameObject(definition.ObjectName);
             boss.transform.SetParent(transform);
             var angle = totalBosses <= 1 ? 0f : (360f / totalBosses) * index;
             var offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.forward * 12f);
-            boss.transform.position = player.position + new Vector3(offset.x, 0.6f, offset.z);
+            boss.transform.position = player.position + new Vector3(offset.x, definition.SpawnHeightOffset, offset.z);
 
             var collider = boss.AddComponent<CapsuleCollider>();
-            collider.center = new Vector3(0f, 1.15f, 0f);
-            collider.height = 3.2f;
-            collider.radius = 1.15f;
+            collider.center = definition.ColliderCenter;
+            collider.height = definition.ColliderHeight;
+            collider.radius = definition.ColliderRadius;
             collider.isTrigger = true;
 
             var rigidbody = boss.AddComponent<Rigidbody>();
@@ -275,35 +382,112 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var bossHealth = boss.AddComponent<Health>();
-            bossHealth.SetMaxHealth(35f, true);
+            bossHealth.SetMaxHealth(definition.MaxHealth, true);
             bossHealth.Died += HandleBossDied;
             activeBosses.Add(bossHealth);
             boss.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, bossHealth);
             boss.AddComponent<KnockbackReceiver>().Configure(0.18f, 22f, 2.4f);
 
-            var contactDamage = boss.AddComponent<ContactDamage>();
-            contactDamage.Configure(4f);
+            if (definition.BossKind == BossKind.MireColossus)
+            {
+                var contactDamage = boss.AddComponent<ContactDamage>();
+                contactDamage.Configure(4f);
 
-            var controller = boss.AddComponent<MireColossusController>();
-            controller.Configure(player, bossProjectilePrefab);
+                var controller = boss.AddComponent<MireColossusController>();
+                controller.Configure(player, bossProjectilePrefab);
+            }
+            else
+            {
+                var controller = boss.AddComponent<MonolithBossController>();
+                controller.Configure(
+                    player,
+                    worldCamera,
+                    bossProjectilePrefab,
+                    definition.WideSummonCooldown,
+                    definition.TallSummonCooldown,
+                    definition.MaxWideLeeches,
+                    definition.MaxTallLeeches);
+            }
 
             var rewards = boss.AddComponent<EnemyDeathRewards>();
-            rewards.Configure(20, 20f);
+            rewards.Configure(definition.ExperienceReward, definition.CorruptionReward);
 
             var healthBar = boss.AddComponent<EnemyHealthBar>();
-            healthBar.Configure(worldCamera, new Vector3(0f, 2.45f, 0f), false);
+            healthBar.Configure(worldCamera, definition.HealthBarOffset, false);
 
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(boss.transform, false);
+            visuals.transform.localPosition = definition.VisualOffset;
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = bossSprite;
             renderer.sortingOrder = 20;
-            renderer.color = currentBossTint;
-            visuals.transform.localScale = new Vector3(0.95f, 0.95f, 1f);
+            renderer.color = definition.Tint;
+            visuals.transform.localScale = definition.VisualScale;
 
             var billboard = visuals.AddComponent<Dagon.Rendering.BillboardSprite>();
             billboard.Configure(worldCamera, Dagon.Rendering.BillboardSprite.BillboardMode.YAxisOnly);
+        }
+
+        private BossRuntimeDefinition ResolveBossDefinition(BossKind bossKind, int defeatedBossCount)
+        {
+            var healthMultiplier = 1f + (defeatedBossCount * 0.35f);
+            return bossKind switch
+            {
+                BossKind.Monolith => new BossRuntimeDefinition(
+                    BossKind.Monolith,
+                    "MonolithBoss",
+                    "Monolith of the Mire",
+                    "Sprites/Bosses/monolith",
+                    new Color(0.88f, 0.96f, 0.88f, 1f),
+                    180f * healthMultiplier,
+                    new Vector3(0f, 6.2f, 0f),
+                    12.4f,
+                    3.9f,
+                    new Vector3(0f, 7.6f, 0f),
+                    new Vector3(7.75f, 7.75f, 1f),
+                    new Vector3(0f, -3.2f, 0f),
+                    0f,
+                    Mathf.Max(0.8f, 2.4f - (defeatedBossCount * 0.22f)),
+                    Mathf.Max(1.6f, 4.9f - (defeatedBossCount * 0.3f)),
+                    6 + defeatedBossCount,
+                    3 + Mathf.FloorToInt(defeatedBossCount * 0.5f),
+                    20,
+                    20f),
+                _ => new BossRuntimeDefinition(
+                    BossKind.MireColossus,
+                    "MireColossus",
+                    biomeBossDisplayName,
+                    biomeBossSpritePath,
+                    biomeBossTint,
+                    35f * healthMultiplier,
+                    new Vector3(0f, 1.15f, 0f),
+                    3.2f,
+                    1.15f,
+                    new Vector3(0f, 2.45f, 0f),
+                    new Vector3(0.95f, 0.95f, 1f),
+                    Vector3.zero,
+                    0f,
+                    0f,
+                    0f,
+                    0,
+                    0,
+                    20,
+                    20f)
+            };
+        }
+
+        private BossKind SelectNextBossKind()
+        {
+            if (remainingBossKinds.Count == 0)
+            {
+                remainingBossKinds.AddRange(AllBossKinds);
+            }
+
+            var selectedIndex = Random.Range(0, remainingBossKinds.Count);
+            var selectedKind = remainingBossKinds[selectedIndex];
+            remainingBossKinds.RemoveAt(selectedIndex);
+            return selectedKind;
         }
 
         private void HandlePlayerDied(Health health, GameObject source)
@@ -315,6 +499,7 @@ namespace Dagon.Gameplay
         {
             health.Died -= HandleBossDied;
             activeBosses.Remove(health);
+            bossesDefeatedCount += 1;
             if (bossWaveStarted && activeBosses.Count == 0)
             {
                 if (endRunOnBossDefeat)
@@ -343,6 +528,7 @@ namespace Dagon.Gameplay
         private void OnGUI()
         {
             EnsureStyles();
+            var hasActiveBoss = activeBosses.Count > 0;
 
             if (runEnded)
             {
@@ -357,7 +543,7 @@ namespace Dagon.Gameplay
             }
 
             GUI.Label(new Rect(Screen.width - 220f, 18f, 200f, 22f), $"Run: {runTimer:0.0}s");
-            if (!bossWaveStarted)
+            if (!bossWaveStarted && !hasActiveBoss)
             {
                 if (showSpawnProgressUi)
                 {
@@ -370,7 +556,10 @@ namespace Dagon.Gameplay
             else
             {
                 DrawBossHealthBar();
-                DrawBossWaveBanner();
+                if (bossWaveStarted)
+                {
+                    DrawBossWaveBanner();
+                }
             }
         }
 

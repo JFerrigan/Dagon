@@ -1,0 +1,13 @@
+{
+  "asset_id": "parasite",
+  "asset_type": "enemy_sprite",
+  "prompt": "Mud skiff parasite fodder enemy, slick marsh leech-crab horror that clings low to the ground, sharp hooked limbs, wet armored shell, fast charger silhouette, readable isolated gameplay sprite, transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Enemies/parasite.png",
+  "source_image": "Tools/AssetGen/generated/parasite.png",
+  "processed_image": "Tools/AssetGen/processed/parasite.png",
+  "size": [128, 128],
+  "palette_notes": "mud black, algae teal, shell brown, bone hooks, pale rot flesh accents",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Fast fodder charger enemy imported from the local inbox parasite image. Preserve a compact low-profile silhouette, readable forward-facing claw shape, and clean transparent bounds for billboarded runtime use."
+}

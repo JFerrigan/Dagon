@@ -1,5 +1,4 @@
 using Dagon.Core;
-using Dagon.Rendering;
 using UnityEngine;
 
 namespace Dagon.Gameplay
@@ -8,7 +7,6 @@ namespace Dagon.Gameplay
     public sealed class HealthPickup : MonoBehaviour
     {
         private const string PickupSpriteResourcePath = "Sprites/UI/heart";
-
         [SerializeField] private float healAmount = 2f;
         [SerializeField] private float attractDistance = 3f;
         [SerializeField] private float moveSpeed = 5f;
@@ -33,17 +31,13 @@ namespace Dagon.Gameplay
             var component = pickup.AddComponent<HealthPickup>();
             component.healAmount = Mathf.Max(0.1f, healValue);
 
-            var visuals = new GameObject("Visuals");
-            visuals.transform.SetParent(pickup.transform, false);
-
-            var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteLibrary.LoadSprite(PickupSpriteResourcePath, 256f);
-            renderer.color = new Color(1f, 0.92f, 0.92f, 1f);
-            renderer.sortingOrder = 14;
-            visuals.transform.localScale = new Vector3(0.14f, 0.14f, 1f);
-
-            var billboard = visuals.AddComponent<BillboardSprite>();
-            billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
+            WorldPickupVisualFactory.Create(
+                pickup.transform,
+                camera,
+                PickupSpriteResourcePath,
+                new Color(1f, 0.85f, 0.85f, 1f),
+                new Vector3(0.18f, 0.18f, 1f),
+                new Vector3(0f, 0.02f, 0f));
 
             return component;
         }

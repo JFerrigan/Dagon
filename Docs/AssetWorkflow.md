@@ -65,6 +65,133 @@ Return:
 
 Default intent is `16-bit inspired painterly gameplay art`, not strict low-resolution sprite-sheet output. If a specific asset needs hard `16-bit pixel art` constraints, request that explicitly in the prompt instead of assuming it here.
 
+## Reference-Image Animation Prompt Template
+
+Use this when you already have a base enemy sprite and want ChatGPT to generate additional action frames that stay on-model.
+
+Best practice is to generate `one frame at a time`, not a full sprite sheet first. That gives much better control over consistency, framing, and pose readability.
+
+```text
+I am providing a base reference image of an in-game enemy sprite for a dark maritime horror bullet-heaven.
+
+Use the provided image as the strict visual source of truth for:
+- character identity
+- proportions
+- silhouette
+- costume/body features
+- rendering style
+- palette family
+- sprite framing
+
+Generate a new sprite frame of the SAME character in a different action pose.
+
+Requirements:
+- preserve the exact character design from the reference
+- preserve natural aspect ratio
+- do not stretch, squash, skew, or redesign the character
+- keep the sprite centered and isolated
+- no background scene
+- no environment props unless explicitly requested
+- maintain strong gameplay readability at small size
+- 16-bit inspired sprite art look
+- dark maritime Lovecraftian horror tone
+- painterly-retro hybrid rendering is fine, but keep forms clean and readable
+- output should work as a billboarded sprite in a 3D game
+- keep consistent framing and scale relative to the base image
+- do not crop off important limbs or silhouette features
+- transparent or plain empty background preferred
+
+Action target:
+- animation set: [IDLE / MOVE / WINDUP / ATTACK / RECOVER / HURT / DEATH]
+- specific frame goal: [DESCRIBE THE EXACT MOMENT]
+- motion direction: [SUBTLE / LEFT-LEAN / RIGHT-LEAN / FORWARD / RECOIL / TWIST]
+- intensity: [LOW / MEDIUM / HIGH]
+- silhouette priority: [WHAT MUST STILL READ CLEARLY]
+
+Keep continuity with the source image:
+- same character, not a reinterpretation
+- same head/body proportion
+- same weapon/appendage placement unless changed by the action
+- same visual scale and camera framing
+- same mood and material rendering
+
+Avoid:
+- redesigning the face or body
+- adding extra limbs, accessories, or costume details
+- dramatic perspective distortion
+- blurry motion-smear
+- background art
+- exaggerated posing that breaks in-game readability
+
+Return:
+- one clean sprite frame only
+```
+
+### Short Action Variants
+
+`Idle`
+
+```text
+Using the provided base sprite as strict reference, generate an idle frame of the same character. Keep the pose calm, readable, centered, and gameplay-clean. Add only subtle life: slight sway, breathing, cloth drift, or eerie tension. Preserve exact proportions, silhouette, scale, palette, and aspect ratio. No redesign, no background, 16-bit inspired dark maritime horror sprite.
+```
+
+`Move`
+
+```text
+Using the provided base sprite as strict reference, generate a movement frame of the same character. Show a clear locomotion step or glide pose while preserving exact design, proportions, scale, framing, and silhouette readability. Keep it centered, isolated, no background, no perspective distortion, 16-bit inspired dark maritime horror sprite.
+```
+
+`Windup`
+
+```text
+Using the provided base sprite as strict reference, generate a windup frame of the same character preparing an attack. The pose should clearly communicate anticipation and intent, not impact. Preserve exact character design, proportions, framing, scale, silhouette, and aspect ratio. No background. Strong gameplay readability. 16-bit inspired dark maritime horror sprite.
+```
+
+`Attack`
+
+```text
+Using the provided base sprite as strict reference, generate an attack frame of the same character at the moment of release. The pose should clearly show the action peak while staying readable at small gameplay scale. Preserve exact design, proportions, framing, and aspect ratio. No redesign, no background, 16-bit inspired dark maritime horror sprite.
+```
+
+`Recover`
+
+```text
+Using the provided base sprite as strict reference, generate a recovery frame of the same character immediately after an attack. Show recoil, follow-through, or brief vulnerability while preserving exact design, proportions, framing, scale, and silhouette. No background, no extra effects, 16-bit inspired dark maritime horror sprite.
+```
+
+`Hurt`
+
+```text
+Using the provided base sprite as strict reference, generate a hurt reaction frame of the same character. Show a brief hit reaction without deforming or redesigning the body. Preserve exact design, proportions, scale, framing, and aspect ratio. Keep the silhouette readable and centered. No background. 16-bit inspired dark maritime horror sprite.
+```
+
+`Death`
+
+```text
+Using the provided base sprite as strict reference, generate a death frame of the same character. Show collapse, unraveling, or corruption while preserving the core design language of the source sprite. Keep framing consistent, preserve aspect ratio, and avoid excessive gore or chaotic detail that hurts readability. No background. 16-bit inspired dark maritime horror sprite.
+```
+
+### Recommended Animation Set Structure
+
+For enemy frame generation, default to small sets like:
+
+- `idle`
+- `move`
+- `windup`
+- `attack`
+- `recover`
+- optional `hurt`
+- optional `death`
+
+Example naming:
+
+- `acolyte_move_01`
+- `acolyte_move_02`
+- `acolyte_windup_01`
+- `acolyte_attack_01`
+
+Keep every frame on the same apparent scale, pivot, framing, and aspect ratio so flipbook playback does not wobble.
+
 ## Commands
 
 Validate manifests:

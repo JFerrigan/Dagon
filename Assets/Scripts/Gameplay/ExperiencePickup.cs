@@ -1,5 +1,4 @@
 using Dagon.Core;
-using Dagon.Rendering;
 using UnityEngine;
 
 namespace Dagon.Gameplay
@@ -36,17 +35,13 @@ namespace Dagon.Gameplay
             component.experienceValue = xpValue;
             component.corruptionValue = corruptionReward;
 
-            var visuals = new GameObject("Visuals");
-            visuals.transform.SetParent(pickup.transform, false);
-
-            var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteLibrary.LoadSprite(PickupSpriteResourcePath, 256f);
-            renderer.color = Color.white;
-            renderer.sortingOrder = 14;
-            visuals.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
-
-            var billboard = visuals.AddComponent<BillboardSprite>();
-            billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
+            WorldPickupVisualFactory.Create(
+                pickup.transform,
+                camera,
+                PickupSpriteResourcePath,
+                Color.white,
+                new Vector3(0.12f, 0.12f, 1f),
+                Vector3.zero);
 
             return component;
         }

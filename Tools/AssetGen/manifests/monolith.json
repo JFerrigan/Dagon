@@ -1,0 +1,13 @@
+{
+  "asset_id": "monolith",
+  "asset_type": "boss_sprite",
+  "prompt": "Black Mire monolith boss, towering barnacled drowned stone obelisk with occult fissures, ancient sea-corrupted idol, heavy vertical silhouette, eerie gameplay-readable boss sprite, isolated subject on transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Bosses/monolith.png",
+  "source_image": "Tools/AssetGen/generated/monolith.png",
+  "processed_image": "Tools/AssetGen/processed/monolith.png",
+  "size": [256, 256],
+  "palette_notes": "mire black, algae teal, wet stone gray, pale bone cracks, restrained sickly green glow",
+  "orientation": "front",
+  "provider": "chat_attachment_inbox",
+  "notes": "Stationary monolith boss sprite. Preserve a strong vertical silhouette and broad readable base without background clutter."
+}

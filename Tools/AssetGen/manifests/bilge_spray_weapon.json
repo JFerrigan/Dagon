@@ -1,13 +1,13 @@
 {
   "asset_id": "bilge_spray_weapon",
   "asset_type": "weapon_effect_sprite",
-  "prompt": "A cone of acid brine blasting outward from a corroded nozzle for a short-range spray weapon effect.",
+  "prompt": "A horizontal blast of acid brine spraying left-to-right from a corroded nozzle for a short-range weapon effect.",
   "output_path": "Assets/Resources/Sprites/Weapons/bilge_spray.png",
   "source_image": "Tools/AssetGen/generated/bilge_spray.png",
   "processed_image": "Tools/AssetGen/processed/bilge_spray.png",
-  "size": [256, 256],
+  "size": [1536, 1024],
   "palette_notes": "acid green, black brine, pale toxic foam, corroded metal nozzle",
-  "orientation": "cone_weapon_effect",
+  "orientation": "horizontal_weapon_effect",
   "provider": "chat_attachment_inbox",
-  "notes": "Bilge Spray weapon art imported from the local inbox."
+  "notes": "Bilge Spray weapon art replaced with a sideways left-to-right spray from Tools/AssetGen/inbox/bilge.png."
 }

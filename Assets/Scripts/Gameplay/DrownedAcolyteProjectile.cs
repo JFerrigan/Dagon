@@ -12,11 +12,6 @@ namespace Dagon.Gameplay
         private Vector3 direction = Vector3.forward;
         private float speed = 6.5f;
         private float impactDamage = 1f;
-        private float hazardRadius = 1.2f;
-        private float hazardDuration = 2.25f;
-        private float hazardTickDamage = 0.5f;
-        private float hazardTickInterval = 0.5f;
-        private Camera worldCamera;
         private CombatTeam sourceTeam;
         private float collisionRadius;
         private bool impacted;
@@ -25,22 +20,12 @@ namespace Dagon.Gameplay
             GameObject projectileOwner,
             Vector3 moveDirection,
             float moveSpeed,
-            float directDamage,
-            float zoneRadius,
-            float zoneDuration,
-            float zoneTickDamage,
-            float zoneTickInterval,
-            Camera cameraReference)
+            float directDamage)
         {
             owner = projectileOwner;
             direction = moveDirection.normalized;
             speed = moveSpeed;
             impactDamage = directDamage;
-            hazardRadius = zoneRadius;
-            hazardDuration = zoneDuration;
-            hazardTickDamage = zoneTickDamage;
-            hazardTickInterval = zoneTickInterval;
-            worldCamera = cameraReference;
             sourceTeam = CombatResolver.GetTeam(projectileOwner);
             collisionRadius = ResolveCollisionRadius();
             impacted = false;
@@ -129,17 +114,6 @@ namespace Dagon.Gameplay
             }
 
             impacted = true;
-            EnemyHazardZone.SpawnForTeam(
-                transform.position,
-                hazardRadius,
-                hazardDuration,
-                hazardTickDamage,
-                hazardTickInterval,
-                worldCamera,
-                new Color(0.38f, 0.82f, 0.52f, 0.48f),
-                CombatTeam.Player,
-                owner,
-                "AcolyteHazardZone");
             Destroy(gameObject);
         }
 

@@ -82,26 +82,7 @@ namespace Dagon.Gameplay
 
         public bool ApplySandboxPathUpgrade(WeaponUpgradePath path)
         {
-            var nextStep = GetPathUpgradesTaken(path) + 1;
-            if (nextStep <= 3)
-            {
-                ApplyPathUpgrade(path, nextStep);
-            }
-            else
-            {
-                ApplySandboxOverflowUpgrade(path, nextStep);
-            }
-
-            if (path == WeaponUpgradePath.PathA)
-            {
-                pathAUpgradesTaken = nextStep;
-            }
-            else
-            {
-                pathBUpgradesTaken = nextStep;
-            }
-
-            return true;
+            return ApplyPathUpgrade(path);
         }
 
         public bool TryBuildPathReward(WeaponUpgradePath path, out CombatRewardOption reward)
@@ -115,8 +96,8 @@ namespace Dagon.Gameplay
             var step = GetPathUpgradesTaken(path) + 1;
             reward = new CombatRewardOption(
                 CombatRewardKind.UpgradeWeaponPath,
-                $"{DisplayName} - {GetPathName(path)}",
-                $"{GetUpgradeTitle(path, step)}: {GetUpgradeDescription(path, step)}",
+                $"{DisplayName} - {GetUpgradeTitle(path, step)}",
+                GetUpgradeDescription(path, step),
                 targetWeaponId: WeaponId,
                 upgradePath: path);
             return true;
@@ -139,17 +120,19 @@ namespace Dagon.Gameplay
 
         protected abstract void ApplyPathUpgrade(WeaponUpgradePath path, int nextStep);
 
-        protected virtual void ApplySandboxOverflowUpgrade(WeaponUpgradePath path, int nextStep)
+        protected static string FlatDamageDelta(float damageDelta)
         {
-            if (path == WeaponUpgradePath.PathA)
-            {
-                ModifyProjectileCount(1);
-                ModifyAttackRate(0.05f);
-                return;
-            }
+            return $"+{Mathf.RoundToInt(damageDelta * 10f)} DMG";
+        }
 
-            ModifyProjectileDamage(0.35f);
-            ModifyAttackRate(0.02f);
+        protected static string FlatCountDelta(int amount, string label)
+        {
+            return $"+{amount} {label}";
+        }
+
+        protected static string FlatPercentDelta(int amount, string label)
+        {
+            return $"+{amount}% {label}";
         }
 
         protected abstract string GetUpgradeTitle(WeaponUpgradePath path, int nextStep);
