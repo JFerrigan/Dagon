@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Dagon.Core;
 using UnityEngine;
 
@@ -50,6 +51,7 @@ namespace Dagon.Gameplay
         private BossAttack nextAttack = BossAttack.RadialBurst;
         private State state;
         private float spiralStartAngle;
+        private readonly HashSet<GameObject> resolvedSlamTargets = new();
 
         private enum State
         {
@@ -367,9 +369,15 @@ namespace Dagon.Gameplay
         private void PerformSlam()
         {
             var colliders = Physics.OverlapSphere(transform.position, slamRadius, ~0, QueryTriggerInteraction.Collide);
+            resolvedSlamTargets.Clear();
             for (var i = 0; i < colliders.Length; i++)
             {
-                CombatResolver.TryApplyDamage(colliders[i], CombatTeam.Enemy, gameObject, slamDamage);
+                if (!CombatResolver.TryResolveUniqueHit(colliders[i], CombatTeam.Enemy, gameObject, resolvedSlamTargets, out var resolvedHit))
+                {
+                    continue;
+                }
+
+                CombatResolver.TryApplyDamage(resolvedHit, gameObject, slamDamage, CombatTeam.Enemy);
             }
 
             EnemyHazardZone.SpawnForTeam(

@@ -8,6 +8,21 @@ namespace Dagon.Gameplay
     {
         public static HarpoonProjectile Create(Camera camera)
         {
+            return Create(
+                camera,
+                "Sprites/Enemies/mire_wretch",
+                new Color(0.6f, 0.9f, 0.62f, 1f),
+                new Vector3(0.22f, 0.22f, 1f),
+                256f);
+        }
+
+        public static HarpoonProjectile Create(
+            Camera camera,
+            string spritePath,
+            Color color,
+            Vector3 visualScale,
+            float pixelsPerUnit = 256f)
+        {
             var projectile = new GameObject("RuntimeOrbProjectile");
             projectile.SetActive(false);
 
@@ -25,10 +40,10 @@ namespace Dagon.Gameplay
             visuals.transform.SetParent(projectile.transform, false);
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mire_wretch");
-            renderer.color = new Color(0.6f, 0.9f, 0.62f, 1f);
+            renderer.sprite = RuntimeSpriteLibrary.LoadSprite(spritePath, pixelsPerUnit);
+            renderer.color = color;
             renderer.sortingOrder = 11;
-            visuals.transform.localScale = new Vector3(0.22f, 0.22f, 1f);
+            visuals.transform.localScale = visualScale;
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);

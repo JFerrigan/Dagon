@@ -8,6 +8,7 @@ namespace Dagon.Gameplay
     public sealed class PlaceholderWeaponVisual : MonoBehaviour
     {
         private SpriteRenderer spriteRenderer;
+        private Transform scaleRoot;
         private float duration;
         private float timer;
         private Color tint;
@@ -47,7 +48,10 @@ namespace Dagon.Gameplay
         {
             timer += Time.deltaTime;
             var progress = Mathf.Clamp01(timer / duration);
-            transform.localScale = Vector3.Lerp(startScale, endScale, progress);
+            if (scaleRoot != null)
+            {
+                scaleRoot.localScale = Vector3.Lerp(startScale, endScale, progress);
+            }
 
             if (spriteRenderer != null)
             {
@@ -77,11 +81,18 @@ namespace Dagon.Gameplay
             tint = visualTint;
             startScale = ResolveAspectPreservingScale(sprite, scale);
             endScale = startScale * endScaleMultiplier;
-            transform.localScale = startScale;
+
+            var offsetRoot = new GameObject("OffsetRoot");
+            offsetRoot.transform.SetParent(transform, false);
+            offsetRoot.transform.localPosition = spriteLocalOffset;
+
+            var scaleObject = new GameObject("ScaleRoot");
+            scaleObject.transform.SetParent(offsetRoot.transform, false);
+            scaleRoot = scaleObject.transform;
+            scaleRoot.localScale = startScale;
 
             var rendererObject = new GameObject("Visuals");
-            rendererObject.transform.SetParent(transform, false);
-            rendererObject.transform.localPosition = spriteLocalOffset;
+            rendererObject.transform.SetParent(scaleRoot, false);
             spriteRenderer = rendererObject.AddComponent<SpriteRenderer>();
             spriteRenderer.sprite = sprite;
             spriteRenderer.sortingOrder = sortingOrder;

@@ -1,0 +1,13 @@
+{
+  "asset_id": "watcher_eye",
+  "asset_type": "enemy_sprite",
+  "prompt": "Watcher Eye specialist enemy, floating abyssal eye orb with eerie pupil, wet membrane edges, faint tendril silhouette, readable isolated gameplay sprite, transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Enemies/watcher_eye.png",
+  "source_image": "Tools/AssetGen/generated/watcher_eye.png",
+  "processed_image": "Tools/AssetGen/processed/watcher_eye.png",
+  "size": [64, 64],
+  "palette_notes": "sickly teal, pale sclera, abyssal black, mire green, muted bruise-purple shadows kept restrained",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Floating specialist enemy sprite. Keep the pupil readable at combat scale, preserve a strong circular silhouette, and avoid background clutter or aspect-ratio distortion."
+}

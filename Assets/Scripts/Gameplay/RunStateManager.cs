@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Dagon.Bootstrap;
 using Dagon.Core;
 using Dagon.UI;
 using UnityEngine;
@@ -21,6 +22,7 @@ namespace Dagon.Gameplay
         [SerializeField] private bool useTimedBossTransition;
         [SerializeField] private float bossTransitionDelaySeconds = 45f;
         [SerializeField] private bool showSpawnProgressUi = true;
+        [SerializeField] private bool endRunOnBossDefeat = true;
 
         private readonly List<Health> activeBosses = new();
         private Health playerHealth;
@@ -29,17 +31,26 @@ namespace Dagon.Gameplay
         private GUIStyle endBodyStyle;
         private GUIStyle endButtonStyle;
         private float runTimer;
+        private float biomeTimer;
         private bool bossWaveStarted;
         private bool runEnded;
         private bool playerWon;
         private bool pauseMenuOpen;
         private float bossWaveBannerTimer;
         private bool bossTransitionArmed;
+        private bool allowAmbientSpawningDuringBoss;
+        private float bossAmbientSpawnIntervalMultiplier = 1f;
+        private int bossAmbientAliveCap = 0;
+        private string currentBossDisplayName = "Mire Colossus";
+        private string currentBiomeDisplayName = "Black Mire";
+        private Color currentBossTint = Color.white;
+        private string currentBossSpritePath = "Sprites/Bosses/mire_colossus";
 
         public float RunTimer => runTimer;
         public bool RunEnded => runEnded;
         public bool BossWaveStarted => bossWaveStarted;
         public bool PauseMenuOpen => pauseMenuOpen;
+        public event System.Action BossWaveCompleted;
 
         private void Start()
         {
@@ -106,6 +117,7 @@ namespace Dagon.Gameplay
             }
 
             runTimer += Time.deltaTime;
+            biomeTimer += Time.deltaTime;
             bossWaveBannerTimer = Mathf.Max(0f, bossWaveBannerTimer - Time.deltaTime);
             if (bossWaveStarted || spawnDirector == null)
             {
@@ -114,18 +126,14 @@ namespace Dagon.Gameplay
 
             if (useTimedBossTransition)
             {
-                if (!bossTransitionArmed && runTimer >= bossTransitionDelaySeconds)
+                if (!bossTransitionArmed && biomeTimer >= bossTransitionDelaySeconds)
                 {
                     bossTransitionArmed = true;
                     spawnDirector.StopSpawning();
-                    Debug.Log(
-                        $"RunStateManager armed boss transition at {runTimer:0.0}s in scene '{SceneManager.GetActiveScene().name}'.",
-                        this);
-                }
-
-                if (bossTransitionArmed && spawnDirector.AliveEnemies <= 0)
-                {
                     BeginBossWave();
+                    Debug.Log(
+                        $"RunStateManager armed boss transition at run={runTimer:0.0}s biome={biomeTimer:0.0}s in scene '{SceneManager.GetActiveScene().name}'.",
+                        this);
                 }
 
                 return;
@@ -164,6 +172,41 @@ namespace Dagon.Gameplay
             bossTransitionArmed = false;
         }
 
+        public void ConfigureBossResolution(bool shouldEndRunOnBossDefeat)
+        {
+            endRunOnBossDefeat = shouldEndRunOnBossDefeat;
+        }
+
+        public void ConfigureBossAmbientSpawning(bool allowAmbientSpawns, float intervalMultiplier, int aliveCap)
+        {
+            allowAmbientSpawningDuringBoss = allowAmbientSpawns;
+            bossAmbientSpawnIntervalMultiplier = Mathf.Max(1f, intervalMultiplier);
+            bossAmbientAliveCap = Mathf.Max(0, aliveCap);
+        }
+
+        public void ConfigureBiome(RuntimeBiomeProfile profile)
+        {
+            if (profile == null)
+            {
+                return;
+            }
+
+            currentBossDisplayName = string.IsNullOrWhiteSpace(profile.BossDisplayName) ? currentBossDisplayName : profile.BossDisplayName;
+            currentBiomeDisplayName = string.IsNullOrWhiteSpace(profile.DisplayName) ? currentBiomeDisplayName : profile.DisplayName;
+            currentBossTint = profile.BossTint;
+            currentBossSpritePath = string.IsNullOrWhiteSpace(profile.BossSpritePath) ? currentBossSpritePath : profile.BossSpritePath;
+            bossTransitionDelaySeconds = Mathf.Max(1f, profile.BossTransitionDelaySeconds);
+        }
+
+        public void ResumeAmbientRun(float nextBossDelaySeconds)
+        {
+            bossWaveStarted = false;
+            bossTransitionArmed = false;
+            bossWaveBannerTimer = 0f;
+            biomeTimer = 0f;
+            bossTransitionDelaySeconds = Mathf.Max(1f, nextBossDelaySeconds);
+        }
+
         private void HandleBattlefieldCleared()
         {
             if (useTimedBossTransition)
@@ -191,7 +234,14 @@ namespace Dagon.Gameplay
 
             bossWaveStarted = true;
             bossWaveBannerTimer = 3.2f;
-            spawnDirector?.StopSpawning();
+            if (allowAmbientSpawningDuringBoss)
+            {
+                spawnDirector?.EnterBossAmbientPressure(bossAmbientSpawnIntervalMultiplier, bossAmbientAliveCap);
+            }
+            else
+            {
+                spawnDirector?.StopSpawning();
+            }
 
             for (var i = 0; i < bossesInWave; i++)
             {
@@ -201,7 +251,8 @@ namespace Dagon.Gameplay
 
         private void SpawnBoss(int index, int totalBosses)
         {
-            var bossSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Bosses/mire_colossus", 256f);
+            var bossSprite = RuntimeSpriteLibrary.LoadSprite(currentBossSpritePath, 256f) ??
+                RuntimeSpriteLibrary.LoadSprite("Sprites/Bosses/mire_colossus", 256f);
             if (bossSprite == null)
             {
                 return;
@@ -248,7 +299,7 @@ namespace Dagon.Gameplay
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = bossSprite;
             renderer.sortingOrder = 20;
-            renderer.color = Color.white;
+            renderer.color = currentBossTint;
             visuals.transform.localScale = new Vector3(0.95f, 0.95f, 1f);
 
             var billboard = visuals.AddComponent<Dagon.Rendering.BillboardSprite>();
@@ -266,7 +317,13 @@ namespace Dagon.Gameplay
             activeBosses.Remove(health);
             if (bossWaveStarted && activeBosses.Count == 0)
             {
-                EndRun(true);
+                if (endRunOnBossDefeat)
+                {
+                    EndRun(true);
+                    return;
+                }
+
+                BossWaveCompleted?.Invoke();
             }
         }
 
@@ -307,6 +364,8 @@ namespace Dagon.Gameplay
                     var enemiesLeft = spawnDirector != null ? spawnDirector.RemainingSpawns : 0;
                     GUI.Label(new Rect(Screen.width - 220f, 40f, 200f, 22f), $"Kills Left: {enemiesLeft}");
                 }
+
+                GUI.Label(new Rect(Screen.width - 220f, 62f, 200f, 22f), $"Biome: {currentBiomeDisplayName}");
             }
             else
             {
@@ -349,13 +408,13 @@ namespace Dagon.Gameplay
             var previous = GUI.color;
             GUI.color = new Color(0.08f, 0.10f, 0.10f, 0.92f);
             GUI.DrawTexture(new Rect(x, y, width, height), whiteTexture, ScaleMode.StretchToFill, false);
-            GUI.color = new Color(0.32f, 0.76f, 0.46f, 0.96f);
+            GUI.color = new Color(currentBossTint.r, currentBossTint.g, currentBossTint.b, 0.96f);
             GUI.DrawTexture(new Rect(x, y, width * progress, height), whiteTexture, ScaleMode.StretchToFill, false);
             GUI.color = previous;
 
             var label = activeBosses.Count == 1
-                ? $"Mire Colossus  {Mathf.CeilToInt(totalCurrent)} / {Mathf.CeilToInt(totalMax)}"
-                : $"Boss Wave x{activeBosses.Count}  {Mathf.CeilToInt(totalCurrent)} / {Mathf.CeilToInt(totalMax)}";
+                ? $"{currentBossDisplayName}  {Mathf.CeilToInt(totalCurrent)} / {Mathf.CeilToInt(totalMax)}"
+                : $"{currentBossDisplayName} x{activeBosses.Count}  {Mathf.CeilToInt(totalCurrent)} / {Mathf.CeilToInt(totalMax)}";
             GUI.Label(new Rect(x, y - 18f, width, 18f), label);
         }
 
@@ -369,7 +428,7 @@ namespace Dagon.Gameplay
             var alpha = Mathf.Clamp01(bossWaveBannerTimer / 3.2f);
             var previous = GUI.color;
             GUI.color = new Color(0.92f, 0.98f, 0.94f, alpha);
-            GUI.Label(new Rect((Screen.width - 280f) * 0.5f, 48f, 280f, 24f), "Boss Wave: The Mire Colossus");
+            GUI.Label(new Rect((Screen.width - 360f) * 0.5f, 48f, 360f, 24f), $"Boss Wave: {currentBossDisplayName}");
             GUI.color = previous;
         }
 

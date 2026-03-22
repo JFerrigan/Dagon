@@ -12,6 +12,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Camera worldCamera;
         [SerializeField] private Transform movementReference;
         [SerializeField] private float moveSpeed = 6f;
+        [SerializeField] private PlayerSlowReceiver slowReceiver;
 
         private Vector3 aimDirection = Vector3.forward;
 
@@ -22,6 +23,11 @@ namespace Dagon.Gameplay
         {
             moveAction?.action.Enable();
             lookAction?.action.Enable();
+
+            if (slowReceiver == null)
+            {
+                slowReceiver = GetComponent<PlayerSlowReceiver>();
+            }
         }
 
         private void OnDisable()
@@ -36,7 +42,8 @@ namespace Dagon.Gameplay
 
             if (MoveDirection.sqrMagnitude > 0f)
             {
-                transform.position += MoveDirection * (moveSpeed * Time.deltaTime);
+                var speedMultiplier = slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f;
+                transform.position += MoveDirection * (moveSpeed * speedMultiplier * Time.deltaTime);
             }
 
             UpdateAimDirection();

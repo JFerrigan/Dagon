@@ -1,5 +1,6 @@
 using Dagon.Core;
 using Dagon.Data;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -14,6 +15,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Camera worldCamera;
 
         private float cooldownRemaining;
+        private readonly HashSet<GameObject> resolvedTargets = new();
 
         public override float CooldownRemaining => cooldownRemaining;
         public override float CooldownDuration => cooldown;
@@ -58,6 +60,7 @@ namespace Dagon.Gameplay
             }
 
             var colliders = Physics.OverlapSphere(transform.position, radius, enemyMask, QueryTriggerInteraction.Collide);
+            resolvedTargets.Clear();
             foreach (var hit in colliders)
             {
                 if (hit.transform == transform)
@@ -65,7 +68,12 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage);
+                if (!CombatResolver.TryResolveUniqueHit(hit, CombatTeam.Player, gameObject, resolvedTargets, out var resolvedHit))
+                {
+                    continue;
+                }
+
+                CombatResolver.TryApplyDamage(resolvedHit, gameObject, damage, CombatTeam.Player);
             }
 
             BrineSurgeVisual.Spawn(transform.position, radius, ResolveCamera());

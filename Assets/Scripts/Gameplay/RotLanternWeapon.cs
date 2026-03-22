@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Dagon.Core;
 using Dagon.Data;
 using UnityEngine;
@@ -18,6 +19,7 @@ namespace Dagon.Gameplay
 
         private Camera worldCamera;
         private float cooldownTimer = 0.2f;
+        private readonly HashSet<GameObject> resolvedTargets = new();
 
         public override string PathAName => "Lantern Choir";
         public override string PathBName => "Baleful Flame";
@@ -147,6 +149,7 @@ namespace Dagon.Gameplay
                 groundPlane: true);
 
             var colliders = Physics.OverlapSphere(transform.position, radius, enemyMask, QueryTriggerInteraction.Collide);
+            resolvedTargets.Clear();
             foreach (var hit in colliders)
             {
                 if (hit.transform == transform)
@@ -154,7 +157,12 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage);
+                if (!CombatResolver.TryResolveUniqueHit(hit, CombatTeam.Player, gameObject, resolvedTargets, out var resolvedHit))
+                {
+                    continue;
+                }
+
+                CombatResolver.TryApplyDamage(resolvedHit, gameObject, damage, CombatTeam.Player);
             }
 
             PlaceholderWeaponVisual.Spawn(

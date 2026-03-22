@@ -1,0 +1,13 @@
+{
+  "asset_id": "mermaid",
+  "asset_type": "enemy_sprite",
+  "prompt": "Black Mire mermaid siren specialist, drowned sea-horror woman with rotted fin tail, soaked hair silhouette, barnacle accents, eerie songcaster posture, readable front 3/4 gameplay sprite, isolated subject on transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Enemies/mermaid.png",
+  "source_image": "Tools/AssetGen/generated/mermaid.png",
+  "processed_image": "Tools/AssetGen/processed/mermaid.png",
+  "size": [64, 64],
+  "palette_notes": "algae teal, pale corpse flesh, mire black, swamp green, bone ivory, muted sea-rot accents",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Specialist siren enemy sprite. Preserve a clear upper-body silhouette, visible head and hair shape, and readable arms and hands for casting. No background scene and no aspect-ratio distortion."
+}

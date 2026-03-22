@@ -17,15 +17,15 @@ namespace Dagon.Gameplay
         [SerializeField] private float corruptionReward = 7f;
 
         [Header("Collision")]
-        [SerializeField] private Vector3 colliderCenter = new(0f, 0.75f, 0f);
-        [SerializeField] private float colliderHeight = 1.5f;
-        [SerializeField] private float colliderRadius = 0.35f;
+        [SerializeField] private Vector3 colliderCenter = new(0f, 0.8f, 0f);
+        [SerializeField] private float colliderHeight = 1.6f;
+        [SerializeField] private float colliderRadius = 0.5f;
 
         [Header("Visuals")]
         [SerializeField] private string spriteResourcePath = "Sprites/Enemies/deep_spawn";
-        [SerializeField] private float spritePixelsPerUnit = 256f;
+        [SerializeField] private float spritePixelsPerUnit = 64f;
         [SerializeField] private int sortingOrder = 7;
-        [SerializeField] private Vector3 visualScale = new(1.2f, 1.2f, 1f);
+        [SerializeField] private Vector3 visualScale = new(0.9f, 0.9f, 1f);
 
         private Health health;
         private EnemyDeathRewards rewards;
@@ -61,7 +61,7 @@ namespace Dagon.Gameplay
             rewards.Configure(experienceReward, corruptionReward);
             bruiser.Configure(target, driftSpeed, chargeSpeed);
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
-            healthBar.Configure(worldCamera, new Vector3(0f, 1.68f, 0f), !healthBarsAlwaysVisible, visibleDurationAfterDamage);
+            healthBar.Configure(worldCamera, new Vector3(0f, 1.8f, 0f), !healthBarsAlwaysVisible, visibleDurationAfterDamage);
         }
 
         private void EnsureSetup()

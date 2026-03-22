@@ -18,6 +18,7 @@ namespace Dagon.Bootstrap
         private Vector2 scrollPosition;
         private bool panelVisible = true;
         private int spawnBoostCount;
+        private int manualSpawnCount;
 
         private void Start()
         {
@@ -50,48 +51,75 @@ namespace Dagon.Bootstrap
                 return;
             }
 
-            const float width = 492f;
+            const float width = 336f;
             const float rowHeight = 28f;
-            var panelHeight = Mathf.Min(360f, 132f + (availableWeapons.Count * rowHeight));
+            var panelHeight = Mathf.Min(Screen.height - 32f, 292f + (availableWeapons.Count * rowHeight));
             var rect = new Rect(Screen.width - width - 16f, 16f, width, panelHeight);
 
             GUI.Box(rect, "Developer Sandbox");
             GUI.Label(new Rect(rect.x + 12f, rect.y + 26f, rect.width - 24f, 20f), $"Toggle panel: {togglePanelKey}");
             GUI.Label(new Rect(rect.x + 12f, rect.y + 48f, rect.width - 24f, 20f), "Choose your live weapon loadout.");
 
-            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 76f, 98f, 24f), "Base Only"))
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 76f, 96f, 24f), "Base Only"))
             {
                 EquipBaseOnly();
             }
 
-            if (GUI.Button(new Rect(rect.x + 118f, rect.y + 76f, 98f, 24f), "All Weapons"))
+            if (GUI.Button(new Rect(rect.x + 118f, rect.y + 76f, 96f, 24f), "All Weapons"))
             {
                 EquipAllWeapons();
             }
 
-            if (GUI.Button(new Rect(rect.x + 224f, rect.y + 76f, 104f, 24f), "Refresh List"))
+            if (GUI.Button(new Rect(rect.x + 224f, rect.y + 76f, 100f, 24f), "Refresh"))
             {
                 RebuildWeaponCatalog();
                 SyncSelectionFromLoadout();
             }
 
-            if (GUI.Button(new Rect(rect.x + 336f, rect.y + 76f, 68f, 24f), "A+ All"))
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 104f, 152f, 24f), "Upgrade A All"))
             {
                 UpgradeAllActiveWeapons(WeaponUpgradePath.PathA);
             }
 
-            if (GUI.Button(new Rect(rect.x + 412f, rect.y + 76f, 68f, 24f), "B+ All"))
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 104f, 152f, 24f), "Upgrade B All"))
             {
                 UpgradeAllActiveWeapons(WeaponUpgradePath.PathB);
             }
 
-            GUI.Label(new Rect(rect.x + 12f, rect.y + 106f, rect.width - 120f, 18f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
-            if (GUI.Button(new Rect(rect.x + rect.width - 96f, rect.y + 102f, 84f, 24f), $"Spawn +{spawnBoostCount}"))
+            GUI.Label(new Rect(rect.x + 12f, rect.y + 136f, rect.width - 24f, 36f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 172f, rect.width - 24f, 24f), $"Increase Spawn Pressure ({spawnBoostCount})"))
             {
                 IncreaseSpawnPressure();
             }
 
-            var viewRect = new Rect(rect.x + 12f, rect.y + 130f, rect.width - 24f, rect.height - 142f);
+            GUI.Label(new Rect(rect.x + 12f, rect.y + 202f, rect.width - 24f, 18f), $"Manual enemy spawns: {manualSpawnCount}");
+
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 224f, 152f, 24f), "Spawn Wretch"))
+            {
+                SpawnEnemy(SpawnEnemyKind.MireWretch);
+            }
+
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 224f, 152f, 24f), "Spawn Acolyte"))
+            {
+                SpawnEnemy(SpawnEnemyKind.DrownedAcolyte);
+            }
+
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 252f, 152f, 24f), "Spawn Mermaid"))
+            {
+                SpawnEnemy(SpawnEnemyKind.Mermaid);
+            }
+
+            if (GUI.Button(new Rect(rect.x + 172f, rect.y + 252f, 152f, 24f), "Spawn Deep Spawn"))
+            {
+                SpawnEnemy(SpawnEnemyKind.DeepSpawn);
+            }
+
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 280f, rect.width - 24f, 24f), "Spawn Eye"))
+            {
+                SpawnEnemy(SpawnEnemyKind.WatcherEye);
+            }
+
+            var viewRect = new Rect(rect.x + 12f, rect.y + 312f, rect.width - 24f, rect.height - 324f);
             var contentRect = new Rect(0f, 0f, viewRect.width - 18f, availableWeapons.Count * rowHeight);
             scrollPosition = GUI.BeginScrollView(viewRect, scrollPosition, contentRect);
 
@@ -123,25 +151,25 @@ namespace Dagon.Bootstrap
             var nameLabel = isBaseWeapon ? $"{definition.DisplayName} [Base]" : definition.DisplayName;
             var runtimeWeapon = combatLoadout.GetWeapon(definition.WeaponId);
 
-            GUI.Label(new Rect(0f, top + 4f, width - 252f, 20f), nameLabel);
+            GUI.Label(new Rect(0f, top + 4f, width - 190f, 20f), nameLabel);
 
-            if (GUI.Button(new Rect(width - 246f, top + 2f, 58f, 24f), "Solo"))
+            if (GUI.Button(new Rect(width - 186f, top + 2f, 42f, 24f), "Solo"))
             {
                 EquipOnly(definition);
             }
 
-            if (GUI.Button(new Rect(width - 182f, top + 2f, 58f, 24f), buttonLabel))
+            if (GUI.Button(new Rect(width - 140f, top + 2f, 42f, 24f), buttonLabel))
             {
                 ToggleWeapon(definition);
             }
 
             GUI.enabled = runtimeWeapon != null;
-            if (GUI.Button(new Rect(width - 118f, top + 2f, 54f, 24f), "A+"))
+            if (GUI.Button(new Rect(width - 94f, top + 2f, 42f, 24f), "A+"))
             {
                 runtimeWeapon?.ApplySandboxPathUpgrade(WeaponUpgradePath.PathA);
             }
 
-            if (GUI.Button(new Rect(width - 58f, top + 2f, 54f, 24f), "B+"))
+            if (GUI.Button(new Rect(width - 48f, top + 2f, 42f, 24f), "B+"))
             {
                 runtimeWeapon?.ApplySandboxPathUpgrade(WeaponUpgradePath.PathB);
             }
@@ -289,6 +317,43 @@ namespace Dagon.Bootstrap
 
             spawnDirector.IncreaseSandboxPressure();
             spawnBoostCount += 1;
+        }
+
+        private void SpawnEnemy(SpawnEnemyKind enemyKind)
+        {
+            if (spawnDirector == null)
+            {
+                spawnDirector = FindObjectOfType<SpawnDirector>();
+            }
+
+            if (spawnDirector == null)
+            {
+                return;
+            }
+
+            var spawned = enemyKind switch
+            {
+                SpawnEnemyKind.MireWretch => spawnDirector.SpawnSandboxMireWretch(),
+                SpawnEnemyKind.DrownedAcolyte => spawnDirector.SpawnSandboxDrownedAcolyte(),
+                SpawnEnemyKind.Mermaid => spawnDirector.SpawnSandboxMermaid(),
+                SpawnEnemyKind.WatcherEye => spawnDirector.SpawnSandboxWatcherEye(),
+                SpawnEnemyKind.DeepSpawn => spawnDirector.SpawnSandboxDeepSpawn(),
+                _ => false
+            };
+
+            if (spawned)
+            {
+                manualSpawnCount += 1;
+            }
+        }
+
+        private enum SpawnEnemyKind
+        {
+            MireWretch,
+            DrownedAcolyte,
+            Mermaid,
+            WatcherEye,
+            DeepSpawn
         }
     }
 }

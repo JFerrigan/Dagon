@@ -42,9 +42,9 @@ namespace Dagon.Bootstrap
             var cameraObject = ConfigureCamera(root, player.transform);
             ConfigurePlayerCombat(player, cameraObject);
             CreateLight(root);
-            CreateGround(root, player.transform);
-            CreateProps(root, cameraObject, player.transform);
-            CreateStageRuntimeSystems(root, player, cameraObject);
+            var groundTiler = CreateGround(root, player.transform);
+            var propScatterer = CreateProps(root, cameraObject, player.transform);
+            CreateStageRuntimeSystems(root, player, cameraObject, groundTiler, propScatterer);
         }
 
         private static GameObject CreatePlayer(Transform root)
@@ -67,8 +67,10 @@ namespace Dagon.Bootstrap
             player.AddComponent<Health>();
             player.AddComponent<CorruptionMeter>();
             player.AddComponent<Hurtbox>().Configure(CombatTeam.Player, player.GetComponent<Health>());
+            player.AddComponent<KnockbackReceiver>().Configure(1f, 18f, 6f);
 
             player.AddComponent<PlayerMover>();
+            player.AddComponent<PlayerSlowReceiver>();
             player.AddComponent<PlayerCombatLoadout>();
             player.AddComponent<ExperienceController>();
             player.AddComponent<CorruptionRuntimeEffects>();
@@ -160,17 +162,19 @@ namespace Dagon.Bootstrap
             light.color = new Color(0.75f, 0.85f, 0.72f, 1f);
         }
 
-        private static void CreateGround(Transform root, Transform player)
+        private static MireGroundTiler CreateGround(Transform root, Transform player)
         {
             var tiler = root.gameObject.AddComponent<MireGroundTiler>();
             tiler.Configure(player);
             tiler.Build();
+            return tiler;
         }
 
-        private static void CreateProps(Transform root, Camera camera, Transform player)
+        private static MirePropScatterer CreateProps(Transform root, Camera camera, Transform player)
         {
             var scatterer = root.gameObject.AddComponent<MirePropScatterer>();
             scatterer.Configure(camera, player);
+            return scatterer;
         }
 
         private static SpawnDirector CreateCommonRuntimeSystems(Transform root, GameObject player, Camera camera, bool includeRunStateManager)
@@ -192,7 +196,7 @@ namespace Dagon.Bootstrap
             return spawnDirector;
         }
 
-        private void CreateStageRuntimeSystems(Transform root, GameObject player, Camera camera)
+        private void CreateStageRuntimeSystems(Transform root, GameObject player, Camera camera, MireGroundTiler groundTiler, MirePropScatterer propScatterer)
         {
             var spawnDirector = CreateCommonRuntimeSystems(root, player, camera, includeRunStateManager: true);
             var runState = root.GetComponent<RunStateManager>();
@@ -207,6 +211,16 @@ namespace Dagon.Bootstrap
 
             ApplyStageRuntimeConfig(spawnDirector, resolvedStage.Settings);
             ConfigureBlackMireRun(runState, resolvedStage.Settings);
+
+            var progressionDirector = root.gameObject.AddComponent<WorldProgressionDirector>();
+            progressionDirector.Configure(
+                player.transform,
+                runState,
+                spawnDirector,
+                groundTiler,
+                propScatterer,
+                RuntimeBiomeProfile.CreateDefaultSequence());
+
             spawnDirector?.InitializeRuntime(resolvedStage.StageKind.ToString());
             Debug.Log(
                 $"SceneRuntimeBuilder resolved {resolvedStage.StageKind} for scene '{SceneManager.GetActiveScene().name}' with " +
@@ -216,7 +230,7 @@ namespace Dagon.Bootstrap
                 $"BarVisibleDuration={resolvedStage.Settings.enemyHealthBarVisibleDuration:0.00}, BossDelay={resolvedStage.Settings.bossTransitionDelaySeconds:0.0}, " +
                 $"ShowSpawnProgress={resolvedStage.Settings.showSpawnProgressUi}, SpawnRamp={resolvedStage.Settings.useSpawnRamp}, " +
                 $"RampDelay={resolvedStage.Settings.spawnRampDelaySeconds:0.0}, RampDuration={resolvedStage.Settings.spawnRampDurationSeconds:0.0}, " +
-                $"RampMaxReduction={resolvedStage.Settings.spawnRampMaxIntervalReduction:0.00}.",
+                $"RampMaxReduction={resolvedStage.Settings.spawnRampMaxIntervalReduction:0.00}, RampAliveCap={resolvedStage.Settings.spawnRampAdditionalAliveCap}.",
                 this);
 
             if (resolvedStage.Settings.enableSandboxUi)
@@ -240,14 +254,17 @@ namespace Dagon.Bootstrap
                 config.useSpawnRamp,
                 config.spawnRampDelaySeconds,
                 config.spawnRampDurationSeconds,
-                config.spawnRampMaxIntervalReduction);
+                config.spawnRampMaxIntervalReduction,
+                config.spawnRampAdditionalAliveCap);
             spawnDirector?.ConfigureHealthBars(config.enemyHealthBarsAlwaysVisible, config.enemyHealthBarVisibleDuration);
         }
 
         private static void ConfigureBlackMireRun(RunStateManager runState, RuntimeStageConfig.StageRuntimeSettings config)
         {
-            runState?.ConfigureLevelFlow("MireColossusBoss", "MainMenu", 1);
+            runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 1);
             runState?.ConfigureBossTransition(true, config.bossTransitionDelaySeconds, config.showSpawnProgressUi);
+            runState?.ConfigureBossResolution(false);
+            runState?.ConfigureBossAmbientSpawning(true, 1.8f, 2);
         }
 
         private static void ConfigureBossScene(SpawnDirector spawnDirector, RunStateManager runState, RuntimeStageConfig.StageRuntimeSettings config)
@@ -263,6 +280,8 @@ namespace Dagon.Bootstrap
             spawnDirector?.ConfigureHealthBars(config.enemyHealthBarsAlwaysVisible, config.enemyHealthBarVisibleDuration);
             runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 1);
             runState?.ConfigureBossTransition(false, config.bossTransitionDelaySeconds, config.showSpawnProgressUi);
+            runState?.ConfigureBossResolution(true);
+            runState?.ConfigureBossAmbientSpawning(false, 1f, 0);
         }
 
         private RuntimeStageConfig.ResolvedStageConfig ResolveStageConfig()

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Dagon.Core;
 using UnityEngine;
 
@@ -56,20 +57,50 @@ namespace Dagon.Gameplay
         public static bool TryApplyDamage(Collider hit, CombatTeam sourceTeam, GameObject sourceOwner, float damage)
         {
             var result = ResolveHit(hit, sourceTeam, sourceOwner);
+            return TryApplyDamage(result, sourceOwner, damage, sourceTeam);
+        }
+
+        public static bool TryApplyDamage(CombatHitResult result, GameObject sourceOwner, float damage, CombatTeam sourceTeam = CombatTeam.Neutral)
+        {
             if (!result.CanApplyDamage)
             {
                 CombatDebug.Log(
                     "ApplyDamage",
-                    $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} damage={damage:0.##} applied=false result={result.Type} reason={result.Reason}",
-                    hit);
+                    $"hit={CombatDebug.NameOf(result.Collider)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} damage={damage:0.##} applied=false result={result.Type} reason={result.Reason}",
+                    result.Collider);
                 return false;
             }
 
             CombatDebug.Log(
                 "ApplyDamage",
-                $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} sourceTeam={sourceTeam} damage={damage:0.##} applied=true",
-                hit);
+                $"hit={CombatDebug.NameOf(result.Collider)} source={CombatDebug.NameOf(sourceOwner)} target={CombatDebug.NameOf(result.TargetRoot)} damage={damage:0.##} applied=true",
+                result.Collider);
             result.Damageable.ApplyDamage(damage, sourceOwner);
+            return true;
+        }
+
+        public static bool TryResolveUniqueHit(
+            Collider hit,
+            CombatTeam sourceTeam,
+            GameObject sourceOwner,
+            ISet<GameObject> resolvedRoots,
+            out CombatHitResult result)
+        {
+            result = ResolveHit(hit, sourceTeam, sourceOwner);
+            if (!result.CanApplyDamage || result.TargetRoot == null)
+            {
+                return false;
+            }
+
+            if (resolvedRoots != null && !resolvedRoots.Add(result.TargetRoot))
+            {
+                CombatDebug.Log(
+                    "ResolveHit",
+                    $"hit={CombatDebug.NameOf(hit)} source={CombatDebug.NameOf(sourceOwner)} target={CombatDebug.NameOf(result.TargetRoot)} result=Ignored reason=duplicate_root",
+                    hit);
+                return false;
+            }
+
             return true;
         }
 
@@ -181,10 +212,7 @@ namespace Dagon.Gameplay
                     return false;
                 }
 
-                var sourceHurtbox = sourceOwner.GetComponentInParent<Hurtbox>();
-                var sourceRoot = sourceHurtbox != null
-                    ? sourceHurtbox.gameObject
-                    : sourceOwner.GetComponentInParent<Health>()?.gameObject ?? sourceOwner;
+                var sourceRoot = ResolveRoot(sourceOwner);
                 if (targetRoot == sourceRoot)
                 {
                     CombatDebug.Log(
@@ -231,10 +259,7 @@ namespace Dagon.Gameplay
                     return false;
                 }
 
-                var sourceHurtbox = sourceOwner.GetComponentInParent<Hurtbox>();
-                var sourceRoot = sourceHurtbox != null
-                    ? sourceHurtbox.gameObject
-                    : sourceOwner.GetComponentInParent<Health>()?.gameObject ?? sourceOwner;
+                var sourceRoot = ResolveRoot(sourceOwner);
                 if (targetRoot == sourceRoot)
                 {
                     CombatDebug.Log(
@@ -273,6 +298,23 @@ namespace Dagon.Gameplay
             }
 
             return CombatTeam.Neutral;
+        }
+
+        private static GameObject ResolveRoot(GameObject source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var sourceHurtbox = source.GetComponentInParent<Hurtbox>();
+            if (sourceHurtbox != null)
+            {
+                return sourceHurtbox.gameObject;
+            }
+
+            var sourceHealth = source.GetComponentInParent<Health>();
+            return sourceHealth != null ? sourceHealth.gameObject : source;
         }
     }
 }

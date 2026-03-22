@@ -7,8 +7,20 @@ namespace Dagon.Bootstrap
     [DisallowMultipleComponent]
     public sealed class MireGroundTiler : MonoBehaviour
     {
+        private sealed class ActiveTile
+        {
+            public ActiveTile(GameObject root, Vector2Int coordinate)
+            {
+                Root = root;
+                Coordinate = coordinate;
+            }
+
+            public GameObject Root { get; }
+            public Vector2Int Coordinate { get; }
+        }
+
         private readonly Dictionary<string, Sprite> spriteCache = new();
-        private readonly Dictionary<Vector2Int, GameObject> activeTiles = new();
+        private readonly Dictionary<Vector2Int, ActiveTile> activeTiles = new();
         private readonly List<Vector2Int> tileBuffer = new();
 
         [SerializeField] private string[] baseTileResourcePaths =
@@ -41,6 +53,7 @@ namespace Dagon.Bootstrap
         private Transform tileRoot;
         private BoxCollider groundCollider;
         private Vector2Int currentCenterTile = new(int.MinValue, int.MinValue);
+        private RuntimeBiomeProfile currentBiomeProfile;
 
         private void Update()
         {
@@ -62,6 +75,11 @@ namespace Dagon.Bootstrap
         public void Configure(Transform target)
         {
             trackedTarget = target;
+        }
+
+        public void ApplyBiomeProfile(RuntimeBiomeProfile profile)
+        {
+            currentBiomeProfile = profile;
         }
 
         public void Build()
@@ -86,6 +104,60 @@ namespace Dagon.Bootstrap
             RefreshTiles();
         }
 
+        public void RefreshBiomeRadius(Vector3 worldCenter, float radius)
+        {
+            if (tileRoot == null || activeTiles.Count == 0)
+            {
+                return;
+            }
+
+            var radiusSquared = radius * radius;
+            tileBuffer.Clear();
+            foreach (var entry in activeTiles)
+            {
+                if (entry.Value == null || entry.Value.Root == null)
+                {
+                    tileBuffer.Add(entry.Key);
+                    continue;
+                }
+
+                var offset = entry.Value.Root.transform.position - worldCenter;
+                offset.y = 0f;
+                if (offset.sqrMagnitude <= radiusSquared)
+                {
+                    Destroy(entry.Value.Root);
+                    tileBuffer.Add(entry.Key);
+                }
+            }
+
+            for (var i = 0; i < tileBuffer.Count; i++)
+            {
+                activeTiles.Remove(tileBuffer[i]);
+            }
+
+            tileBuffer.Clear();
+            for (var z = currentCenterTile.y - visibleRadiusInTiles; z <= currentCenterTile.y + visibleRadiusInTiles; z++)
+            {
+                for (var x = currentCenterTile.x - visibleRadiusInTiles; x <= currentCenterTile.x + visibleRadiusInTiles; x++)
+                {
+                    var coordinate = new Vector2Int(x, z);
+                    var offset = new Vector3(
+                        (coordinate.x - currentCenterTile.x) * tileSize,
+                        0f,
+                        (coordinate.y - currentCenterTile.y) * tileSize);
+                    var worldPosition = tileRoot.position + offset;
+                    var toCenter = worldPosition - worldCenter;
+                    toCenter.y = 0f;
+                    if (toCenter.sqrMagnitude > radiusSquared || activeTiles.ContainsKey(coordinate))
+                    {
+                        continue;
+                    }
+
+                    CreateTile(coordinate);
+                }
+            }
+        }
+
         private void RefreshTiles()
         {
             if (tileRoot == null)
@@ -108,7 +180,7 @@ namespace Dagon.Bootstrap
                     var coordinate = new Vector2Int(x, z);
                     if (activeTiles.ContainsKey(coordinate))
                     {
-                        RepositionTile(activeTiles[coordinate].transform, coordinate);
+                        RepositionTile(activeTiles[coordinate].Root.transform, coordinate);
                         tileBuffer.Remove(coordinate);
                         continue;
                     }
@@ -122,7 +194,11 @@ namespace Dagon.Bootstrap
                 var coordinate = tileBuffer[i];
                 if (activeTiles.TryGetValue(coordinate, out var tile))
                 {
-                    Destroy(tile);
+                    if (tile.Root != null)
+                    {
+                        Destroy(tile.Root);
+                    }
+
                     activeTiles.Remove(coordinate);
                 }
             }
@@ -154,10 +230,11 @@ namespace Dagon.Bootstrap
             var renderer = tile.AddComponent<SpriteRenderer>();
             renderer.sprite = sprite;
             renderer.sortingOrder = -100;
+            renderer.color = currentBiomeProfile != null ? currentBiomeProfile.GroundTint : Color.white;
 
             CreateOverlayTile(tile.transform, coordinate);
 
-            activeTiles[coordinate] = tile;
+            activeTiles[coordinate] = new ActiveTile(tile, coordinate);
         }
 
         private void RepositionTile(Transform tileTransform, Vector2Int coordinate)
@@ -196,25 +273,28 @@ namespace Dagon.Bootstrap
             var overlayRenderer = overlay.AddComponent<SpriteRenderer>();
             overlayRenderer.sprite = overlaySprite;
             overlayRenderer.sortingOrder = -90;
-            overlayRenderer.color = new Color(1f, 1f, 1f, 0.92f);
+            overlayRenderer.color = currentBiomeProfile != null ? currentBiomeProfile.OverlayTint : new Color(1f, 1f, 1f, 0.92f);
         }
 
         private string ChooseTilePath(int x, int z)
         {
+            var activeBaseTiles = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.BaseTileResourcePaths : null, baseTileResourcePaths);
+            var activeMediumAccents = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.MediumAccentTileResourcePaths : null, mediumAccentTileResourcePaths);
+            var activeRareAccents = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.RareAccentTileResourcePaths : null, rareAccentTileResourcePaths);
             var accentNoise = SampleNoise(x, z, 0.073f, 0.041f, 13.7f, 7.3f);
             var detailNoise = SampleNoise(x, z, 0.19f, 0.16f, 4.1f, 19.4f);
 
-            if (rareAccentTileResourcePaths != null && rareAccentTileResourcePaths.Length > 0 && accentNoise > 0.83f)
+            if (activeRareAccents != null && activeRareAccents.Length > 0 && accentNoise > 0.83f)
             {
-                return rareAccentTileResourcePaths[ChooseIndex(rareAccentTileResourcePaths.Length, detailNoise)];
+                return activeRareAccents[ChooseIndex(activeRareAccents.Length, detailNoise)];
             }
 
-            if (mediumAccentTileResourcePaths != null && mediumAccentTileResourcePaths.Length > 0 && accentNoise > 0.58f)
+            if (activeMediumAccents != null && activeMediumAccents.Length > 0 && accentNoise > 0.58f)
             {
-                return mediumAccentTileResourcePaths[ChooseIndex(mediumAccentTileResourcePaths.Length, detailNoise)];
+                return activeMediumAccents[ChooseIndex(activeMediumAccents.Length, detailNoise)];
             }
 
-            if (baseTileResourcePaths == null || baseTileResourcePaths.Length == 0)
+            if (activeBaseTiles == null || activeBaseTiles.Length == 0)
             {
                 return null;
             }
@@ -222,12 +302,13 @@ namespace Dagon.Bootstrap
             var regionNoise = SampleNoise(x, z, 0.052f, 0.052f, 0f, 0f);
             var variantNoise = SampleNoise(x, z, 0.11f, 0.11f, 33.2f, 71.9f);
             var groupedChoice = Mathf.Clamp01((regionNoise * 0.72f) + (variantNoise * 0.28f));
-            return baseTileResourcePaths[ChooseIndex(baseTileResourcePaths.Length, groupedChoice)];
+            return activeBaseTiles[ChooseIndex(activeBaseTiles.Length, groupedChoice)];
         }
 
         private string ChooseOverlayPath(int x, int z)
         {
-            if (overlayTileResourcePaths == null || overlayTileResourcePaths.Length == 0)
+            var activeOverlays = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.OverlayTileResourcePaths : null, overlayTileResourcePaths);
+            if (activeOverlays == null || activeOverlays.Length == 0)
             {
                 return null;
             }
@@ -241,7 +322,7 @@ namespace Dagon.Bootstrap
             }
 
             var selectionNoise = SampleNoise(x, z, 0.12f, 0.12f, 140.2f, 22.6f);
-            return overlayTileResourcePaths[ChooseIndex(overlayTileResourcePaths.Length, selectionNoise)];
+            return activeOverlays[ChooseIndex(activeOverlays.Length, selectionNoise)];
         }
 
         private Sprite LoadTileSprite(string resourcePath)
@@ -299,6 +380,11 @@ namespace Dagon.Bootstrap
         private static float SampleNoise(int x, int z, float scaleX, float scaleZ, float offsetX, float offsetZ)
         {
             return Mathf.PerlinNoise((x * scaleX) + offsetX, (z * scaleZ) + offsetZ);
+        }
+
+        private static string[] ResolvePaths(string[] primaryPaths, string[] fallbackPaths)
+        {
+            return primaryPaths != null && primaryPaths.Length > 0 ? primaryPaths : fallbackPaths;
         }
     }
 }

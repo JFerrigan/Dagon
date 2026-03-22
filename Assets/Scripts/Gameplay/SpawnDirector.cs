@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Dagon.Bootstrap;
 using Dagon.Core;
 using Dagon.Rendering;
 using Dagon.UI;
@@ -16,6 +17,8 @@ namespace Dagon.Gameplay
         {
             MireWretch,
             DrownedAcolyte,
+            Mermaid,
+            WatcherEye,
             DeepSpawn
         }
 
@@ -23,12 +26,15 @@ namespace Dagon.Gameplay
         [SerializeField] private Camera worldCamera;
         [SerializeField] private Sprite mireSprite;
         [SerializeField] private Sprite acolyteSprite;
+        [SerializeField] private Sprite mermaidSprite;
+        [SerializeField] private Sprite watcherEyeSprite;
         [SerializeField] private Sprite deepSpawnSprite;
         [SerializeField] private GameObject deepSpawnPrefab;
         [SerializeField] private DrownedAcolyteProjectile acolyteProjectilePrefab;
-        [SerializeField] private float spawnRadius = 10f;
+        [SerializeField] private HarpoonProjectile watcherEyeProjectilePrefab;
+        [SerializeField] private float spawnRadius = 14f;
         [SerializeField] private float spawnHeightOffset = 0f;
-        [SerializeField] private float despawnRadius = 28f;
+        [SerializeField] private float despawnRadius = 34f;
         [SerializeField] private float minSpawnInterval = 2.4f;
         [SerializeField] private float maxSpawnInterval = 3.6f;
         [SerializeField] private int maxAliveEnemies = 3;
@@ -42,17 +48,22 @@ namespace Dagon.Gameplay
         [SerializeField] private float spawnRampDelaySeconds = 25f;
         [SerializeField] private float spawnRampDurationSeconds = 120f;
         [SerializeField] private float spawnRampMaxIntervalReduction = 1.2f;
+        [SerializeField] private int spawnRampAdditionalAliveCap;
 
         private float spawnTimer;
         private float configuredMinSpawnInterval;
         private float configuredMaxSpawnInterval;
         private float pressureIntervalReduction;
         private float runtimeStartedAt;
+        private float bossPhaseIntervalMultiplier = 1f;
         private int defeatedEnemies;
         private int totalSpawned;
         private bool spawningStopped;
         private bool quotaNotified;
         private bool initialized;
+        private RuntimeBiomeProfile currentBiomeProfile;
+        private bool bossPhaseSpawnThrottleActive;
+        private int bossPhaseAliveCap;
         private readonly HashSet<GameObject> activeEnemies = new();
 
         private void Awake()
@@ -108,7 +119,7 @@ namespace Dagon.Gameplay
 
             DespawnFarEnemies();
 
-            if (spawningStopped || SpawnQuotaMet || activeEnemies.Count >= maxAliveEnemies)
+            if (spawningStopped || SpawnQuotaMet || activeEnemies.Count >= GetCurrentMaxAliveEnemies())
             {
                 return;
             }
@@ -129,9 +140,17 @@ namespace Dagon.Gameplay
             worldCamera = cameraReference;
             mireSprite = enemySprite;
             acolyteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/drowned_acolyte", 256f);
-            deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 256f);
+            mermaidSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mermaid", 64f);
+            watcherEyeSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/watcher_eye", 64f);
+            deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 64f);
             deepSpawnPrefab = Resources.Load<GameObject>(DeepSpawnPrefabResourcePath);
             acolyteProjectilePrefab = RuntimeAcolyteProjectileFactory.Create(cameraReference);
+            watcherEyeProjectilePrefab = RuntimeOrbProjectileFactory.Create(
+                cameraReference,
+                "Sprites/Enemies/watcher_eye",
+                new Color(0.84f, 0.96f, 0.82f, 1f),
+                new Vector3(0.18f, 0.18f, 1f),
+                64f);
         }
 
         public void ConfigureCampaign(int newRegularSpawnQuota, int newStartingEnemies, int newMaxAliveEnemies, int newEliteSpawnEvery, float newMinSpawnInterval, float newMaxSpawnInterval)
@@ -160,12 +179,13 @@ namespace Dagon.Gameplay
             openingWaveEnabled = enableOpeningWave;
         }
 
-        public void ConfigureSpawnRamp(bool enabled, float delaySeconds, float durationSeconds, float maxIntervalReduction)
+        public void ConfigureSpawnRamp(bool enabled, float delaySeconds, float durationSeconds, float maxIntervalReduction, int additionalAliveCap = 0)
         {
             useSpawnRamp = enabled;
             spawnRampDelaySeconds = Mathf.Max(0f, delaySeconds);
             spawnRampDurationSeconds = Mathf.Max(1f, durationSeconds);
             spawnRampMaxIntervalReduction = Mathf.Max(0f, maxIntervalReduction);
+            spawnRampAdditionalAliveCap = Mathf.Max(0, additionalAliveCap);
         }
 
         public bool InitializeRuntime(string contextLabel = "Explicit")
@@ -176,6 +196,34 @@ namespace Dagon.Gameplay
         public void StopSpawning()
         {
             spawningStopped = true;
+        }
+
+        public void ResumeSpawning()
+        {
+            if (SpawnQuotaMet)
+            {
+                return;
+            }
+
+            spawningStopped = false;
+            bossPhaseSpawnThrottleActive = false;
+            bossPhaseIntervalMultiplier = 1f;
+            bossPhaseAliveCap = 0;
+            ResetTimer();
+        }
+
+        public void EnterBossAmbientPressure(float intervalMultiplier, int aliveCapClamp)
+        {
+            if (SpawnQuotaMet)
+            {
+                return;
+            }
+
+            bossPhaseSpawnThrottleActive = true;
+            bossPhaseIntervalMultiplier = Mathf.Max(1f, intervalMultiplier);
+            bossPhaseAliveCap = Mathf.Max(0, aliveCapClamp);
+            spawningStopped = false;
+            ResetTimer();
         }
 
         public void ConfigureStage(int startingEnemyCount, bool disableContinuousSpawning)
@@ -189,15 +237,49 @@ namespace Dagon.Gameplay
 
         public void TightenPressure(float intervalReduction, int additionalAliveCap)
         {
-            _ = additionalAliveCap;
             pressureIntervalReduction = Mathf.Max(0f, pressureIntervalReduction + intervalReduction);
+            maxAliveEnemies = Mathf.Max(1, maxAliveEnemies + additionalAliveCap);
         }
 
         public void IncreaseSandboxPressure(float intervalReduction = 0.18f, int additionalAliveCap = 1)
         {
             TightenPressure(intervalReduction, additionalAliveCap);
-            maxAliveEnemies = Mathf.Max(1, maxAliveEnemies + additionalAliveCap);
-            spawnTimer = Mathf.Min(spawnTimer, minSpawnInterval);
+            spawnTimer = Mathf.Min(spawnTimer, GetCurrentMinSpawnInterval());
+        }
+
+        public bool SpawnSandboxMireWretch()
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildSpawnPosition(), ignoreAliveCap: true);
+        }
+
+        public bool SpawnSandboxDrownedAcolyte()
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.DrownedAcolyte, BuildSpawnPosition(), ignoreAliveCap: true);
+        }
+
+        public bool SpawnSandboxMermaid()
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.Mermaid, BuildSpawnPosition(), ignoreAliveCap: true);
+        }
+
+        public bool SpawnSandboxWatcherEye()
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.WatcherEye, BuildSpawnPosition(), ignoreAliveCap: true);
+        }
+
+        public bool SpawnSandboxDeepSpawn()
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.DeepSpawn, BuildSpawnPosition(), ignoreAliveCap: true);
+        }
+
+        public void ConfigureBiome(RuntimeBiomeProfile profile)
+        {
+            currentBiomeProfile = profile;
+            mireSprite = LoadBiomeSprite(profile != null ? profile.MireWretchSpritePath : null, "Sprites/Enemies/mire_wretch", mireSprite);
+            acolyteSprite = LoadBiomeSprite(profile != null ? profile.DrownedAcolyteSpritePath : null, "Sprites/Enemies/drowned_acolyte", acolyteSprite);
+            mermaidSprite = LoadBiomeSprite(profile != null ? profile.MermaidSpritePath : null, "Sprites/Enemies/mermaid", mermaidSprite, 64f);
+            watcherEyeSprite = LoadBiomeSprite(profile != null ? profile.WatcherEyeSpritePath : null, "Sprites/Enemies/watcher_eye", watcherEyeSprite, 64f);
+            deepSpawnSprite = LoadBiomeSprite(profile != null ? profile.DeepSpawnSpritePath : null, "Sprites/Enemies/deep_spawn", deepSpawnSprite, 64f);
         }
 
         private bool TryInitializeRuntime(string contextLabel, bool emitWarnings = false)
@@ -234,14 +316,14 @@ namespace Dagon.Gameplay
                 $"EliteEvery={eliteSpawnEvery}, Interval={minSpawnInterval:0.00}-{maxSpawnInterval:0.00}, OpeningWaveEnabled={openingWaveEnabled}, " +
                 $"BarsAlwaysVisible={enemyHealthBarsAlwaysVisible}, BarVisibleDuration={enemyHealthBarVisibleDuration:0.00}, " +
                 $"SpawnRamp={useSpawnRamp}, RampDelay={spawnRampDelaySeconds:0.0}, RampDuration={spawnRampDurationSeconds:0.0}, " +
-                $"RampMaxReduction={spawnRampMaxIntervalReduction:0.00}.",
+                $"RampMaxReduction={spawnRampMaxIntervalReduction:0.00}, RampAliveCap={spawnRampAdditionalAliveCap}.",
                 this);
             return true;
         }
 
         private void SpawnOpeningWave()
         {
-            var count = Mathf.Min(startingEnemies, Mathf.Min(regularSpawnQuota - totalSpawned, maxAliveEnemies - activeEnemies.Count));
+            var count = Mathf.Min(startingEnemies, Mathf.Min(regularSpawnQuota - totalSpawned, GetCurrentMaxAliveEnemies() - activeEnemies.Count));
             for (var i = 0; i < count; i++)
             {
                 if (!TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildSpawnPosition()))
@@ -253,7 +335,7 @@ namespace Dagon.Gameplay
 
         private bool TrySpawnEncounter()
         {
-            if (SpawnQuotaMet || totalSpawned >= regularSpawnQuota || activeEnemies.Count >= maxAliveEnemies)
+            if (SpawnQuotaMet || totalSpawned >= regularSpawnQuota || activeEnemies.Count >= GetCurrentMaxAliveEnemies())
             {
                 NotifyQuotaCompletedIfNeeded();
                 return false;
@@ -268,9 +350,14 @@ namespace Dagon.Gameplay
             return spawnedAny;
         }
 
-        private bool TrySpawnSpecificEnemy(EnemyKind enemyKind, Vector3 position)
+        private bool TrySpawnSpecificEnemy(EnemyKind enemyKind, Vector3 position, bool ignoreAliveCap = false)
         {
-            if (player == null || mireSprite == null || SpawnQuotaMet || totalSpawned >= regularSpawnQuota || activeEnemies.Count >= maxAliveEnemies)
+            if (player == null || mireSprite == null || SpawnQuotaMet || totalSpawned >= regularSpawnQuota)
+            {
+                return false;
+            }
+
+            if (!ignoreAliveCap && activeEnemies.Count >= GetCurrentMaxAliveEnemies())
             {
                 return false;
             }
@@ -285,10 +372,8 @@ namespace Dagon.Gameplay
             mire.transform.position = position;
 
             var collider = mire.AddComponent<CapsuleCollider>();
-            collider.center = new Vector3(0f, 0.75f, 0f);
-            collider.height = 1.5f;
-            collider.radius = 0.35f;
             collider.isTrigger = true;
+            ConfigureCollider(collider, enemyKind);
 
             var rigidbody = mire.AddComponent<Rigidbody>();
             rigidbody.isKinematic = true;
@@ -322,6 +407,22 @@ namespace Dagon.Gameplay
                     rewards.Configure(3, 3f);
                     break;
                 }
+                case EnemyKind.Mermaid:
+                {
+                    knockbackReceiver.Configure(0.8f, 18f, 5f);
+                    var mermaid = mire.AddComponent<MermaidController>();
+                    mermaid.Configure(player, worldCamera, Random.Range(2.1f, 2.4f), 7.1f);
+                    rewards.Configure(4, 4.5f);
+                    break;
+                }
+                case EnemyKind.WatcherEye:
+                {
+                    knockbackReceiver.Configure(0.7f, 18f, 5f);
+                    var watcherEye = mire.AddComponent<WatcherEyeController>();
+                    watcherEye.Configure(player, watcherEyeProjectilePrefab, worldCamera, Random.Range(2.2f, 2.5f), 7.8f);
+                    rewards.Configure(1, 1.75f);
+                    break;
+                }
                 case EnemyKind.DeepSpawn:
                 default:
                 {
@@ -350,12 +451,25 @@ namespace Dagon.Gameplay
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = GetSprite(enemyKind);
-            renderer.sortingOrder = enemyKind == EnemyKind.MireWretch ? 5 : enemyKind == EnemyKind.DrownedAcolyte ? 6 : 7;
-            renderer.color = Color.white;
+            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch ? 5 : 6;
+            renderer.color = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
 
-            if (enemyKind == EnemyKind.DeepSpawn)
+            if (enemyKind == EnemyKind.MireWretch)
+            {
+                visuals.transform.localScale = new Vector3(5.9f, 5.9f, 1f);
+            }
+            else if (enemyKind == EnemyKind.DeepSpawn)
+            {
+                visuals.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+            }
+            else if (enemyKind == EnemyKind.Mermaid && mermaidSprite != null)
+            {
+                visuals.transform.localScale = new Vector3(2.2f, 2.2f, 1f);
+            }
+            else if (enemyKind == EnemyKind.WatcherEye && watcherEyeSprite != null)
             {
                 visuals.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+                visuals.transform.localPosition = new Vector3(0f, 0.22f, 0f);
             }
             else if (enemyKind == EnemyKind.DrownedAcolyte && acolyteSprite != null)
             {
@@ -409,11 +523,50 @@ namespace Dagon.Gameplay
             var bar = enemyRoot.GetComponent<EnemyHealthBar>() ?? enemyRoot.gameObject.AddComponent<EnemyHealthBar>();
             var offset = enemyKind switch
             {
-                EnemyKind.MireWretch => new Vector3(0f, 1.28f, 0f),
+                EnemyKind.MireWretch => new Vector3(0f, 4.2f, 0f),
                 EnemyKind.DrownedAcolyte => new Vector3(0f, 1.4f, 0f),
-                _ => new Vector3(0f, 1.68f, 0f)
+                EnemyKind.Mermaid => new Vector3(0f, 2.6f, 0f),
+                EnemyKind.WatcherEye => new Vector3(0f, 1.7f, 0f),
+                _ => new Vector3(0f, 1.8f, 0f)
             };
             bar.Configure(worldCamera, offset, !enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
+        }
+
+        private static void ConfigureCollider(CapsuleCollider collider, EnemyKind enemyKind)
+        {
+            if (collider == null)
+            {
+                return;
+            }
+
+            switch (enemyKind)
+            {
+                case EnemyKind.MireWretch:
+                    collider.center = new Vector3(0f, 1.8f, 0f);
+                    collider.height = 3.6f;
+                    collider.radius = 1.1f;
+                    break;
+                case EnemyKind.Mermaid:
+                    collider.center = new Vector3(0f, 1.15f, 0f);
+                    collider.height = 2.3f;
+                    collider.radius = 0.65f;
+                    break;
+                case EnemyKind.WatcherEye:
+                    collider.center = new Vector3(0f, 0.72f, 0f);
+                    collider.height = 1.45f;
+                    collider.radius = 0.42f;
+                    break;
+                case EnemyKind.DeepSpawn:
+                    collider.center = new Vector3(0f, 0.8f, 0f);
+                    collider.height = 1.6f;
+                    collider.radius = 0.5f;
+                    break;
+                default:
+                    collider.center = new Vector3(0f, 0.75f, 0f);
+                    collider.height = 1.5f;
+                    collider.radius = 0.35f;
+                    break;
+            }
         }
 
         private void HandleEnemyDied(Health health, GameObject source)
@@ -437,7 +590,7 @@ namespace Dagon.Gameplay
         {
             var currentMinInterval = GetCurrentMinSpawnInterval();
             var currentMaxInterval = GetCurrentMaxSpawnInterval(currentMinInterval);
-            spawnTimer = Random.Range(currentMinInterval, currentMaxInterval);
+            spawnTimer = Random.Range(currentMinInterval, currentMaxInterval) * bossPhaseIntervalMultiplier;
         }
 
         private float GetCurrentMinSpawnInterval()
@@ -470,6 +623,34 @@ namespace Dagon.Gameplay
 
             var progress = Mathf.Clamp01(elapsed / spawnRampDurationSeconds);
             return spawnRampMaxIntervalReduction * progress;
+        }
+
+        private int GetCurrentMaxAliveEnemies()
+        {
+            var effectiveAliveCap = maxAliveEnemies + GetSpawnRampAliveCapBonus();
+            if (bossPhaseSpawnThrottleActive && bossPhaseAliveCap > 0)
+            {
+                effectiveAliveCap = Mathf.Min(effectiveAliveCap, bossPhaseAliveCap);
+            }
+
+            return Mathf.Max(1, effectiveAliveCap);
+        }
+
+        private int GetSpawnRampAliveCapBonus()
+        {
+            if (!useSpawnRamp || !initialized || spawnRampAdditionalAliveCap <= 0)
+            {
+                return 0;
+            }
+
+            var elapsed = Time.time - runtimeStartedAt - spawnRampDelaySeconds;
+            if (elapsed <= 0f)
+            {
+                return 0;
+            }
+
+            var progress = Mathf.Clamp01(elapsed / spawnRampDurationSeconds);
+            return Mathf.RoundToInt(spawnRampAdditionalAliveCap * progress);
         }
 
         private void NotifyQuotaCompletedIfNeeded()
@@ -535,17 +716,74 @@ namespace Dagon.Gameplay
         private EnemyKind ChooseNextEnemyKind()
         {
             var nextSpawnIndex = totalSpawned + 1;
-            if (eliteSpawnEvery > 0 &&
+            var deepSpawnEvery = currentBiomeProfile != null ? currentBiomeProfile.DeepSpawnSpawnEvery : eliteSpawnEvery;
+            var acolyteEvery = currentBiomeProfile != null ? currentBiomeProfile.DrownedAcolyteSpawnEvery : 5;
+            var mermaidEvery = currentBiomeProfile != null ? currentBiomeProfile.MermaidSpawnEvery : 8;
+            var watcherEyeEvery = currentBiomeProfile != null ? currentBiomeProfile.WatcherEyeSpawnEvery : 6;
+
+            if (deepSpawnEvery > 0 &&
                 nextSpawnIndex > 1 &&
-                nextSpawnIndex % eliteSpawnEvery == 0 &&
+                nextSpawnIndex % deepSpawnEvery == 0 &&
                 deepSpawnPrefab != null)
             {
                 return EnemyKind.DeepSpawn;
             }
 
-            if (nextSpawnIndex % 5 == 0 && acolyteProjectilePrefab != null)
+            var acolyteEligible = acolyteEvery > 0 && nextSpawnIndex % acolyteEvery == 0 && acolyteProjectilePrefab != null;
+            var mermaidEligible = mermaidSprite != null && mermaidEvery > 0 && nextSpawnIndex >= mermaidEvery && nextSpawnIndex % mermaidEvery == 0;
+            var watcherEyeEligible = watcherEyeSprite != null &&
+                                     watcherEyeProjectilePrefab != null &&
+                                     watcherEyeEvery > 0 &&
+                                     nextSpawnIndex >= watcherEyeEvery &&
+                                     nextSpawnIndex % watcherEyeEvery == 0;
+
+            var specialistCount = 0;
+            specialistCount += acolyteEligible ? 1 : 0;
+            specialistCount += mermaidEligible ? 1 : 0;
+
+            if (specialistCount > 1)
+            {
+                var elapsed = Mathf.Max(0f, Time.time - runtimeStartedAt - 20f);
+                var mermaidWeight = Mathf.Lerp(0.35f, 0.6f, Mathf.Clamp01(elapsed / 100f));
+                var totalWeight = 0f;
+                totalWeight += acolyteEligible ? 1f : 0f;
+                totalWeight += mermaidEligible ? mermaidWeight : 0f;
+
+                var roll = Random.value * totalWeight;
+                if (acolyteEligible)
+                {
+                    if (roll < 1f)
+                    {
+                        return EnemyKind.DrownedAcolyte;
+                    }
+
+                    roll -= 1f;
+                }
+
+                if (mermaidEligible)
+                {
+                    if (roll < mermaidWeight)
+                    {
+                        return EnemyKind.Mermaid;
+                    }
+
+                    roll -= mermaidWeight;
+                }
+            }
+
+            if (acolyteEligible)
             {
                 return EnemyKind.DrownedAcolyte;
+            }
+
+            if (mermaidEligible)
+            {
+                return EnemyKind.Mermaid;
+            }
+
+            if (watcherEyeEligible)
+            {
+                return EnemyKind.WatcherEye;
             }
 
             return EnemyKind.MireWretch;
@@ -576,6 +814,8 @@ namespace Dagon.Gameplay
             {
                 EnemyKind.MireWretch => 3f,
                 EnemyKind.DrownedAcolyte => 5f,
+                EnemyKind.Mermaid => 6f,
+                EnemyKind.WatcherEye => 3f,
                 EnemyKind.DeepSpawn => 24f,
                 _ => 3f
             };
@@ -586,9 +826,26 @@ namespace Dagon.Gameplay
             return enemyKind switch
             {
                 EnemyKind.DrownedAcolyte when acolyteSprite != null => acolyteSprite,
+                EnemyKind.Mermaid when mermaidSprite != null => mermaidSprite,
+                EnemyKind.WatcherEye when watcherEyeSprite != null => watcherEyeSprite,
                 EnemyKind.DeepSpawn when deepSpawnSprite != null => deepSpawnSprite,
                 _ => mireSprite
             };
+        }
+
+        private static Sprite LoadBiomeSprite(string preferredPath, string fallbackPath, Sprite fallbackSprite, float pixelsPerUnit = 256f)
+        {
+            if (!string.IsNullOrWhiteSpace(preferredPath))
+            {
+                var preferred = RuntimeSpriteLibrary.LoadSprite(preferredPath, pixelsPerUnit);
+                if (preferred != null)
+                {
+                    return preferred;
+                }
+            }
+
+            var fallback = RuntimeSpriteLibrary.LoadSprite(fallbackPath, pixelsPerUnit);
+            return fallback != null ? fallback : fallbackSprite;
         }
 
         private void RegisterEnemy(GameObject enemy)

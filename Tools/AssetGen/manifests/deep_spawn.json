@@ -9,5 +9,5 @@
   "palette_notes": "abyssal teal, algae black, corpse pink, barnacle ivory, rust red accents",
   "orientation": "front_34",
   "provider": "chat_attachment_inbox",
-  "notes": "Primary Deep Spawn gameplay sprite imported from the local inbox image provided for this enemy replacement pass."
+  "notes": "Primary Deep Spawn gameplay sprite imported from the local inbox image provided for this enemy replacement pass. Reprocessed to a 256x256 exported gameplay sprite to preserve a larger readable bruiser silhouette without extreme runtime scale compensation."
 }

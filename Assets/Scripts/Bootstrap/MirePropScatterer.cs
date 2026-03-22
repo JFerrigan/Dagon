@@ -72,11 +72,17 @@ namespace Dagon.Bootstrap
         private readonly List<Vector2Int> cellBuffer = new();
         private Vector2Int currentCenterCell = new(int.MinValue, int.MinValue);
         private PropScatterPlanner planner;
+        private RuntimeBiomeProfile currentBiomeProfile;
 
         public void Configure(Camera cameraReference, Transform scatterCenterReference = null)
         {
             worldCamera = cameraReference;
             scatterCenter = scatterCenterReference;
+        }
+
+        public void ApplyBiomeProfile(RuntimeBiomeProfile profile)
+        {
+            currentBiomeProfile = profile;
         }
 
         private void Start()
@@ -154,6 +160,55 @@ namespace Dagon.Bootstrap
             }
         }
 
+        public void RefreshBiomeRadius(Vector3 worldCenter, float radius)
+        {
+            if (activeProps.Count == 0)
+            {
+                return;
+            }
+
+            var radiusSquared = radius * radius;
+            cellBuffer.Clear();
+            foreach (var entry in activeProps)
+            {
+                if (entry.Value == null || entry.Value.Root == null)
+                {
+                    cellBuffer.Add(entry.Key);
+                    continue;
+                }
+
+                var offset = entry.Value.Root.transform.position - worldCenter;
+                offset.y = 0f;
+                if (offset.sqrMagnitude <= radiusSquared)
+                {
+                    Destroy(entry.Value.Root);
+                    cellBuffer.Add(entry.Key);
+                }
+            }
+
+            for (var i = 0; i < cellBuffer.Count; i++)
+            {
+                activeProps.Remove(cellBuffer[i]);
+            }
+
+            cellBuffer.Clear();
+            planner ??= new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
+            var visibleCells = planner.GetVisibleCells(currentCenterCell);
+            for (var i = 0; i < visibleCells.Count; i++)
+            {
+                var cell = visibleCells[i];
+                var worldPosition = new Vector3(cell.x * cellSize, 0.03f, cell.y * cellSize);
+                var toCenter = worldPosition - worldCenter;
+                toCenter.y = 0f;
+                if (toCenter.sqrMagnitude > radiusSquared || activeProps.ContainsKey(cell))
+                {
+                    continue;
+                }
+
+                TryCreateProp(cell);
+            }
+        }
+
         private void TryCreateProp(Vector2Int cell)
         {
             planner ??= new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
@@ -176,7 +231,7 @@ namespace Dagon.Bootstrap
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = visual.Sprite;
             renderer.sortingOrder = visual.SortingOrder;
-            renderer.color = new Color(1f, 1f, 1f, 0.92f);
+            renderer.color = currentBiomeProfile != null ? currentBiomeProfile.PropTint : new Color(1f, 1f, 1f, 0.92f);
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Dagon.Core;
 using Dagon.Data;
 using UnityEngine;
@@ -23,6 +24,7 @@ namespace Dagon.Gameplay
 
         private Camera worldCamera;
         private float cooldownTimer;
+        private readonly HashSet<GameObject> resolvedTargets = new();
 
         public override string PathAName => "Pressure Wash";
         public override string PathBName => "Foul Brine";
@@ -152,6 +154,7 @@ namespace Dagon.Gameplay
             var sprayReach = range * SprayReachMultiplier;
             var sprayHalfAngle = coneAngle * SprayConeMultiplier * 0.5f;
             var colliders = Physics.OverlapSphere(transform.position, sprayReach, enemyMask, QueryTriggerInteraction.Collide);
+            resolvedTargets.Clear();
             foreach (var hit in colliders)
             {
                 if (hit.transform == transform)
@@ -176,20 +179,20 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                var hitTarget = CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage);
-
-                if (!hitTarget)
+                if (!CombatResolver.TryResolveUniqueHit(hit, CombatTeam.Player, gameObject, resolvedTargets, out var resolvedHit))
                 {
                     continue;
                 }
 
-                var slowReceiver = hit.GetComponentInParent<EnemySlowReceiver>();
-                if (slowReceiver == null && CombatResolver.TryResolveTarget(hit, CombatTeam.Player, gameObject, out var hurtbox))
+                CombatResolver.TryApplyDamage(resolvedHit, gameObject, damage, CombatTeam.Player);
+
+                var slowReceiver = resolvedHit.TargetRoot != null ? resolvedHit.TargetRoot.GetComponent<EnemySlowReceiver>() : null;
+                if (slowReceiver == null && resolvedHit.Hurtbox != null)
                 {
-                    slowReceiver = hurtbox.Health != null ? hurtbox.Health.GetComponent<EnemySlowReceiver>() : null;
-                    if (slowReceiver == null && hurtbox.Health != null)
+                    slowReceiver = resolvedHit.Hurtbox.Health != null ? resolvedHit.Hurtbox.Health.GetComponent<EnemySlowReceiver>() : null;
+                    if (slowReceiver == null && resolvedHit.Hurtbox.Health != null)
                     {
-                        slowReceiver = hurtbox.Health.gameObject.AddComponent<EnemySlowReceiver>();
+                        slowReceiver = resolvedHit.Hurtbox.Health.gameObject.AddComponent<EnemySlowReceiver>();
                     }
                 }
 

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Dagon.Core;
 using Dagon.Data;
 using UnityEngine;
@@ -21,6 +22,7 @@ namespace Dagon.Gameplay
 
         private Camera worldCamera;
         private float cooldownTimer;
+        private readonly HashSet<GameObject> resolvedTargets = new();
 
         public override string PathAName => "Chain Flurry";
         public override string PathBName => "Heavy Anchor";
@@ -147,6 +149,7 @@ namespace Dagon.Gameplay
         private void PerformSweep(Vector3 baseDirection, int sweepIndex)
         {
             var colliders = Physics.OverlapSphere(transform.position, radius, enemyMask, QueryTriggerInteraction.Collide);
+            resolvedTargets.Clear();
             foreach (var hit in colliders)
             {
                 if (hit.transform == transform)
@@ -166,9 +169,14 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                if (CombatResolver.TryApplyDamage(hit, CombatTeam.Player, gameObject, damage))
+                if (!CombatResolver.TryResolveUniqueHit(hit, CombatTeam.Player, gameObject, resolvedTargets, out var resolvedHit))
                 {
-                    ApplyKnockback(hit.transform, toTarget.normalized);
+                    continue;
+                }
+
+                if (CombatResolver.TryApplyDamage(resolvedHit, gameObject, damage, CombatTeam.Player))
+                {
+                    ApplyKnockback(resolvedHit.TargetRoot != null ? resolvedHit.TargetRoot.transform : hit.transform, toTarget.normalized);
                 }
             }
 
