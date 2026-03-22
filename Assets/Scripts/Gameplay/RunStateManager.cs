@@ -14,13 +14,15 @@ namespace Dagon.Gameplay
         private enum BossKind
         {
             MireColossus,
-            Monolith
+            Monolith,
+            DrownedAdmiral
         }
 
         private static readonly BossKind[] AllBossKinds =
         {
             BossKind.MireColossus,
-            BossKind.Monolith
+            BossKind.Monolith,
+            BossKind.DrownedAdmiral
         };
 
         private readonly struct BossRuntimeDefinition
@@ -43,6 +45,7 @@ namespace Dagon.Gameplay
                 float tallSummonCooldown,
                 int maxWideLeeches,
                 int maxTallLeeches,
+                int difficultyTier,
                 int experienceReward,
                 float corruptionReward)
             {
@@ -63,6 +66,7 @@ namespace Dagon.Gameplay
                 TallSummonCooldown = tallSummonCooldown;
                 MaxWideLeeches = maxWideLeeches;
                 MaxTallLeeches = maxTallLeeches;
+                DifficultyTier = difficultyTier;
                 ExperienceReward = experienceReward;
                 CorruptionReward = corruptionReward;
             }
@@ -84,6 +88,7 @@ namespace Dagon.Gameplay
             public float TallSummonCooldown { get; }
             public int MaxWideLeeches { get; }
             public int MaxTallLeeches { get; }
+            public int DifficultyTier { get; }
             public int ExperienceReward { get; }
             public float CorruptionReward { get; }
         }
@@ -276,6 +281,11 @@ namespace Dagon.Gameplay
             return SpawnSandboxBoss(BossKind.Monolith);
         }
 
+        public bool SpawnSandboxAdmiralBoss()
+        {
+            return SpawnSandboxBoss(BossKind.DrownedAdmiral);
+        }
+
         private bool SpawnSandboxBoss(BossKind bossKind)
         {
             if (player == null || worldCamera == null)
@@ -394,9 +404,9 @@ namespace Dagon.Gameplay
                 contactDamage.Configure(4f);
 
                 var controller = boss.AddComponent<MireColossusController>();
-                controller.Configure(player, bossProjectilePrefab);
+                controller.Configure(player, bossProjectilePrefab, definition.DifficultyTier);
             }
-            else
+            else if (definition.BossKind == BossKind.Monolith)
             {
                 var controller = boss.AddComponent<MonolithBossController>();
                 controller.Configure(
@@ -407,6 +417,14 @@ namespace Dagon.Gameplay
                     definition.TallSummonCooldown,
                     definition.MaxWideLeeches,
                     definition.MaxTallLeeches);
+            }
+            else
+            {
+                var contactDamage = boss.AddComponent<ContactDamage>();
+                contactDamage.Configure(2f);
+
+                var controller = boss.AddComponent<DrownedAdmiralController>();
+                controller.Configure(player, worldCamera, bossProjectilePrefab, definition.DifficultyTier);
             }
 
             var rewards = boss.AddComponent<EnemyDeathRewards>();
@@ -452,6 +470,28 @@ namespace Dagon.Gameplay
                     Mathf.Max(1.6f, 4.9f - (defeatedBossCount * 0.3f)),
                     6 + defeatedBossCount,
                     3 + Mathf.FloorToInt(defeatedBossCount * 0.5f),
+                    defeatedBossCount,
+                    20,
+                    20f),
+                BossKind.DrownedAdmiral => new BossRuntimeDefinition(
+                    BossKind.DrownedAdmiral,
+                    "DrownedAdmiral",
+                    "Drowned Admiral",
+                    "Sprites/Bosses/admiral",
+                    new Color(0.90f, 0.96f, 0.88f, 1f),
+                    70f * healthMultiplier,
+                    new Vector3(0f, 1.2f, 0f),
+                    2.8f,
+                    0.75f,
+                    new Vector3(0f, 2.55f, 0f),
+                    new Vector3(1.35f, 1.35f, 1f),
+                    Vector3.zero,
+                    0f,
+                    0f,
+                    0f,
+                    0,
+                    0,
+                    defeatedBossCount,
                     20,
                     20f),
                 _ => new BossRuntimeDefinition(
@@ -472,6 +512,7 @@ namespace Dagon.Gameplay
                     0f,
                     0,
                     0,
+                    defeatedBossCount,
                     20,
                     20f)
             };

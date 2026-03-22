@@ -5,7 +5,8 @@ namespace Dagon.Data
         ProjectileLauncher,
         AnchorChain,
         RotLantern,
-        BilgeSpray
+        BilgeSpray,
+        RotBeaconBomb
     }
 
     public enum WeaponProjectileVisualKind

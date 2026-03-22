@@ -391,6 +391,22 @@ namespace Dagon.Bootstrap
                     120f,
                     0f,
                     0.25f,
+                    1.5f),
+                WeaponDefinition.CreateRuntime(
+                    "weapon.rot_beacon_bomb",
+                    "Rot Beacon Bomb",
+                    "Throw a cursed beacon bomb that lands, pulses a slowing field, then erupts in a final blast.",
+                    WeaponRuntimeKind.RotBeaconBomb,
+                    WeaponProjectileVisualKind.Orb,
+                    0.55f,
+                    8f,
+                    0.45f,
+                    2,
+                    0f,
+                    2.6f,
+                    3.6f,
+                    1.8f,
+                    0.25f,
                     1.5f)
             };
         }

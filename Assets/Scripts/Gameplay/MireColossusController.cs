@@ -168,12 +168,13 @@ namespace Dagon.Gameplay
             }
         }
 
-        public void Configure(Transform newTarget, HarpoonProjectile projectilePrefab)
+        public void Configure(Transform newTarget, HarpoonProjectile projectilePrefab, int difficultyTier = 0)
         {
             target = newTarget;
             orbProjectilePrefab = projectilePrefab;
             worldCamera = Camera.main;
-            attackTimer = 2.1f;
+            attackTimer = Mathf.Max(1.1f, 2.1f - (difficultyTier * 0.08f));
+            projectileSpeed = 5.1f + (difficultyTier * 0.12f);
             state = State.Drift;
             nextAttack = BossAttack.RadialBurst;
         }

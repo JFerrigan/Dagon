@@ -19,9 +19,10 @@ namespace Dagon.Gameplay
         [SerializeField] private float hitKnockbackStrength = 1.2f;
 
         private float cooldownTimer;
+        private float baseAttacksPerSecond;
 
         public override string PathAName => "Volley Path";
-        public override string PathBName => "Heavy Harpoon Path";
+        public override string PathBName => "Rapid Fire Path";
 
         private void Awake()
         {
@@ -60,6 +61,7 @@ namespace Dagon.Gameplay
         public void Configure(float newAttacksPerSecond, float newProjectileSpeed, float newProjectileDamage, int newProjectilesPerVolley, float newSpreadAngle)
         {
             attacksPerSecond = Mathf.Max(0.01f, newAttacksPerSecond);
+            baseAttacksPerSecond = attacksPerSecond;
             projectileSpeed = Mathf.Max(0.01f, newProjectileSpeed);
             projectileDamage = Mathf.Max(0.01f, newProjectileDamage);
             projectilesPerVolley = Mathf.Max(1, newProjectilesPerVolley);
@@ -147,6 +149,7 @@ namespace Dagon.Gameplay
                         2 => 3,
                         _ => 4
                     };
+                    attacksPerSecond = baseAttacksPerSecond;
                     spreadAngle = projectilesPerVolley switch
                     {
                         1 => 0f,
@@ -156,12 +159,7 @@ namespace Dagon.Gameplay
                     };
                     break;
                 case WeaponUpgradePath.PathB:
-                    projectileDamage = nextStep switch
-                    {
-                        1 => 1.4f,
-                        2 => 1.8f,
-                        _ => 2.2f
-                    };
+                    attacksPerSecond = baseAttacksPerSecond * (1f + (0.5f * nextStep));
                     break;
             }
         }
@@ -173,9 +171,9 @@ namespace Dagon.Gameplay
                 WeaponUpgradePath.PathA when nextStep == 1 => "Split Cast I",
                 WeaponUpgradePath.PathA when nextStep == 2 => "Split Cast II",
                 WeaponUpgradePath.PathA => "Split Cast III",
-                WeaponUpgradePath.PathB when nextStep == 1 => "Barbed Iron I",
-                WeaponUpgradePath.PathB when nextStep == 2 => "Barbed Iron II",
-                _ => "Barbed Iron III"
+                WeaponUpgradePath.PathB when nextStep == 1 => "Rapid Fire I",
+                WeaponUpgradePath.PathB when nextStep == 2 => "Rapid Fire II",
+                _ => "Rapid Fire III"
             };
         }
 
@@ -186,9 +184,7 @@ namespace Dagon.Gameplay
                 WeaponUpgradePath.PathA when nextStep == 1 => FlatCountDelta(1, "Harpoon"),
                 WeaponUpgradePath.PathA when nextStep == 2 => FlatCountDelta(1, "Harpoon"),
                 WeaponUpgradePath.PathA => FlatCountDelta(1, "Harpoon"),
-                WeaponUpgradePath.PathB when nextStep == 1 => FlatDamageDelta(0.4f),
-                WeaponUpgradePath.PathB when nextStep == 2 => FlatDamageDelta(0.4f),
-                _ => FlatDamageDelta(0.4f)
+                WeaponUpgradePath.PathB => FlatPercentDelta(50, "Rate")
             };
         }
 

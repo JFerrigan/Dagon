@@ -248,6 +248,7 @@ namespace Dagon.Gameplay
                 "weapon.anchor_chain" => 10f,
                 "weapon.rot_lantern" => 9f,
                 "weapon.bilge_spray" => 8f,
+                "weapon.rot_beacon_bomb" => 8.5f,
                 _ => 5f
             };
         }

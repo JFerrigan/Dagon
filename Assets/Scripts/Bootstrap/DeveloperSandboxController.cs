@@ -59,7 +59,7 @@ namespace Dagon.Bootstrap
 
             const float width = 336f;
             const float rowHeight = 28f;
-            var panelHeight = Mathf.Min(Screen.height - 32f, 380f + (availableWeapons.Count * rowHeight));
+            var panelHeight = Mathf.Min(Screen.height - 32f, 408f + (availableWeapons.Count * rowHeight));
             var rect = new Rect(Screen.width - width - 16f, 16f, width, panelHeight);
 
             GUI.Box(rect, "Developer Sandbox");
@@ -145,7 +145,12 @@ namespace Dagon.Bootstrap
                 SpawnMonolithBoss();
             }
 
-            var viewRect = new Rect(rect.x + 12f, rect.y + 370f, rect.width - 24f, rect.height - 438f);
+            if (GUI.Button(new Rect(rect.x + 12f, rect.y + 366f, rect.width - 24f, 24f), "Spawn Admiral"))
+            {
+                SpawnAdmiralBoss();
+            }
+
+            var viewRect = new Rect(rect.x + 12f, rect.y + 398f, rect.width - 24f, rect.height - 466f);
             var contentRect = new Rect(0f, 0f, viewRect.width - 18f, availableWeapons.Count * rowHeight);
             scrollPosition = GUI.BeginScrollView(viewRect, scrollPosition, contentRect);
 
@@ -437,6 +442,20 @@ namespace Dagon.Bootstrap
             }
 
             if (runStateManager.SpawnSandboxMonolithBoss())
+            {
+                manualSpawnCount += 1;
+            }
+        }
+
+        private void SpawnAdmiralBoss()
+        {
+            EnsureRunStateManager();
+            if (runStateManager == null)
+            {
+                return;
+            }
+
+            if (runStateManager.SpawnSandboxAdmiralBoss())
             {
                 manualSpawnCount += 1;
             }

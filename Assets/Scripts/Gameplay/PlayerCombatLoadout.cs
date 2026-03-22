@@ -263,6 +263,7 @@ namespace Dagon.Gameplay
                 WeaponRuntimeKind.AnchorChain => gameObject.AddComponent<AnchorChainWeapon>(),
                 WeaponRuntimeKind.RotLantern => gameObject.AddComponent<RotLanternWeapon>(),
                 WeaponRuntimeKind.BilgeSpray => gameObject.AddComponent<BilgeSprayWeapon>(),
+                WeaponRuntimeKind.RotBeaconBomb => gameObject.AddComponent<RotBeaconBombWeapon>(),
                 _ => gameObject.AddComponent<HarpoonLauncher>()
             };
         }

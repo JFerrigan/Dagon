@@ -1,0 +1,13 @@
+{
+  "asset_id": "admiral",
+  "asset_type": "boss_sprite",
+  "prompt": "Drowned Admiral boss, undead sea captain in rotted naval coat with cursed lantern and saber, aggressive maritime horror duelist silhouette, readable upright gameplay boss sprite, isolated subject on transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Bosses/admiral.png",
+  "source_image": "Tools/AssetGen/generated/admiral.png",
+  "processed_image": "Tools/AssetGen/processed/admiral.png",
+  "size": [256, 256],
+  "palette_notes": "sea-rot teal, tar black, barnacle ivory, rust brass, corpse-pale accents",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Mobile duelist boss sprite with clear lantern hand and saber silhouette. Preserve upright readable framing with no background clutter."
+}

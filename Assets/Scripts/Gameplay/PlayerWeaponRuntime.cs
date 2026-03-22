@@ -31,7 +31,7 @@ namespace Dagon.Gameplay
 
         public bool CanUpgradePath(WeaponUpgradePath path)
         {
-            return GetPathUpgradesTaken(path) < 3;
+            return definition != null || !string.IsNullOrEmpty(name);
         }
 
         public int GetPathUpgradesTaken(WeaponUpgradePath path)
@@ -67,7 +67,15 @@ namespace Dagon.Gameplay
             }
 
             var nextStep = GetPathUpgradesTaken(path) + 1;
-            ApplyPathUpgrade(path, nextStep);
+            if (nextStep <= 3)
+            {
+                ApplyPathUpgrade(path, nextStep);
+            }
+            else
+            {
+                ApplyOverflowUpgrade(path, nextStep);
+            }
+
             if (path == WeaponUpgradePath.PathA)
             {
                 pathAUpgradesTaken = nextStep;
@@ -96,8 +104,8 @@ namespace Dagon.Gameplay
             var step = GetPathUpgradesTaken(path) + 1;
             reward = new CombatRewardOption(
                 CombatRewardKind.UpgradeWeaponPath,
-                $"{DisplayName} - {GetUpgradeTitle(path, step)}",
-                GetUpgradeDescription(path, step),
+                $"{DisplayName} - {(step <= 3 ? GetUpgradeTitle(path, step) : GetOverflowUpgradeTitle(path, step))}",
+                step <= 3 ? GetUpgradeDescription(path, step) : GetOverflowUpgradeDescription(path, step),
                 targetWeaponId: WeaponId,
                 upgradePath: path);
             return true;
@@ -133,6 +141,31 @@ namespace Dagon.Gameplay
         protected static string FlatPercentDelta(int amount, string label)
         {
             return $"+{amount}% {label}";
+        }
+
+        protected virtual void ApplyOverflowUpgrade(WeaponUpgradePath path, int nextStep)
+        {
+            if (path == WeaponUpgradePath.PathA)
+            {
+                ModifyProjectileCount(1);
+                ModifyAttackRate(0.05f);
+                return;
+            }
+
+            ModifyProjectileDamage(0.35f);
+            ModifyAttackRate(0.02f);
+        }
+
+        protected virtual string GetOverflowUpgradeTitle(WeaponUpgradePath path, int nextStep)
+        {
+            return $"{GetPathName(path)} +{nextStep - 3}";
+        }
+
+        protected virtual string GetOverflowUpgradeDescription(WeaponUpgradePath path, int nextStep)
+        {
+            return path == WeaponUpgradePath.PathA
+                ? "Bonus Path A"
+                : "Bonus Path B";
         }
 
         protected abstract string GetUpgradeTitle(WeaponUpgradePath path, int nextStep);
