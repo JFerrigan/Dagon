@@ -11,16 +11,20 @@ namespace Dagon.Gameplay
         [SerializeField] private CombatTeam attackingTeam = CombatTeam.Enemy;
 
         private Collider cachedCollider;
+        private BodyBlocker cachedBodyBlocker;
         private readonly HashSet<Hurtbox> overlappingTargets = new();
         private readonly Dictionary<Hurtbox, float> nextDamageTimes = new();
 
         private void Awake()
         {
             cachedCollider = GetComponent<Collider>();
+            cachedBodyBlocker = GetComponent<BodyBlocker>();
         }
 
         private void Update()
         {
+            SyncBodyContactTargets();
+
             if (overlappingTargets.Count <= 0)
             {
                 return;
@@ -60,6 +64,11 @@ namespace Dagon.Gameplay
             if (cachedCollider == null)
             {
                 cachedCollider = GetComponent<Collider>();
+            }
+
+            if (cachedBodyBlocker == null)
+            {
+                cachedBodyBlocker = GetComponent<BodyBlocker>();
             }
         }
 
@@ -107,6 +116,61 @@ namespace Dagon.Gameplay
             }
         }
 
+        private void SyncBodyContactTargets()
+        {
+            if (cachedBodyBlocker == null)
+            {
+                return;
+            }
+
+            var staleTargets = ListPool<Hurtbox>.Get();
+            foreach (var target in overlappingTargets)
+            {
+                if (target == null)
+                {
+                    staleTargets.Add(target);
+                    continue;
+                }
+
+                if (!IsBodyContactTarget(target) && !IsTriggerContactTarget(target))
+                {
+                    staleTargets.Add(target);
+                }
+            }
+
+            for (var i = 0; i < staleTargets.Count; i++)
+            {
+                overlappingTargets.Remove(staleTargets[i]);
+                nextDamageTimes.Remove(staleTargets[i]);
+            }
+
+            staleTargets.Clear();
+
+            var blockers = BodyBlocker.Active;
+            for (var i = 0; i < blockers.Count; i++)
+            {
+                var other = blockers[i];
+                if (!IsBodyContactCandidate(other))
+                {
+                    continue;
+                }
+
+                var hurtbox = other.GetComponent<Hurtbox>();
+                if (hurtbox == null || hurtbox.Damageable == null)
+                {
+                    continue;
+                }
+
+                overlappingTargets.Add(hurtbox);
+                if (!nextDamageTimes.ContainsKey(hurtbox))
+                {
+                    nextDamageTimes[hurtbox] = Time.time;
+                }
+            }
+
+            ListPool<Hurtbox>.Release(staleTargets);
+        }
+
         private bool TryResolveContactTarget(Collider other, out Hurtbox hurtbox)
         {
             hurtbox = null;
@@ -121,6 +185,66 @@ namespace Dagon.Gameplay
             }
 
             return hurtbox != null;
+        }
+
+        private bool IsBodyContactCandidate(BodyBlocker other)
+        {
+            if (cachedBodyBlocker == null || other == null || other == cachedBodyBlocker)
+            {
+                return false;
+            }
+
+            if (!other.isActiveAndEnabled || other.Suppressed)
+            {
+                return false;
+            }
+
+            var otherHurtbox = other.GetComponent<Hurtbox>();
+            if (otherHurtbox == null || otherHurtbox.Team == attackingTeam)
+            {
+                return false;
+            }
+
+            var combinedRadius = cachedBodyBlocker.BodyRadius + other.BodyRadius;
+            var separation = cachedBodyBlocker.PlanarPosition - other.PlanarPosition;
+            separation.y = 0f;
+            return separation.sqrMagnitude <= combinedRadius * combinedRadius;
+        }
+
+        private bool IsBodyContactTarget(Hurtbox hurtbox)
+        {
+            if (hurtbox == null || cachedBodyBlocker == null)
+            {
+                return false;
+            }
+
+            var other = hurtbox.GetComponent<BodyBlocker>();
+            return IsBodyContactCandidate(other);
+        }
+
+        private bool IsTriggerContactTarget(Hurtbox hurtbox)
+        {
+            if (hurtbox == null || cachedCollider == null)
+            {
+                return false;
+            }
+
+            var colliders = hurtbox.GetComponentsInChildren<Collider>();
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var other = colliders[i];
+                if (other == null || other == cachedCollider)
+                {
+                    continue;
+                }
+
+                if (cachedCollider.bounds.Intersects(other.bounds))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void ApplyDamageTo(Hurtbox hurtbox)

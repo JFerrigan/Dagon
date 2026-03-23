@@ -156,16 +156,17 @@ Key runtime:
 
 ## Fountain Cleanse System
 
-First-pass corruption relief now exists through world fountains.
+Corruption relief now exists through world fountains.
 
 Current behavior:
 
-- one fountain at a time
-- first spawn after an early delay
-- respawns after a cooldown once used
-- does not spawn during boss fights
+- fountains are static world landmarks, not timed nearby spawns
+- fountains generate procedurally as the explorable world expands
+- fountains are spaced far apart and remain fixed once generated
 - reduces corruption by `25`
-- walk-over trigger interaction for now
+- player must intentionally interact to use them
+- each fountain is one use per run
+- depleted fountains remain in the world after use
 
 Key runtime:
 

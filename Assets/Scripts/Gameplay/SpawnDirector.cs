@@ -11,6 +11,8 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class SpawnDirector : MonoBehaviour
     {
+        private const float EnemyHurtboxHeightLeniencyMultiplier = 1.3f;
+
         public enum CorruptionWaveClass
         {
             Fodder,
@@ -667,7 +669,7 @@ namespace Dagon.Gameplay
 
                     var wanderer = mire.AddComponent<MireWanderer>();
                     wanderer.Configure(player, Random.Range(3.2f, 3.6f) * modifiers.SpeedMultiplier, 3f, 18f);
-                    rewards.Configure(1, 1.5f);
+                    rewards.Configure(1, 0f);
                     break;
                 }
                 case EnemyKind.DrownedAcolyte:
@@ -679,7 +681,7 @@ namespace Dagon.Gameplay
                     {
                         shooter.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
                     }
-                    rewards.Configure(3, 3f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
+                    rewards.Configure(3, 2f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.Mermaid:
@@ -691,7 +693,7 @@ namespace Dagon.Gameplay
                     {
                         mermaid.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
                     }
-                    rewards.Configure(4, 4.5f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
+                    rewards.Configure(4, 2f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.WatcherEye:
@@ -703,7 +705,7 @@ namespace Dagon.Gameplay
                     {
                         watcherEye.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
                     }
-                    rewards.Configure(1, 1.75f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
+                    rewards.Configure(1, 2f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.Parasite:
@@ -728,7 +730,7 @@ namespace Dagon.Gameplay
                     bruiser.Configure(player, 1.2f, 4.8f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
                     contactDamage.Configure(3f);
-                    rewards.Configure(6, 7f, EliteHealthPickupDropChance, HealthPickupHealAmount);
+                    rewards.Configure(6, 4f, EliteHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
             }
@@ -958,6 +960,17 @@ namespace Dagon.Gameplay
                     collider.radius = 0.35f;
                     break;
             }
+
+            ApplyVerticalHurtboxLeniency(collider);
+        }
+
+        private static void ApplyVerticalHurtboxLeniency(CapsuleCollider collider)
+        {
+            var originalHeight = Mathf.Max(collider.radius * 2f, collider.height);
+            var expandedHeight = Mathf.Max(originalHeight, originalHeight * EnemyHurtboxHeightLeniencyMultiplier);
+            var extraHeight = expandedHeight - originalHeight;
+            collider.height = expandedHeight;
+            collider.center += new Vector3(0f, extraHeight * 0.5f, 0f);
         }
 
         private static void ConfigureBodyBlocker(GameObject enemyRoot, EnemyKind enemyKind, CapsuleCollider collider)

@@ -128,6 +128,11 @@ namespace Dagon.Bootstrap
             BuildResolutionOptions();
             LoadSettings();
             ApplyAllSettings();
+
+            if (RunSelectionState.ConsumeOpenCharacterSelectOnMenu())
+            {
+                OpenCharacterSelect();
+            }
         }
 
         private void OnGUI()
@@ -633,8 +638,7 @@ namespace Dagon.Bootstrap
             switch (selection)
             {
                 case MenuSelection.Enter:
-                    currentView = MenuView.CharacterSelect;
-                    currentCharacterSelectionIndex = 0;
+                    OpenCharacterSelect();
                     break;
                 case MenuSelection.Alterations:
                     currentView = MenuView.Alterations;
@@ -763,6 +767,12 @@ namespace Dagon.Bootstrap
         {
             currentView = MenuView.Main;
             currentCharacterSelectionIndex = 0;
+        }
+
+        private void OpenCharacterSelect()
+        {
+            currentView = MenuView.CharacterSelect;
+            currentCharacterSelectionIndex = GetCharacterSelectionIndex(RunSelectionState.LastSelectedCharacterId);
         }
 
         private void BuildResolutionOptions()
@@ -1197,6 +1207,24 @@ namespace Dagon.Bootstrap
             var selectedProfile = characterProfiles[Mathf.Clamp(currentCharacterSelectionIndex, 0, characterProfiles.Length - 1)];
             RunSelectionState.SelectCharacter(selectedProfile.CharacterId);
             SceneManager.LoadScene(BlackMireSceneName);
+        }
+
+        private int GetCharacterSelectionIndex(string characterId)
+        {
+            if (characterProfiles == null || characterProfiles.Length == 0 || string.IsNullOrWhiteSpace(characterId))
+            {
+                return 0;
+            }
+
+            for (var index = 0; index < characterProfiles.Length; index++)
+            {
+                if (characterProfiles[index] != null && characterProfiles[index].CharacterId == characterId)
+                {
+                    return index;
+                }
+            }
+
+            return 0;
         }
 
         private static Texture2D[] LoadCharacterPortraits(CharacterProfileDefinition[] profiles)

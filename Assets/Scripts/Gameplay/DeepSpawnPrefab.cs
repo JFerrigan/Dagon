@@ -10,6 +10,7 @@ namespace Dagon.Gameplay
     {
         private const float HealthPickupDropChance = 0.5f;
         private const float HealthPickupHealAmount = 2f;
+        private const float HurtboxHeightLeniencyMultiplier = 1.3f;
 
         [Header("Stats")]
         [SerializeField] private float maxHealth = 24f;
@@ -17,7 +18,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float chargeSpeed = 4.8f;
         [SerializeField] private float contactDamageAmount = 3f;
         [SerializeField] private int experienceReward = 6;
-        [SerializeField] private float corruptionReward = 7f;
+        [SerializeField] private float corruptionReward = 4f;
 
         [Header("Collision")]
         [SerializeField] private Vector3 colliderCenter = new(0f, 0.8f, 0f);
@@ -95,6 +96,7 @@ namespace Dagon.Gameplay
             capsuleCollider.height = colliderHeight;
             capsuleCollider.radius = colliderRadius;
             capsuleCollider.isTrigger = true;
+            ApplyVerticalHurtboxLeniency(capsuleCollider);
 
             var body = GetOrAddComponent<Rigidbody>(null);
             body.isKinematic = true;
@@ -144,6 +146,15 @@ namespace Dagon.Gameplay
             }
 
             return owner.AddComponent<T>();
+        }
+
+        private static void ApplyVerticalHurtboxLeniency(CapsuleCollider collider)
+        {
+            var originalHeight = Mathf.Max(collider.radius * 2f, collider.height);
+            var expandedHeight = Mathf.Max(originalHeight, originalHeight * HurtboxHeightLeniencyMultiplier);
+            var extraHeight = expandedHeight - originalHeight;
+            collider.height = expandedHeight;
+            collider.center += new Vector3(0f, extraHeight * 0.5f, 0f);
         }
     }
 }

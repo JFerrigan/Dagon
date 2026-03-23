@@ -557,7 +557,7 @@ namespace Dagon.Gameplay
                     "Monolith of the Mire",
                     "Sprites/Bosses/monolith",
                     new Color(0.88f, 0.96f, 0.88f, 1f),
-                    180f * healthMultiplier,
+                    150f * healthMultiplier,
                     new Vector3(0f, 6.2f, 0f),
                     12.4f,
                     3.9f,
@@ -571,7 +571,7 @@ namespace Dagon.Gameplay
                     3 + Mathf.FloorToInt(defeatedBossCount * 0.5f),
                     defeatedBossCount,
                     20,
-                    20f),
+                    10f),
                 BossKind.DrownedAdmiral => new BossRuntimeDefinition(
                     BossKind.DrownedAdmiral,
                     "DrownedAdmiral",
@@ -592,7 +592,7 @@ namespace Dagon.Gameplay
                     0,
                     defeatedBossCount,
                     20,
-                    20f),
+                    10f),
                 _ => new BossRuntimeDefinition(
                     BossKind.MireColossus,
                     "MireColossus",
@@ -613,7 +613,7 @@ namespace Dagon.Gameplay
                     0,
                     defeatedBossCount,
                     20,
-                    20f)
+                    10f)
             };
         }
 
@@ -805,10 +805,27 @@ namespace Dagon.Gameplay
             else
             {
                 GUI.backgroundColor = new Color(0.16f, 0.28f, 0.22f, 0.92f);
-                if (GUI.Button(new Rect(box.x + 76f, box.y + 184f, box.width - 152f, 50f), "Retry", endButtonStyle))
+                if (GUI.Button(new Rect(box.x + 76f, box.y + 170f, box.width - 152f, 42f), "Retry", endButtonStyle))
                 {
-                    LoadScene(SceneManager.GetActiveScene().name);
+                    RetryCurrentCharacter();
                 }
+
+                GUI.backgroundColor = new Color(0.18f, 0.25f, 0.22f, 0.92f);
+                if (GUI.Button(new Rect(box.x + 76f, box.y + 220f, box.width - 152f, 42f), "Character Select", endButtonStyle))
+                {
+                    OpenCharacterSelectFromDeath();
+                }
+
+                GUI.backgroundColor = new Color(0.14f, 0.22f, 0.20f, 0.9f);
+                if (GUI.Button(new Rect(box.x + 76f, box.y + 270f, box.width - 152f, 42f), "Main Menu", endButtonStyle))
+                {
+                    LoadScene(menuSceneName);
+                }
+
+                GUI.matrix = previousMatrix;
+                GUI.color = previousColor;
+                GUI.backgroundColor = previousBackground;
+                return;
             }
 
             GUI.backgroundColor = new Color(0.14f, 0.22f, 0.20f, 0.9f);
@@ -854,7 +871,7 @@ namespace Dagon.Gameplay
             if (GUI.Button(new Rect(box.x + 76f, box.y + 200f, box.width - 152f, 50f), "Restart", endButtonStyle))
             {
                 pauseMenuOpen = false;
-                LoadScene(SceneManager.GetActiveScene().name);
+                RetryCurrentCharacter();
             }
 
             GUI.backgroundColor = new Color(0.14f, 0.22f, 0.20f, 0.9f);
@@ -907,6 +924,18 @@ namespace Dagon.Gameplay
 
             Time.timeScale = 1f;
             SceneManager.LoadScene(sceneName);
+        }
+
+        private static void RetryCurrentCharacter()
+        {
+            RunSelectionState.PrepareRetry();
+            LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        private void OpenCharacterSelectFromDeath()
+        {
+            RunSelectionState.OpenCharacterSelectOnMenu();
+            LoadScene(menuSceneName);
         }
 
         private void EnsureStyles()

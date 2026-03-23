@@ -9,6 +9,8 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class DrownedAdmiralController : MonoBehaviour
     {
+        private const float SummonHurtboxHeightLeniencyMultiplier = 1.3f;
+
         private const string ParasiteSpritePath = "Sprites/Enemies/parasite";
 
         private enum State
@@ -345,6 +347,7 @@ namespace Dagon.Gameplay
             collider.center = new Vector3(0f, 0.45f, 0f);
             collider.height = 0.9f;
             collider.radius = 0.38f;
+            ApplyVerticalHurtboxLeniency(collider);
             parasite.AddComponent<BodyBlocker>().Configure(BodyBlocker.BodyTeam.Enemy, 0.28f, 0.9f, 0.7f, true, true);
 
             var rigidbody = parasite.AddComponent<Rigidbody>();
@@ -374,6 +377,15 @@ namespace Dagon.Gameplay
 
             var healthBar = parasite.AddComponent<EnemyHealthBar>();
             healthBar.Configure(worldCamera, new Vector3(0f, 1.1f, 0f), true, 2.25f);
+        }
+
+        private static void ApplyVerticalHurtboxLeniency(CapsuleCollider collider)
+        {
+            var originalHeight = Mathf.Max(collider.radius * 2f, collider.height);
+            var expandedHeight = Mathf.Max(originalHeight, originalHeight * SummonHurtboxHeightLeniencyMultiplier);
+            var extraHeight = expandedHeight - originalHeight;
+            collider.height = expandedHeight;
+            collider.center += new Vector3(0f, extraHeight * 0.5f, 0f);
         }
 
         private void EnterRecover(float duration)

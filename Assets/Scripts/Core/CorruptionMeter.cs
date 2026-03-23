@@ -12,13 +12,15 @@ namespace Dagon.Core
     [DisallowMultipleComponent]
     public sealed class CorruptionMeter : MonoBehaviour
     {
+        private const float BaseCorruptionGainMultiplier = 0.6f;
+
         [SerializeField] private float maxCorruption = 100f;
         [SerializeField] private float[] thresholdValues = { 25f, 50f, 75f, 100f };
         [SerializeField] private CorruptionThresholdEvent onThresholdReached;
 
         private float currentCorruption;
         private int highestThresholdIndex = -1;
-        private float corruptionGainMultiplier = 1f;
+        private float corruptionGainMultiplier = BaseCorruptionGainMultiplier;
 
         public event Action<int> ThresholdReached;
         public event Action<int, int> StageChanged;
@@ -60,7 +62,7 @@ namespace Dagon.Core
             var previousStageIndex = CurrentStageIndex;
             currentCorruption = 0f;
             highestThresholdIndex = -1;
-            corruptionGainMultiplier = 1f;
+            corruptionGainMultiplier = BaseCorruptionGainMultiplier;
             if (previousStageIndex != -1)
             {
                 StageChanged?.Invoke(previousStageIndex, -1);

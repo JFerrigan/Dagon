@@ -1,0 +1,13 @@
+{
+  "asset_id": "corruption_fountain",
+  "asset_type": "background_prop_sprite",
+  "prompt": "Corruption-cleansing swamp fountain shrine for the Black Mire, readable as a static world landmark with rotted stone, brine growth, barnacled basin, and eerie green-blue corruption light.",
+  "output_path": "Assets/Resources/Sprites/Props/corruption_fountain.png",
+  "source_image": "Tools/AssetGen/generated/corruption_fountain.png",
+  "processed_image": "Tools/AssetGen/processed/corruption_fountain.png",
+  "size": [256, 256],
+  "palette_notes": "mire stone gray, algae teal, sickly green light, wet bone accents, swamp-black shadows",
+  "orientation": "isometric_ground_prop",
+  "provider": "chat_attachment_inbox",
+  "notes": "Static corruption fountain landmark prop. Preserve aspect ratio, strong silhouette, and readability from gameplay camera distance. Runtime handles unused/depleted state through tint and overlays."
+}
