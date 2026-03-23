@@ -112,6 +112,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private SpawnDirector spawnDirector;
+        [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private ExperienceController experienceController;
         [SerializeField] private HarpoonProjectile bossProjectilePrefab;
         [SerializeField] private string nextSceneName;
@@ -186,6 +187,7 @@ namespace Dagon.Gameplay
             if (player != null)
             {
                 playerHealth = player.GetComponent<Health>();
+                corruptionMeter = player.GetComponent<CorruptionMeter>();
                 if (playerHealth != null)
                 {
                     playerHealth.Died += HandlePlayerDied;
@@ -274,6 +276,7 @@ namespace Dagon.Gameplay
             worldCamera = cameraReference;
             spawnDirector = director;
             bossProjectilePrefab = projectilePrefab;
+            corruptionMeter = player != null ? player.GetComponent<CorruptionMeter>() : corruptionMeter;
         }
 
         public void ConfigureLevelFlow(string newNextSceneName, string newMenuSceneName, int newBossesInWave)
@@ -309,27 +312,42 @@ namespace Dagon.Gameplay
 
         public bool SpawnSandboxBoss()
         {
-            return SpawnSandboxBoss(BossKind.MireColossus);
+            return SpawnSandboxBoss(BossKind.MireColossus, false);
         }
 
         public bool SpawnSandboxMonolithBoss()
         {
-            return SpawnSandboxBoss(BossKind.Monolith);
+            return SpawnSandboxBoss(BossKind.Monolith, false);
         }
 
         public bool SpawnSandboxAdmiralBoss()
         {
-            return SpawnSandboxBoss(BossKind.DrownedAdmiral);
+            return SpawnSandboxBoss(BossKind.DrownedAdmiral, false);
         }
 
-        private bool SpawnSandboxBoss(BossKind bossKind)
+        public bool SpawnSandboxBoss(bool forceCorrupted)
+        {
+            return SpawnSandboxBoss(BossKind.MireColossus, forceCorrupted);
+        }
+
+        public bool SpawnSandboxMonolithBoss(bool forceCorrupted)
+        {
+            return SpawnSandboxBoss(BossKind.Monolith, forceCorrupted);
+        }
+
+        public bool SpawnSandboxAdmiralBoss(bool forceCorrupted)
+        {
+            return SpawnSandboxBoss(BossKind.DrownedAdmiral, forceCorrupted);
+        }
+
+        private bool SpawnSandboxBoss(BossKind bossKind, bool forceCorrupted)
         {
             if (player == null || worldCamera == null)
             {
                 return false;
             }
 
-            SpawnBoss(activeBosses.Count, Mathf.Max(1, activeBosses.Count + 1), ResolveBossDefinition(bossKind, bossesDefeatedCount));
+            SpawnBoss(activeBosses.Count, Mathf.Max(1, activeBosses.Count + 1), ResolveBossDefinition(bossKind, bossesDefeatedCount), forceCorrupted);
             return activeBosses.Count > 0;
         }
 
@@ -399,9 +417,11 @@ namespace Dagon.Gameplay
             }
         }
 
-        private void SpawnBoss(int index, int totalBosses, BossRuntimeDefinition definition)
+        private void SpawnBoss(int index, int totalBosses, BossRuntimeDefinition definition, bool forceCorrupted = false)
         {
-            currentBossDisplayName = definition.DisplayName;
+            var isCorrupted = forceCorrupted || ShouldSpawnCorruptedBoss();
+            var modifiers = isCorrupted ? CorruptionVariantRules.GetBossModifiers() : new CorruptionVariantRules.StatModifiers(1f, 1f, 1f, 1f);
+            currentBossDisplayName = isCorrupted ? $"Corrupted {definition.DisplayName}" : definition.DisplayName;
             currentBossTint = definition.Tint;
 
             var bossSprite = RuntimeSpriteLibrary.LoadSprite(definition.SpritePath, 256f) ??
@@ -411,7 +431,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var boss = new GameObject(definition.ObjectName);
+            var boss = new GameObject(isCorrupted ? $"Corrupted{definition.ObjectName}" : definition.ObjectName);
             boss.transform.SetParent(transform);
             var angle = totalBosses <= 1 ? 0f : (360f / totalBosses) * index;
             var offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.forward * 12f);
@@ -436,7 +456,7 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var bossHealth = boss.AddComponent<Health>();
-            bossHealth.SetMaxHealth(definition.MaxHealth, true);
+            bossHealth.SetMaxHealth(definition.MaxHealth * modifiers.HealthMultiplier, true);
             bossHealth.Died += HandleBossDied;
             activeBosses.Add(bossHealth);
             boss.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, bossHealth);
@@ -448,10 +468,14 @@ namespace Dagon.Gameplay
             if (definition.BossKind == BossKind.MireColossus)
             {
                 var contactDamage = boss.AddComponent<ContactDamage>();
-                contactDamage.Configure(4f);
+                contactDamage.Configure(4f * modifiers.DamageMultiplier);
 
                 var controller = boss.AddComponent<MireColossusController>();
                 controller.Configure(player, bossProjectilePrefab, definition.DifficultyTier);
+                if (isCorrupted)
+                {
+                    controller.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
+                }
             }
             else if (definition.BossKind == BossKind.Monolith)
             {
@@ -464,14 +488,22 @@ namespace Dagon.Gameplay
                     definition.TallSummonCooldown,
                     definition.MaxWideLeeches,
                     definition.MaxTallLeeches);
+                if (isCorrupted)
+                {
+                    controller.ApplyCorruptionModifiers(modifiers.CadenceMultiplier);
+                }
             }
             else
             {
                 var contactDamage = boss.AddComponent<ContactDamage>();
-                contactDamage.Configure(2f);
+                contactDamage.Configure(2f * modifiers.DamageMultiplier);
 
                 var controller = boss.AddComponent<DrownedAdmiralController>();
                 controller.Configure(player, worldCamera, bossProjectilePrefab, definition.DifficultyTier);
+                if (isCorrupted)
+                {
+                    controller.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
+                }
             }
 
             var rewards = boss.AddComponent<EnemyDeathRewards>();
@@ -490,8 +522,28 @@ namespace Dagon.Gameplay
             renderer.color = definition.Tint;
             visuals.transform.localScale = definition.VisualScale;
 
+            if (isCorrupted)
+            {
+                visuals.AddComponent<CorruptedVariantVisual>().Apply(renderer, definition.Tint);
+            }
+
             var billboard = visuals.AddComponent<Dagon.Rendering.BillboardSprite>();
             billboard.Configure(worldCamera, Dagon.Rendering.BillboardSprite.BillboardMode.YAxisOnly);
+        }
+
+        private bool ShouldSpawnCorruptedBoss()
+        {
+            if (corruptionMeter == null && player != null)
+            {
+                corruptionMeter = player.GetComponent<CorruptionMeter>();
+            }
+
+            if (corruptionMeter == null)
+            {
+                return false;
+            }
+
+            return Random.value <= CorruptionVariantRules.GetBossCorruptionChance(corruptionMeter.CurrentCorruption);
         }
 
         private BossRuntimeDefinition ResolveBossDefinition(BossKind bossKind, int defeatedBossCount)

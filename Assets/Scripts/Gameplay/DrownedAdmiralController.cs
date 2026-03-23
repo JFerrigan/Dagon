@@ -44,6 +44,8 @@ namespace Dagon.Gameplay
         private Vector3 dashDirection = Vector3.forward;
         private bool slashAfterDash;
         private int difficultyTier;
+        private float damageMultiplier = 1f;
+        private float cadenceMultiplier = 1f;
 
         private void Awake()
         {
@@ -78,7 +80,7 @@ namespace Dagon.Gameplay
                     if (stateTimer <= 0f)
                     {
                         state = State.Dash;
-                        stateTimer = Mathf.Max(0.2f, dashTravelDistance / Mathf.Max(0.1f, dashSpeed));
+                        stateTimer = AdjustCooldown(Mathf.Max(0.2f, dashTravelDistance / Mathf.Max(0.1f, dashSpeed)));
                     }
                     break;
                 case State.Dash:
@@ -140,6 +142,14 @@ namespace Dagon.Gameplay
             stateTimer = 0f;
         }
 
+        public void ApplyCorruptionModifiers(float newDamageMultiplier, float speedMultiplier, float newCadenceMultiplier)
+        {
+            damageMultiplier = Mathf.Max(0.1f, newDamageMultiplier);
+            cadenceMultiplier = Mathf.Max(0.1f, newCadenceMultiplier);
+            moveSpeed *= Mathf.Max(0.1f, speedMultiplier);
+            dashSpeed *= Mathf.Max(0.1f, speedMultiplier);
+        }
+
         private void ResolveReferences()
         {
             if (target == null)
@@ -199,9 +209,9 @@ namespace Dagon.Gameplay
         {
             dashDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
             slashAfterDash = followWithSlash;
-            dashCooldownTimer = Mathf.Max(1.5f, 5.4f - (difficultyTier * 0.2f));
+            dashCooldownTimer = AdjustCooldown(Mathf.Max(1.5f, 5.4f - (difficultyTier * 0.2f)));
             state = State.DashWindup;
-            stateTimer = 0.42f;
+            stateTimer = AdjustCooldown(0.42f);
 
             PlaceholderWeaponVisual.Spawn(
                 "AdmiralDashTelegraph",
@@ -218,12 +228,12 @@ namespace Dagon.Gameplay
         private void BeginSlash(Vector3 direction, float windup, float damage)
         {
             dashDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
-            slashCooldownTimer = Mathf.Max(0.65f, 2.3f - (difficultyTier * 0.08f));
+            slashCooldownTimer = AdjustCooldown(Mathf.Max(0.65f, 2.3f - (difficultyTier * 0.08f)));
             state = State.SlashWindup;
-            stateTimer = windup;
+            stateTimer = AdjustCooldown(windup);
             SpawnSlashTelegraph(windup);
 
-            pendingSlashDamage = damage;
+            pendingSlashDamage = damage * damageMultiplier;
         }
 
         private float pendingSlashDamage;
@@ -259,9 +269,9 @@ namespace Dagon.Gameplay
         private void BeginLanternShot(Vector3 direction)
         {
             dashDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
-            lanternCooldownTimer = Mathf.Max(0.8f, 3.1f - (difficultyTier * 0.12f));
+            lanternCooldownTimer = AdjustCooldown(Mathf.Max(0.8f, 3.1f - (difficultyTier * 0.12f)));
             state = State.LanternWindup;
-            stateTimer = 0.36f;
+            stateTimer = AdjustCooldown(0.36f);
 
             PlaceholderWeaponVisual.Spawn(
                 "AdmiralLanternTelegraph",
@@ -287,14 +297,14 @@ namespace Dagon.Gameplay
                 transform.position + Vector3.up * 0.48f,
                 Quaternion.LookRotation(dashDirection, Vector3.up));
             projectile.gameObject.SetActive(true);
-            projectile.Initialize(gameObject, dashDirection, 7.8f + (difficultyTier * 0.18f), 1.4f);
+            projectile.Initialize(gameObject, dashDirection, 7.8f + (difficultyTier * 0.18f), 1.4f * damageMultiplier);
         }
 
         private void BeginParasiteCall()
         {
-            summonCooldownTimer = Mathf.Max(4f, 10f - (difficultyTier * 0.65f));
+            summonCooldownTimer = AdjustCooldown(Mathf.Max(4f, 10f - (difficultyTier * 0.65f)));
             state = State.SummonWindup;
-            stateTimer = 0.5f;
+            stateTimer = AdjustCooldown(0.5f);
 
             PlaceholderWeaponVisual.Spawn(
                 "AdmiralSummonTelegraph",
@@ -342,11 +352,11 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var health = parasite.AddComponent<Health>();
-            health.SetMaxHealth(1f, true);
+            health.SetMaxHealth(1.3f, true);
             parasite.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, health);
             parasite.AddComponent<KnockbackReceiver>().Configure(1.2f, 16f, 5.8f);
-            parasite.AddComponent<ContactDamage>().Configure(1f);
-            parasite.AddComponent<ParasiteChaser>().Configure(target, 7.4f + (difficultyTier * 0.08f), 0.2f);
+            parasite.AddComponent<ContactDamage>().Configure(1f * damageMultiplier);
+            parasite.AddComponent<ParasiteChaser>().Configure(target, (7.4f + (difficultyTier * 0.08f)) * 1.08f, 0.2f);
             parasite.AddComponent<EnemyDeathRewards>().Configure(0, 0f);
 
             var visuals = new GameObject("Visuals");
@@ -369,7 +379,12 @@ namespace Dagon.Gameplay
         private void EnterRecover(float duration)
         {
             state = State.Recover;
-            stateTimer = duration;
+            stateTimer = AdjustCooldown(duration);
+        }
+
+        private float AdjustCooldown(float baseCooldown)
+        {
+            return Mathf.Max(0.08f, baseCooldown / cadenceMultiplier);
         }
 
         private Vector3 ResolveDirectionToTarget()

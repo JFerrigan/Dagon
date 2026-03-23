@@ -51,6 +51,7 @@ namespace Dagon.Gameplay
         private BossAttack nextAttack = BossAttack.RadialBurst;
         private State state;
         private float spiralStartAngle;
+        private float cadenceMultiplier = 1f;
         private readonly HashSet<GameObject> resolvedSlamTargets = new();
 
         private enum State
@@ -108,7 +109,7 @@ namespace Dagon.Gameplay
                     {
                         FireBurst();
                         state = State.Drift;
-                        attackTimer = 2.4f;
+                        attackTimer = AdjustCooldown(2.4f);
                     }
                     break;
                 case State.VolleyCast:
@@ -116,7 +117,7 @@ namespace Dagon.Gameplay
                     {
                         FireAimedVolley();
                         state = State.Drift;
-                        attackTimer = 2f;
+                        attackTimer = AdjustCooldown(2f);
                     }
                     break;
                 case State.SpiralCast:
@@ -124,7 +125,7 @@ namespace Dagon.Gameplay
                     {
                         FireSpiralBurst();
                         state = State.Drift;
-                        attackTimer = 2.4f;
+                        attackTimer = AdjustCooldown(2.4f);
                     }
                     break;
                 case State.CrossCast:
@@ -132,14 +133,14 @@ namespace Dagon.Gameplay
                     {
                         FireCrossBurst();
                         state = State.Drift;
-                        attackTimer = 2.1f;
+                        attackTimer = AdjustCooldown(2.1f);
                     }
                     break;
                 case State.ChargeWindup:
                     if (stateTimer <= 0f)
                     {
                         state = State.Charge;
-                        stateTimer = chargeDuration;
+                        stateTimer = AdjustCooldown(chargeDuration);
                     }
                     break;
                 case State.Charge:
@@ -147,14 +148,14 @@ namespace Dagon.Gameplay
                     if (stateTimer <= 0f)
                     {
                         state = State.Recover;
-                        stateTimer = postChargeRecovery;
+                        stateTimer = AdjustCooldown(postChargeRecovery);
                     }
                     break;
                 case State.Recover:
                     if (stateTimer <= 0f)
                     {
                         state = State.Drift;
-                        attackTimer = 1.6f;
+                        attackTimer = AdjustCooldown(1.6f);
                     }
                     break;
                 case State.SlamWindup:
@@ -162,7 +163,7 @@ namespace Dagon.Gameplay
                     {
                         PerformSlam();
                         state = State.Drift;
-                        attackTimer = 2.8f;
+                        attackTimer = AdjustCooldown(2.8f);
                     }
                     break;
             }
@@ -173,10 +174,22 @@ namespace Dagon.Gameplay
             target = newTarget;
             orbProjectilePrefab = projectilePrefab;
             worldCamera = Camera.main;
-            attackTimer = Mathf.Max(1.1f, 2.1f - (difficultyTier * 0.08f));
+            attackTimer = AdjustCooldown(Mathf.Max(1.1f, 2.1f - (difficultyTier * 0.08f)));
             projectileSpeed = 5.1f + (difficultyTier * 0.12f);
             state = State.Drift;
             nextAttack = BossAttack.RadialBurst;
+        }
+
+        public void ApplyCorruptionModifiers(float damageMultiplier, float speedMultiplier, float attackCadenceMultiplier)
+        {
+            var safeDamageMultiplier = Mathf.Max(0.1f, damageMultiplier);
+            var safeSpeedMultiplier = Mathf.Max(0.1f, speedMultiplier);
+            cadenceMultiplier = Mathf.Max(0.1f, attackCadenceMultiplier);
+            driftSpeed *= safeSpeedMultiplier;
+            chargeSpeed *= safeSpeedMultiplier;
+            projectileDamage *= safeDamageMultiplier;
+            slamDamage *= safeDamageMultiplier;
+            slamHazardTickDamage *= safeDamageMultiplier;
         }
 
         private void Drift(Vector3 toTarget)
@@ -194,20 +207,20 @@ namespace Dagon.Gameplay
             {
                 case BossAttack.RadialBurst:
                     state = State.BurstCast;
-                    stateTimer = 0.25f;
+                    stateTimer = AdjustCooldown(0.25f);
                     break;
                 case BossAttack.AimedVolley:
                     state = State.VolleyCast;
-                    stateTimer = 0.2f;
+                    stateTimer = AdjustCooldown(0.2f);
                     break;
                 case BossAttack.SpiralBurst:
                     state = State.SpiralCast;
-                    stateTimer = 0.18f;
+                    stateTimer = AdjustCooldown(0.18f);
                     break;
                 case BossAttack.CrushingCharge:
                     chargeDirection = toTarget.sqrMagnitude > 0.04f ? toTarget.normalized : transform.forward;
                     state = State.ChargeWindup;
-                    stateTimer = chargeWindup;
+                    stateTimer = AdjustCooldown(chargeWindup);
                     PlaceholderWeaponVisual.Spawn(
                         "ColossusChargeWindup",
                         transform.position + chargeDirection * 1.2f + Vector3.up * 0.15f,
@@ -220,7 +233,7 @@ namespace Dagon.Gameplay
                     break;
                 case BossAttack.MireSlam:
                     state = State.SlamWindup;
-                    stateTimer = slamWindup;
+                    stateTimer = AdjustCooldown(slamWindup);
                     PlaceholderWeaponVisual.Spawn(
                         "ColossusSlamTelegraph",
                         transform.position + Vector3.up * 0.12f,
@@ -232,9 +245,14 @@ namespace Dagon.Gameplay
                     break;
                 case BossAttack.CrossBurst:
                     state = State.CrossCast;
-                    stateTimer = 0.22f;
+                    stateTimer = AdjustCooldown(0.22f);
                     break;
             }
+        }
+
+        private float AdjustCooldown(float baseCooldown)
+        {
+            return Mathf.Max(0.08f, baseCooldown / Mathf.Max(0.1f, cadenceMultiplier));
         }
 
         private BossPhase ResolvePhase()

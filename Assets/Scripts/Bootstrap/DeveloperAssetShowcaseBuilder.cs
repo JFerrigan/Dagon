@@ -132,10 +132,9 @@ namespace Dagon.Bootstrap
 
             var visual = new GameObject("Visual");
             visual.transform.SetParent(anchor.transform, false);
-            visual.transform.localScale = new Vector3(
-                Mathf.Max(0.05f, entry.Scale.x),
-                Mathf.Max(0.05f, entry.Scale.y),
-                Mathf.Max(0.05f, entry.Scale.z));
+            visual.transform.localScale = entry.GroundPlane
+                ? entry.Scale
+                : ResolveAspectPreservingScale(sprite, entry.Scale);
 
             var spriteRenderer = visual.AddComponent<SpriteRenderer>();
             spriteRenderer.sprite = sprite;
@@ -144,7 +143,6 @@ namespace Dagon.Bootstrap
             if (entry.GroundPlane)
             {
                 visual.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-                visual.transform.localScale = entry.Scale;
                 visual.transform.localPosition = entry.VisualOffset;
                 spriteRenderer.sortingOrder = -10;
             }
@@ -341,6 +339,32 @@ namespace Dagon.Bootstrap
             renderer.color = new Color(0.30f, 0.44f, 0.38f, 0.18f);
             renderer.sortingOrder = 1;
             plate.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        }
+
+        private static Vector3 ResolveAspectPreservingScale(Sprite sprite, Vector3 requestedScale)
+        {
+            if (sprite == null)
+            {
+                return requestedScale;
+            }
+
+            var spriteWidth = Mathf.Max(1f, sprite.rect.width);
+            var spriteHeight = Mathf.Max(1f, sprite.rect.height);
+            var spriteAspect = spriteWidth / spriteHeight;
+
+            var maxWidth = Mathf.Max(0.0001f, requestedScale.x);
+            var maxHeight = Mathf.Max(0.0001f, requestedScale.y);
+
+            var resolvedWidth = maxWidth;
+            var resolvedHeight = resolvedWidth / spriteAspect;
+
+            if (resolvedHeight > maxHeight)
+            {
+                resolvedHeight = maxHeight;
+                resolvedWidth = resolvedHeight * spriteAspect;
+            }
+
+            return new Vector3(resolvedWidth, resolvedHeight, requestedScale.z);
         }
     }
 }

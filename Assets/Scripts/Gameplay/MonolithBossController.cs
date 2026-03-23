@@ -27,6 +27,8 @@ namespace Dagon.Gameplay
         private Sprite tallLeechSprite;
         private float wideSummonTimer;
         private float tallSummonTimer;
+        private float damageMultiplier = 1f;
+        private float cadenceMultiplier = 1f;
 
         private void Awake()
         {
@@ -76,6 +78,16 @@ namespace Dagon.Gameplay
             tallSummonTimer = 1.8f;
         }
 
+        public void ApplyCorruptionModifiers(float summonCadenceMultiplier)
+        {
+            cadenceMultiplier = Mathf.Max(0.1f, summonCadenceMultiplier);
+            damageMultiplier = 1.3f;
+            wideSummonCooldown = Mathf.Max(0.2f, wideSummonCooldown / cadenceMultiplier);
+            tallSummonCooldown = Mathf.Max(0.2f, tallSummonCooldown / cadenceMultiplier);
+            maxWideLeeches += 2;
+            maxTallLeeches += 1;
+        }
+
         private void ResolveReferences()
         {
             if (target == null)
@@ -104,7 +116,7 @@ namespace Dagon.Gameplay
 
             var leech = CreateBaseSummon("WideLeech", BuildSummonPosition(), 4f, new Vector3(0f, 0.21f, 0f), 0.23f, 0.45f, wideLeechSprite, new Vector3(0.85f, 0.85f, 1f), new Vector3(0f, 0.04f, 0f), new Vector3(0f, 0.52f, 0f));
             var contactDamage = leech.AddComponent<ContactDamage>();
-            contactDamage.Configure(1f);
+            contactDamage.Configure(1f * damageMultiplier);
             var chaser = leech.AddComponent<SimpleEnemyChaser>();
             chaser.Configure(4.1f, 0.32f);
             var rewards = leech.AddComponent<EnemyDeathRewards>();
@@ -122,6 +134,7 @@ namespace Dagon.Gameplay
             var leech = CreateBaseSummon("TallLeech", BuildSummonPosition(), 5f, new Vector3(0f, 0.95f, 0f), 0.4f, 1.9f, tallLeechSprite, new Vector3(1.45f, 1.45f, 1f), Vector3.zero, new Vector3(0f, 1.8f, 0f));
             var shooter = leech.AddComponent<TallLeechShooter>();
             shooter.Configure(target, projectilePrefab, worldCamera, 9f, 2.1f, 7.4f, 1f);
+            shooter.ApplyCorruptionModifiers(damageMultiplier, cadenceMultiplier);
             var rewards = leech.AddComponent<EnemyDeathRewards>();
             rewards.Configure(0, 0f);
             activeTallLeeches.Add(leech);

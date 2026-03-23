@@ -109,6 +109,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private RunStateManager runStateManager;
+        [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private Sprite mireSprite;
         [SerializeField] private Sprite acolyteSprite;
         [SerializeField] private Sprite mermaidSprite;
@@ -285,6 +286,7 @@ namespace Dagon.Gameplay
         {
             player = playerTransform;
             worldCamera = cameraReference;
+            corruptionMeter = player != null ? player.GetComponent<CorruptionMeter>() : corruptionMeter;
             if (runStateManager == null)
             {
                 runStateManager = FindFirstObjectByType<RunStateManager>();
@@ -465,32 +467,62 @@ namespace Dagon.Gameplay
 
         public bool SpawnSandboxMireWretch()
         {
-            return TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildSpawnPosition(), ignoreAliveCap: true);
+            return SpawnSandboxMireWretch(false);
         }
 
         public bool SpawnSandboxDrownedAcolyte()
         {
-            return TrySpawnSpecificEnemy(EnemyKind.DrownedAcolyte, BuildSpawnPosition(), ignoreAliveCap: true);
+            return SpawnSandboxDrownedAcolyte(false);
         }
 
         public bool SpawnSandboxMermaid()
         {
-            return TrySpawnSpecificEnemy(EnemyKind.Mermaid, BuildSpawnPosition(), ignoreAliveCap: true);
+            return SpawnSandboxMermaid(false);
         }
 
         public bool SpawnSandboxWatcherEye()
         {
-            return TrySpawnSpecificEnemy(EnemyKind.WatcherEye, BuildSpawnPosition(), ignoreAliveCap: true);
+            return SpawnSandboxWatcherEye(false);
         }
 
         public bool SpawnSandboxParasite()
         {
-            return TrySpawnSpecificEnemy(EnemyKind.Parasite, BuildSpawnPosition(), ignoreAliveCap: true);
+            return SpawnSandboxParasite(false);
         }
 
         public bool SpawnSandboxDeepSpawn()
         {
-            return TrySpawnSpecificEnemy(EnemyKind.DeepSpawn, BuildSpawnPosition(), ignoreAliveCap: true);
+            return SpawnSandboxDeepSpawn(false);
+        }
+
+        public bool SpawnSandboxMireWretch(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
+        public bool SpawnSandboxDrownedAcolyte(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.DrownedAcolyte, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
+        public bool SpawnSandboxMermaid(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.Mermaid, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
+        public bool SpawnSandboxWatcherEye(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.WatcherEye, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
+        public bool SpawnSandboxParasite(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.Parasite, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
+        public bool SpawnSandboxDeepSpawn(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.DeepSpawn, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
         }
 
         public void ConfigureBiome(RuntimeBiomeProfile profile)
@@ -529,6 +561,10 @@ namespace Dagon.Gameplay
             if (runStateManager == null)
             {
                 runStateManager = FindFirstObjectByType<RunStateManager>();
+            }
+            if (corruptionMeter == null && player != null)
+            {
+                corruptionMeter = player.GetComponent<CorruptionMeter>();
             }
             ResetDirectorState();
             if (openingWaveEnabled)
@@ -580,7 +616,7 @@ namespace Dagon.Gameplay
             return spawnedAny;
         }
 
-        private bool TrySpawnSpecificEnemy(EnemyKind enemyKind, Vector3 position, bool ignoreAliveCap = false)
+        private bool TrySpawnSpecificEnemy(EnemyKind enemyKind, Vector3 position, bool ignoreAliveCap = false, bool forceCorrupted = false)
         {
             if (player == null || mireSprite == null || SpawnQuotaMet || totalSpawned >= regularSpawnQuota)
             {
@@ -592,14 +628,18 @@ namespace Dagon.Gameplay
                 return false;
             }
 
-            if (enemyKind == EnemyKind.DeepSpawn && TrySpawnDeepSpawn(position))
+            var isCorrupted = forceCorrupted || ShouldSpawnCorruptedEnemy(enemyKind);
+            if (enemyKind == EnemyKind.DeepSpawn && TrySpawnDeepSpawn(position, isCorrupted))
             {
                 return true;
             }
 
-            var mire = new GameObject($"{enemyKind}_{activeEnemies.Count + 1}");
+            var mire = new GameObject($"{(isCorrupted ? "Corrupted" : string.Empty)}{enemyKind}_{activeEnemies.Count + 1}");
             mire.transform.SetParent(transform);
             mire.transform.position = position;
+            var modifiers = isCorrupted
+                ? CorruptionVariantRules.GetEnemyModifiers(GetEnemyArchetype(enemyKind))
+                : new CorruptionVariantRules.StatModifiers(1f, 1f, 1f, 1f);
 
             var collider = mire.AddComponent<CapsuleCollider>();
             collider.isTrigger = true;
@@ -611,7 +651,7 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var health = mire.AddComponent<Health>();
-            health.SetMaxHealth(GetMaxHealth(enemyKind), true);
+            health.SetMaxHealth(GetMaxHealth(enemyKind) * modifiers.HealthMultiplier, true);
             health.Died += HandleEnemyDied;
             mire.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, health);
             var knockbackReceiver = mire.AddComponent<KnockbackReceiver>();
@@ -623,10 +663,10 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(1f, 18f, 5.5f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
-                    contactDamage.Configure(1f);
+                    contactDamage.Configure(1f * modifiers.DamageMultiplier);
 
                     var wanderer = mire.AddComponent<MireWanderer>();
-                    wanderer.Configure(player, Random.Range(3.2f, 3.6f), 3f, 18f);
+                    wanderer.Configure(player, Random.Range(3.2f, 3.6f) * modifiers.SpeedMultiplier, 3f, 18f);
                     rewards.Configure(1, 1.5f);
                     break;
                 }
@@ -635,6 +675,10 @@ namespace Dagon.Gameplay
                     knockbackReceiver.Configure(0.85f, 18f, 5f);
                     var shooter = mire.AddComponent<DrownedAcolyteShooter>();
                     shooter.Configure(player, acolyteProjectilePrefab, Random.Range(2.4f, 2.8f), 6f, 1.6f, worldCamera);
+                    if (isCorrupted)
+                    {
+                        shooter.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
+                    }
                     rewards.Configure(3, 3f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
@@ -643,6 +687,10 @@ namespace Dagon.Gameplay
                     knockbackReceiver.Configure(0.8f, 18f, 5f);
                     var mermaid = mire.AddComponent<MermaidController>();
                     mermaid.Configure(player, worldCamera, Random.Range(2.1f, 2.4f), 7.1f);
+                    if (isCorrupted)
+                    {
+                        mermaid.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
+                    }
                     rewards.Configure(4, 4.5f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
@@ -651,6 +699,10 @@ namespace Dagon.Gameplay
                     knockbackReceiver.Configure(0.7f, 18f, 5f);
                     var watcherEye = mire.AddComponent<WatcherEyeController>();
                     watcherEye.Configure(player, watcherEyeProjectilePrefab, worldCamera, Random.Range(2.2f, 2.5f), 7.8f);
+                    if (isCorrupted)
+                    {
+                        watcherEye.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
+                    }
                     rewards.Configure(1, 1.75f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
@@ -658,9 +710,13 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(1.2f, 16f, 5.8f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
-                    contactDamage.Configure(1f);
+                    contactDamage.Configure(1f * modifiers.DamageMultiplier);
                     var parasite = mire.AddComponent<ParasiteChaser>();
                     parasite.Configure(player, Random.Range(7.5f, 8f), 0.2f);
+                    if (isCorrupted)
+                    {
+                        parasite.ApplyCorruptionModifiers(modifiers.SpeedMultiplier);
+                    }
                     rewards.Configure(1, 0f);
                     break;
                 }
@@ -677,7 +733,7 @@ namespace Dagon.Gameplay
                 }
             }
 
-            ConfigureVisuals(mire.transform, enemyKind);
+            ConfigureVisuals(mire.transform, enemyKind, isCorrupted);
             ConfigureHealthBar(mire.transform, health, enemyKind);
             RegisterEnemy(mire);
             totalSpawned += 1;
@@ -719,7 +775,7 @@ namespace Dagon.Gameplay
             return spawnedAny;
         }
 
-        private void ConfigureVisuals(Transform enemyRoot, EnemyKind enemyKind)
+        private void ConfigureVisuals(Transform enemyRoot, EnemyKind enemyKind, bool isCorrupted)
         {
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(enemyRoot, false);
@@ -728,7 +784,8 @@ namespace Dagon.Gameplay
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = GetSprite(enemyKind);
             renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite ? 5 : 6;
-            renderer.color = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
+            var baseColor = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
+            renderer.color = baseColor;
 
             if (enemyKind == EnemyKind.MireWretch)
             {
@@ -759,9 +816,14 @@ namespace Dagon.Gameplay
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
+
+            if (isCorrupted)
+            {
+                visuals.AddComponent<CorruptedVariantVisual>().Apply(renderer, baseColor);
+            }
         }
 
-        private bool TrySpawnDeepSpawn(Vector3 position)
+        private bool TrySpawnDeepSpawn(Vector3 position, bool isCorrupted)
         {
             if (deepSpawnPrefab == null)
             {
@@ -769,7 +831,7 @@ namespace Dagon.Gameplay
             }
 
             var deepSpawnObject = Instantiate(deepSpawnPrefab, position, Quaternion.identity, transform);
-            deepSpawnObject.name = $"{EnemyKind.DeepSpawn}_{activeEnemies.Count + 1}";
+            deepSpawnObject.name = $"{(isCorrupted ? "Corrupted" : string.Empty)}{EnemyKind.DeepSpawn}_{activeEnemies.Count + 1}";
 
             var deepSpawn = deepSpawnObject.GetComponent<DeepSpawnPrefab>();
             if (deepSpawn == null)
@@ -779,6 +841,22 @@ namespace Dagon.Gameplay
             }
 
             deepSpawn.Configure(player, worldCamera, enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
+            if (isCorrupted)
+            {
+                var modifiers = CorruptionVariantRules.GetEnemyModifiers(CorruptionVariantRules.EnemyArchetype.Elite);
+                deepSpawn.ApplyCorruptionModifiers(
+                    modifiers.HealthMultiplier,
+                    modifiers.DamageMultiplier,
+                    modifiers.SpeedMultiplier,
+                    modifiers.CadenceMultiplier);
+                var visuals = deepSpawnObject.transform.Find("Visuals");
+                var renderer = visuals != null ? visuals.GetComponent<SpriteRenderer>() : null;
+                if (renderer != null)
+                {
+                    var baseColor = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
+                    renderer.gameObject.AddComponent<CorruptedVariantVisual>().Apply(renderer, baseColor);
+                }
+            }
 
             var health = deepSpawn.HealthComponent;
             if (health == null)
@@ -792,6 +870,32 @@ namespace Dagon.Gameplay
             RegisterEnemy(deepSpawnObject);
             totalSpawned += 1;
             return true;
+        }
+
+        private bool ShouldSpawnCorruptedEnemy(EnemyKind enemyKind)
+        {
+            if (corruptionMeter == null && player != null)
+            {
+                corruptionMeter = player.GetComponent<CorruptionMeter>();
+            }
+
+            if (corruptionMeter == null)
+            {
+                return false;
+            }
+
+            return Random.value <= CorruptionVariantRules.GetEnemyCorruptionChance(corruptionMeter.CurrentCorruption);
+        }
+
+        private static CorruptionVariantRules.EnemyArchetype GetEnemyArchetype(EnemyKind enemyKind)
+        {
+            return enemyKind switch
+            {
+                EnemyKind.DrownedAcolyte => CorruptionVariantRules.EnemyArchetype.Specialist,
+                EnemyKind.Mermaid => CorruptionVariantRules.EnemyArchetype.Specialist,
+                EnemyKind.DeepSpawn => CorruptionVariantRules.EnemyArchetype.Elite,
+                _ => CorruptionVariantRules.EnemyArchetype.Fodder
+            };
         }
 
         private void ConfigureHealthBar(Transform enemyRoot, Health health, EnemyKind enemyKind)

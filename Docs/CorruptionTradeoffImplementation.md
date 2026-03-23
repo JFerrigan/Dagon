@@ -218,8 +218,6 @@ Current limitations:
 
 - no corruption-only weapons yet
 - no corruption-only actives yet
-- no corruption-specific enemy variants yet
-- no corruption-specific bosses yet
 - fountain visuals are still simple runtime pickup-style objects
 - corruption popup/UI needs in-editor tuning for readability and feel
 - numeric tuning has not been playtested enough yet
@@ -255,6 +253,47 @@ Key runtime:
 
 - [CorruptionEventDirector](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Gameplay/CorruptionEventDirector.cs)
 - [SpawnDirector](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Gameplay/SpawnDirector.cs)
+- [DeveloperSandboxController](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Bootstrap/DeveloperSandboxController.cs)
+
+## Corrupted Variants
+
+Corruption now has a direct variant layer on top of normal enemy and boss spawning.
+
+Current behavior:
+
+- enemy selection still happens normally first
+- boss selection still happens normally first
+- after selection, the game rolls a corruption chance based on current corruption value
+- no corrupted variants appear below `25` corruption
+- enemies use a higher corruption-roll chance than bosses
+- sandbox manual spawns can force corrupted variants with a toggle
+
+Current scope:
+
+- all normal enemy types can spawn corrupted
+- all current bosses can spawn corrupted
+- corrupted variants use heavier stats in v1
+- corrupted variants do not add new mechanics yet
+
+Visual treatment:
+
+- shared corruption tint layered on top of existing art
+- pulsing corruption overlay on the sprite
+- base silhouette remains unchanged so enemy reads stay intact
+
+Stat direction:
+
+- fodder: heavier health, damage, and move speed
+- specialists: heavier health, damage, and cadence pressure
+- elites: heavier health and damage with modest speed/cadence pressure
+- bosses: heavier health, damage, and cadence with lower corruption odds than enemies
+
+Key runtime:
+
+- [CorruptionVariantRules](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Gameplay/CorruptionVariantRules.cs)
+- [CorruptedVariantVisual](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Gameplay/CorruptedVariantVisual.cs)
+- [SpawnDirector](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Gameplay/SpawnDirector.cs)
+- [RunStateManager](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Gameplay/RunStateManager.cs)
 - [DeveloperSandboxController](/Users/jakeferrigan/Echo Rift/Assets/Scripts/Bootstrap/DeveloperSandboxController.cs)
 
 ## Recommended Next Work

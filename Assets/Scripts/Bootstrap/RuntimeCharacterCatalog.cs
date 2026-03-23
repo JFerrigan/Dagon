@@ -15,7 +15,11 @@ namespace Dagon.Bootstrap
         private static ActiveAbilityDefinition brineSurgeAbility;
         private static ActiveAbilityDefinition dashAbility;
         private static ActiveAbilityDefinition frenzyAbility;
+        private static ActiveAbilityDefinition abyssalRebirthAbility;
+        private static ActiveAbilityDefinition bloodwakeStepAbility;
+        private static ActiveAbilityDefinition riftheartAbility;
         private static WeaponDefinition[] weaponPool;
+        private static ActiveAbilityDefinition[] sandboxActivePool;
         private static CharacterProfileDefinition[] profiles;
 
         public static WeaponDefinition[] GetWeaponPool()
@@ -28,6 +32,12 @@ namespace Dagon.Bootstrap
         {
             EnsureBuilt();
             return profiles;
+        }
+
+        public static ActiveAbilityDefinition[] GetSandboxActivePool()
+        {
+            EnsureBuilt();
+            return sandboxActivePool;
         }
 
         public static CharacterProfileDefinition GetDefaultProfile()
@@ -194,6 +204,45 @@ namespace Dagon.Bootstrap
                 durationSeconds: 4f,
                 magnitude: 2f,
                 charges: 1);
+            abyssalRebirthAbility = ActiveAbilityDefinition.CreateRuntime(
+                "ability.abyssal_rebirth",
+                "Abyssal Rebirth",
+                "Detonate a wide corruption burst and briefly become untouchable.",
+                ActiveAbilityRuntimeKind.AbyssalRebirth,
+                11f,
+                5.8f,
+                6.5f,
+                durationSeconds: 0.6f);
+            bloodwakeStepAbility = ActiveAbilityDefinition.CreateRuntime(
+                "ability.bloodwake_step",
+                "Bloodwake Step",
+                "Dash through bodies and rupture the wake at both ends of the step.",
+                ActiveAbilityRuntimeKind.BloodwakeStep,
+                8f,
+                6.6f,
+                5f,
+                durationSeconds: 0.2f);
+            riftheartAbility = ActiveAbilityDefinition.CreateRuntime(
+                "ability.riftheart",
+                "Riftheart",
+                "Overclock your weapons and orbit corruption shards around your body.",
+                ActiveAbilityRuntimeKind.Riftheart,
+                15f,
+                1.9f,
+                1f,
+                durationSeconds: 4.5f,
+                magnitude: 2.15f,
+                charges: 1);
+
+            sandboxActivePool = new[]
+            {
+                brineSurgeAbility,
+                dashAbility,
+                frenzyAbility,
+                abyssalRebirthAbility,
+                bloodwakeStepAbility,
+                riftheartAbility
+            };
 
             weaponPool = new[]
             {
