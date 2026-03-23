@@ -6,6 +6,7 @@ namespace Dagon.Gameplay
     {
         AcquireWeapon,
         UpgradeWeaponPath,
+        UpgradeActiveAbility,
         MaxHealth,
         CorruptionPulse
     }
@@ -24,6 +25,7 @@ namespace Dagon.Gameplay
             string description,
             WeaponDefinition weaponDefinition = null,
             string targetWeaponId = null,
+            string targetAbilityId = null,
             WeaponUpgradePath? upgradePath = null)
         {
             Kind = kind;
@@ -31,6 +33,7 @@ namespace Dagon.Gameplay
             Description = description;
             WeaponDefinition = weaponDefinition;
             TargetWeaponId = targetWeaponId ?? string.Empty;
+            TargetAbilityId = targetAbilityId ?? string.Empty;
             UpgradePath = upgradePath;
         }
 
@@ -39,6 +42,7 @@ namespace Dagon.Gameplay
         public string Description { get; }
         public WeaponDefinition WeaponDefinition { get; }
         public string TargetWeaponId { get; }
+        public string TargetAbilityId { get; }
         public WeaponUpgradePath? UpgradePath { get; }
     }
 

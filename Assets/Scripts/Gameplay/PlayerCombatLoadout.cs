@@ -217,6 +217,27 @@ namespace Dagon.Gameplay
             return GetActive(slotIndex) as T;
         }
 
+        public ActiveAbilityRuntime GetPrimaryActive()
+        {
+            return GetActive(0);
+        }
+
+        public bool UpgradeActive(string abilityId)
+        {
+            for (var index = 0; index < activeSlots.Count; index++)
+            {
+                var active = activeSlots[index];
+                if (active == null || active.AbilityId != abilityId)
+                {
+                    continue;
+                }
+
+                return active.ApplyUpgrade();
+            }
+
+            return false;
+        }
+
         public ActiveAbilityRuntime EquipActive(int slotIndex, ActiveAbilityDefinition definition)
         {
             if (definition == null)
@@ -264,6 +285,8 @@ namespace Dagon.Gameplay
                 WeaponRuntimeKind.RotLantern => gameObject.AddComponent<RotLanternWeapon>(),
                 WeaponRuntimeKind.BilgeSpray => gameObject.AddComponent<BilgeSprayWeapon>(),
                 WeaponRuntimeKind.RotBeaconBomb => gameObject.AddComponent<RotBeaconBombWeapon>(),
+                WeaponRuntimeKind.Floodline => gameObject.AddComponent<FloodlineWeapon>(),
+                WeaponRuntimeKind.Tideburst => gameObject.AddComponent<TideburstWeapon>(),
                 _ => gameObject.AddComponent<HarpoonLauncher>()
             };
         }
@@ -273,6 +296,8 @@ namespace Dagon.Gameplay
             return definition.RuntimeKind switch
             {
                 ActiveAbilityRuntimeKind.BrineSurge => gameObject.AddComponent<BrineSurgeAbility>(),
+                ActiveAbilityRuntimeKind.Dash => gameObject.AddComponent<DashAbility>(),
+                ActiveAbilityRuntimeKind.Frenzy => gameObject.AddComponent<FrenzyAbility>(),
                 _ => gameObject.AddComponent<BrineSurgeAbility>()
             };
         }

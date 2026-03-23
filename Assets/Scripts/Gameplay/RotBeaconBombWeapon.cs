@@ -129,6 +129,11 @@ namespace Dagon.Gameplay
             basePulseCount = Mathf.Max(1, basePulseCount + amount);
         }
 
+        public override float GetAttackRateEstimate()
+        {
+            return attacksPerSecond;
+        }
+
         protected override void ApplyDefinition(WeaponDefinition runtimeDefinition)
         {
             attacksPerSecond = Mathf.Max(0.1f, runtimeDefinition.AttacksPerSecond);

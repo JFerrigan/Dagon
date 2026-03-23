@@ -17,6 +17,9 @@ namespace Dagon.Data
         [SerializeField] private float cooldown = 6f;
         [SerializeField] private float radius = 2.8f;
         [SerializeField] private float damage = 2f;
+        [SerializeField] private float duration = 0f;
+        [SerializeField] private float magnitude = 0f;
+        [SerializeField] private int charges = 1;
 
         public string AbilityId => abilityId;
         public string DisplayName => displayName;
@@ -25,6 +28,9 @@ namespace Dagon.Data
         public float Cooldown => cooldown;
         public float Radius => radius;
         public float Damage => damage;
+        public float Duration => duration;
+        public float Magnitude => magnitude;
+        public int Charges => charges;
 
         public static ActiveAbilityDefinition CreateRuntime(
             string id,
@@ -33,7 +39,10 @@ namespace Dagon.Data
             ActiveAbilityRuntimeKind kind,
             float cooldownSeconds,
             float radiusAmount,
-            float damageAmount)
+            float damageAmount,
+            float durationSeconds = 0f,
+            float magnitude = 0f,
+            int charges = 1)
         {
             var definition = CreateInstance<ActiveAbilityDefinition>();
             definition.abilityId = id;
@@ -43,6 +52,9 @@ namespace Dagon.Data
             definition.cooldown = cooldownSeconds;
             definition.radius = radiusAmount;
             definition.damage = damageAmount;
+            definition.duration = durationSeconds;
+            definition.magnitude = magnitude;
+            definition.charges = Mathf.Max(1, charges);
             return definition;
         }
     }

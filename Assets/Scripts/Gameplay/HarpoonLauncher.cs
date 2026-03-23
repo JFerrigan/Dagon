@@ -95,6 +95,11 @@ namespace Dagon.Gameplay
             };
         }
 
+        public override float GetAttackRateEstimate()
+        {
+            return attacksPerSecond;
+        }
+
         public void FireVolley()
         {
             var baseDirection = playerMover != null ? playerMover.AimDirection : transform.forward;

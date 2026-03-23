@@ -1,0 +1,13 @@
+{
+  "asset_id": "deckhand",
+  "asset_type": "character_sprite",
+  "prompt": "Playable deckhand survivor for Dagon, rough maritime laborer, close-range brawler silhouette, readable full-body gameplay sprite, isolated on transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Characters/deckhand.png",
+  "source_image": "Tools/AssetGen/generated/deckhand.png",
+  "processed_image": "Tools/AssetGen/processed/deckhand.png",
+  "size": [256, 256],
+  "palette_notes": "mire greens, tar black, brine brown, pale rope cloth, damp sea-worn leather",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Imported from the asset inbox as the first-pass deckhand character art. Shared between portrait and runtime sprite paths for now."
+}

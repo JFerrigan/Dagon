@@ -11,6 +11,22 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class RunStateManager : MonoBehaviour
     {
+        public readonly struct BossVisualSpec
+        {
+            public BossVisualSpec(string resourcePath, float pixelsPerUnit, Vector3 scale, Vector3 localPosition)
+            {
+                ResourcePath = resourcePath;
+                PixelsPerUnit = pixelsPerUnit;
+                Scale = scale;
+                LocalPosition = localPosition;
+            }
+
+            public string ResourcePath { get; }
+            public float PixelsPerUnit { get; }
+            public Vector3 Scale { get; }
+            public Vector3 LocalPosition { get; }
+        }
+
         private enum BossKind
         {
             MireColossus,
@@ -136,8 +152,28 @@ namespace Dagon.Gameplay
         public float RunTimer => runTimer;
         public bool RunEnded => runEnded;
         public bool BossWaveStarted => bossWaveStarted;
+        public int BossesDefeatedCount => bossesDefeatedCount;
         public bool PauseMenuOpen => pauseMenuOpen;
         public event System.Action BossWaveCompleted;
+
+        public static bool TryGetBossVisualSpec(string bossId, out BossVisualSpec spec)
+        {
+            switch (bossId)
+            {
+                case "mire_colossus":
+                    spec = new BossVisualSpec("Sprites/Bosses/mire_colossus", 256f, new Vector3(0.95f, 0.95f, 1f), Vector3.zero);
+                    return true;
+                case "monolith":
+                    spec = new BossVisualSpec("Sprites/Bosses/monolith", 256f, new Vector3(7.75f, 7.75f, 1f), new Vector3(0f, -3.2f, 0f));
+                    return true;
+                case "drowned_admiral":
+                    spec = new BossVisualSpec("Sprites/Bosses/admiral", 256f, new Vector3(2.7f, 2.7f, 1f), Vector3.zero);
+                    return true;
+                default:
+                    spec = default;
+                    return false;
+            }
+        }
 
         private void Start()
         {
@@ -386,6 +422,13 @@ namespace Dagon.Gameplay
             collider.height = definition.ColliderHeight;
             collider.radius = definition.ColliderRadius;
             collider.isTrigger = true;
+            boss.AddComponent<BodyBlocker>().Configure(
+                BodyBlocker.BodyTeam.Enemy,
+                Mathf.Max(0.65f, definition.ColliderRadius * 0.9f),
+                definition.ColliderHeight,
+                3.25f,
+                true,
+                true);
 
             var rigidbody = boss.AddComponent<Rigidbody>();
             rigidbody.isKinematic = true;
@@ -449,7 +492,7 @@ namespace Dagon.Gameplay
 
         private BossRuntimeDefinition ResolveBossDefinition(BossKind bossKind, int defeatedBossCount)
         {
-            var healthMultiplier = 1f + (defeatedBossCount * 0.35f);
+            var healthMultiplier = 1f + (defeatedBossCount * 0.75f) + (defeatedBossCount * defeatedBossCount * 0.20f);
             return bossKind switch
             {
                 BossKind.Monolith => new BossRuntimeDefinition(
@@ -484,7 +527,7 @@ namespace Dagon.Gameplay
                     2.8f,
                     0.75f,
                     new Vector3(0f, 2.55f, 0f),
-                    new Vector3(1.35f, 1.35f, 1f),
+                    new Vector3(2.7f, 2.7f, 1f),
                     Vector3.zero,
                     0f,
                     0f,
@@ -772,7 +815,13 @@ namespace Dagon.Gameplay
 
         private bool IsUpgradeOverlayOpen()
         {
-            return experienceController != null && experienceController.HasPendingChoice;
+            if (experienceController != null && experienceController.HasPendingChoice)
+            {
+                return true;
+            }
+
+            var corruptionEffects = player != null ? player.GetComponent<CorruptionRuntimeEffects>() : null;
+            return corruptionEffects != null && corruptionEffects.HasPendingChoice;
         }
 
         private void TogglePauseMenu()

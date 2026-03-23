@@ -18,12 +18,17 @@ namespace Dagon.Core
 
         private float currentCorruption;
         private int highestThresholdIndex = -1;
+        private float corruptionGainMultiplier = 1f;
 
         public event Action<int> ThresholdReached;
+        public event Action<int, int> StageChanged;
 
         public float CurrentCorruption => currentCorruption;
         public float MaxCorruption => maxCorruption;
         public float NormalizedCorruption => maxCorruption <= 0f ? 0f : currentCorruption / maxCorruption;
+        public float CorruptionGainMultiplier => corruptionGainMultiplier;
+        public int CurrentStageIndex => GetStageIndexForValue(currentCorruption);
+        public float[] ThresholdValues => thresholdValues;
 
         public void AddCorruption(float amount)
         {
@@ -32,35 +37,107 @@ namespace Dagon.Core
                 return;
             }
 
-            currentCorruption = Mathf.Clamp(currentCorruption + amount, 0f, maxCorruption);
-            RefreshThresholds();
+            SetCorruptionInternal(currentCorruption + (amount * corruptionGainMultiplier));
+        }
+
+        public void ReduceCorruption(float amount)
+        {
+            if (amount <= 0f)
+            {
+                return;
+            }
+
+            SetCorruptionInternal(currentCorruption - amount);
         }
 
         public void SetCorruption(float amount)
         {
-            currentCorruption = Mathf.Clamp(amount, 0f, maxCorruption);
-            RefreshThresholds();
+            SetCorruptionInternal(amount);
         }
 
         public void ResetMeter()
         {
+            var previousStageIndex = CurrentStageIndex;
             currentCorruption = 0f;
             highestThresholdIndex = -1;
+            corruptionGainMultiplier = 1f;
+            if (previousStageIndex != -1)
+            {
+                StageChanged?.Invoke(previousStageIndex, -1);
+            }
+        }
+
+        public void SetCorruptionGainMultiplier(float multiplier)
+        {
+            corruptionGainMultiplier = Mathf.Max(0f, multiplier);
+        }
+
+        public float GetThresholdValue(int thresholdIndex)
+        {
+            if (thresholdValues == null || thresholdIndex < 0 || thresholdIndex >= thresholdValues.Length)
+            {
+                return maxCorruption;
+            }
+
+            return thresholdValues[thresholdIndex];
+        }
+
+        private void SetCorruptionInternal(float amount)
+        {
+            var previousStageIndex = CurrentStageIndex;
+            currentCorruption = Mathf.Clamp(amount, 0f, maxCorruption);
+            RefreshThresholds();
+            var nextStageIndex = CurrentStageIndex;
+            if (previousStageIndex != nextStageIndex)
+            {
+                StageChanged?.Invoke(previousStageIndex, nextStageIndex);
+            }
         }
 
         private void RefreshThresholds()
         {
-            for (var i = highestThresholdIndex + 1; i < thresholdValues.Length; i++)
+            var nextHighestThresholdIndex = -1;
+            for (var i = 0; i < thresholdValues.Length; i++)
             {
                 if (currentCorruption < thresholdValues[i])
                 {
                     break;
                 }
 
-                highestThresholdIndex = i;
+                nextHighestThresholdIndex = i;
+            }
+
+            if (nextHighestThresholdIndex <= highestThresholdIndex)
+            {
+                highestThresholdIndex = nextHighestThresholdIndex;
+                return;
+            }
+
+            for (var i = highestThresholdIndex + 1; i <= nextHighestThresholdIndex; i++)
+            {
                 onThresholdReached?.Invoke(i);
                 ThresholdReached?.Invoke(i);
             }
+
+            highestThresholdIndex = nextHighestThresholdIndex;
+        }
+
+        private int GetStageIndexForValue(float value)
+        {
+            if (thresholdValues == null || thresholdValues.Length == 0)
+            {
+                return -1;
+            }
+
+            for (var i = thresholdValues.Length - 1; i >= 0; i--)
+            {
+                if (value >= thresholdValues[i])
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
     }
 }

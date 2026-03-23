@@ -13,11 +13,15 @@ namespace Dagon.Gameplay
         [SerializeField] private Transform movementReference;
         [SerializeField] private float moveSpeed = 6f;
         [SerializeField] private PlayerSlowReceiver slowReceiver;
+        [SerializeField] private BodyBlocker bodyBlocker;
 
         private Vector3 aimDirection = Vector3.forward;
+        private float dashRemaining;
+        private Vector3 dashVelocity;
 
         public Vector3 AimDirection => aimDirection;
         public Vector3 MoveDirection { get; private set; }
+        public bool IsDashing => dashRemaining > 0f;
 
         private void OnEnable()
         {
@@ -27,6 +31,11 @@ namespace Dagon.Gameplay
             if (slowReceiver == null)
             {
                 slowReceiver = GetComponent<PlayerSlowReceiver>();
+            }
+
+            if (bodyBlocker == null)
+            {
+                bodyBlocker = GetComponent<BodyBlocker>();
             }
         }
 
@@ -38,12 +47,26 @@ namespace Dagon.Gameplay
 
         private void Update()
         {
+            if (dashRemaining > 0f)
+            {
+                bodyBlocker?.SetSuppressed(true);
+                dashRemaining = Mathf.Max(0f, dashRemaining - Time.deltaTime);
+                transform.position += dashVelocity * Time.deltaTime;
+                aimDirection = dashVelocity.sqrMagnitude > 0.001f ? dashVelocity.normalized : aimDirection;
+                return;
+            }
+
+            bodyBlocker?.SetSuppressed(false);
+
             MoveDirection = ResolveMoveDirection();
 
             if (MoveDirection.sqrMagnitude > 0f)
             {
                 var speedMultiplier = slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f;
-                transform.position += MoveDirection * (moveSpeed * speedMultiplier * Time.deltaTime);
+                var desiredDelta = MoveDirection * (moveSpeed * speedMultiplier * Time.deltaTime);
+                transform.position += bodyBlocker != null
+                    ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
+                    : desiredDelta;
             }
 
             UpdateAimDirection();
@@ -150,6 +173,27 @@ namespace Dagon.Gameplay
         {
             worldCamera = cameraReference;
             movementReference = movementFrame;
+            bodyBlocker ??= GetComponent<BodyBlocker>();
+        }
+
+        public bool StartDash(Vector3 direction, float distance, float duration)
+        {
+            if (dashRemaining > 0f || duration <= 0f)
+            {
+                return false;
+            }
+
+            var resolvedDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : aimDirection;
+            if (resolvedDirection.sqrMagnitude <= 0.001f)
+            {
+                resolvedDirection = Vector3.forward;
+            }
+
+            dashRemaining = Mathf.Max(0.05f, duration);
+            dashVelocity = resolvedDirection * (distance / dashRemaining);
+            MoveDirection = resolvedDirection;
+            aimDirection = resolvedDirection;
+            return true;
         }
     }
 }

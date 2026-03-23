@@ -35,6 +35,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float sirenSlowDuration = 0.85f;
         [SerializeField] private float recoveryDuration = 0.55f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
+        [SerializeField] private BodyBlocker bodyBlocker;
 
         private float stateTimer;
         private float sirenCooldownTimer;
@@ -49,6 +50,11 @@ namespace Dagon.Gameplay
             if (slowReceiver == null)
             {
                 slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+
+            if (bodyBlocker == null)
+            {
+                bodyBlocker = GetComponent<BodyBlocker>();
             }
 
             state = State.Reposition;
@@ -159,7 +165,14 @@ namespace Dagon.Gameplay
 
             var speed = distance < closeRange ? retreatSpeed : moveSpeed;
             var effectiveSpeed = speed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
-            transform.position += desiredVelocity.normalized * (effectiveSpeed * Time.deltaTime);
+            ApplyMovement(desiredVelocity.normalized * (effectiveSpeed * Time.deltaTime));
+        }
+
+        private void ApplyMovement(Vector3 desiredDelta)
+        {
+            transform.position += bodyBlocker != null
+                ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
+                : desiredDelta;
         }
 
         private void TryQueueAbility(Vector3 toTarget)

@@ -13,6 +13,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float chargeDuration = 1.2f;
         [SerializeField] private float recoveryDuration = 1.4f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
+        [SerializeField] private BodyBlocker bodyBlocker;
 
         private float stateTimer;
         private State state;
@@ -30,6 +31,11 @@ namespace Dagon.Gameplay
             if (slowReceiver == null)
             {
                 slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+
+            if (bodyBlocker == null)
+            {
+                bodyBlocker = GetComponent<BodyBlocker>();
             }
         }
 
@@ -104,7 +110,7 @@ namespace Dagon.Gameplay
             }
 
             var effectiveSpeed = driftSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
-            transform.position += toTarget.normalized * (effectiveSpeed * Time.deltaTime);
+            ApplyMovement(toTarget.normalized * (effectiveSpeed * Time.deltaTime));
         }
 
         private void Charge(Vector3 toTarget)
@@ -115,7 +121,14 @@ namespace Dagon.Gameplay
             }
 
             var effectiveSpeed = chargeSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
-            transform.position += toTarget.normalized * (effectiveSpeed * Time.deltaTime);
+            ApplyMovement(toTarget.normalized * (effectiveSpeed * Time.deltaTime));
+        }
+
+        private void ApplyMovement(Vector3 desiredDelta)
+        {
+            transform.position += bodyBlocker != null
+                ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
+                : desiredDelta;
         }
     }
 }

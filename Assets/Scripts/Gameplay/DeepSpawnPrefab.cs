@@ -36,6 +36,7 @@ namespace Dagon.Gameplay
         private DeepSpawnBruiser bruiser;
         private Hurtbox hurtbox;
         private KnockbackReceiver knockbackReceiver;
+        private BodyBlocker bodyBlocker;
         private EnemyHealthBar healthBar;
         private BillboardSprite billboard;
         private SpriteRenderer spriteRenderer;
@@ -75,6 +76,7 @@ namespace Dagon.Gameplay
             bruiser = GetOrAddComponent(bruiser);
             hurtbox = GetOrAddComponent(hurtbox);
             knockbackReceiver = GetOrAddComponent(knockbackReceiver);
+            bodyBlocker = GetOrAddComponent(bodyBlocker);
             healthBar = GetOrAddComponent(healthBar);
 
             var capsuleCollider = GetOrAddComponent<CapsuleCollider>(null);
@@ -89,6 +91,7 @@ namespace Dagon.Gameplay
 
             hurtbox.Configure(CombatTeam.Enemy, health);
             knockbackReceiver.Configure(0.45f, 20f, 4.5f);
+            bodyBlocker.Configure(BodyBlocker.BodyTeam.Enemy, 0.62f, colliderHeight, 1.8f, true, true);
 
             if (visualsRoot == null)
             {

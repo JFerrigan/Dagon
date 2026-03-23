@@ -71,6 +71,16 @@ namespace Dagon.Gameplay
                 return false;
             }
 
+            var immunity = result.TargetRoot != null ? result.TargetRoot.GetComponentInParent<TemporaryDamageImmunity>() : null;
+            if (immunity != null && immunity.IsActive)
+            {
+                CombatDebug.Log(
+                    "ApplyDamage",
+                    $"hit={CombatDebug.NameOf(result.Collider)} source={CombatDebug.NameOf(sourceOwner)} target={CombatDebug.NameOf(result.TargetRoot)} damage={damage:0.##} applied=false reason=temporary_immunity",
+                    result.Collider);
+                return false;
+            }
+
             CombatDebug.Log(
                 "ApplyDamage",
                 $"hit={CombatDebug.NameOf(result.Collider)} source={CombatDebug.NameOf(sourceOwner)} target={CombatDebug.NameOf(result.TargetRoot)} damage={damage:0.##} applied=true",

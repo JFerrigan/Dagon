@@ -31,6 +31,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float orbDamage = 0.9f;
         [SerializeField] private float recoveryDuration = 0.4f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
+        [SerializeField] private BodyBlocker bodyBlocker;
 
         private float orbCooldownTimer;
         private float stateTimer;
@@ -45,6 +46,11 @@ namespace Dagon.Gameplay
             if (slowReceiver == null)
             {
                 slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+
+            if (bodyBlocker == null)
+            {
+                bodyBlocker = GetComponent<BodyBlocker>();
             }
 
             hoverSwapTimer = Random.Range(0.7f, 1.4f);
@@ -153,7 +159,14 @@ namespace Dagon.Gameplay
             }
 
             var effectiveSpeed = hoverSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
-            transform.position += desiredVelocity.normalized * (effectiveSpeed * Time.deltaTime);
+            ApplyMovement(desiredVelocity.normalized * (effectiveSpeed * Time.deltaTime));
+        }
+
+        private void ApplyMovement(Vector3 desiredDelta)
+        {
+            transform.position += bodyBlocker != null
+                ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
+                : desiredDelta;
         }
 
         private void TryQueueAttack(Vector3 toTarget)

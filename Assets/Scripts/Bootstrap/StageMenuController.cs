@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Dagon.Data;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -30,6 +31,7 @@ namespace Dagon.Bootstrap
         private enum MenuView
         {
             Main,
+            CharacterSelect,
             Alterations
         }
 
@@ -81,6 +83,8 @@ namespace Dagon.Bootstrap
         private Texture2D menuBackground;
         private Texture2D menuLogo;
         private Texture2D whiteTexture;
+        private CharacterProfileDefinition[] characterProfiles;
+        private Texture2D[] characterPortraits;
 
         private GUIStyle titleStyle;
         private GUIStyle panelStyle;
@@ -88,6 +92,8 @@ namespace Dagon.Bootstrap
         private GUIStyle settingsLabelStyle;
         private GUIStyle settingsValueStyle;
         private GUIStyle settingsButtonStyle;
+        private GUIStyle characterNameStyle;
+        private GUIStyle characterBodyStyle;
 
         private MenuOptionArt enterOptionArt;
         private MenuOptionArt alterationsOptionArt;
@@ -97,6 +103,7 @@ namespace Dagon.Bootstrap
         private MenuSelection currentSelection = MenuSelection.Enter;
         private bool keyboardMainMenuHighlightEnabled = true;
         private AlterationsSelection currentAlterationsSelection = AlterationsSelection.MasterVolume;
+        private int currentCharacterSelectionIndex;
 
         private List<ResolutionOption> resolutionOptions;
         private int currentResolutionIndex;
@@ -115,6 +122,8 @@ namespace Dagon.Bootstrap
             enterOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(EnterResourcePath));
             alterationsOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(AlterationsResourcePath));
             exitOptionArt = new MenuOptionArt(Resources.Load<Texture2D>(ExitResourcePath));
+            characterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
+            characterPortraits = LoadCharacterPortraits(characterProfiles);
 
             BuildResolutionOptions();
             LoadSettings();
@@ -155,6 +164,10 @@ namespace Dagon.Bootstrap
             {
                 DrawMainMenu(left, top, width, hoveredMainMenuSelection);
             }
+            else if (currentView == MenuView.CharacterSelect)
+            {
+                DrawCharacterSelect(left, top, width, height);
+            }
             else
             {
                 DrawAlterationsMenu(left, top, width, height);
@@ -178,6 +191,10 @@ namespace Dagon.Bootstrap
                 {
                     HandleMainMenuInput(currentEvent, hoveredMainMenuSelection);
                 }
+                else if (currentView == MenuView.CharacterSelect)
+                {
+                    HandleCharacterSelectInput(currentEvent);
+                }
                 else
                 {
                     HandleAlterationsInput(currentEvent);
@@ -200,6 +217,19 @@ namespace Dagon.Bootstrap
                         currentEvent.Use();
                     }
                 }
+                else if (currentView == MenuView.CharacterSelect)
+                {
+                    if (currentEvent.delta.y > 0f)
+                    {
+                        MoveCharacterSelection(1);
+                        currentEvent.Use();
+                    }
+                    else if (currentEvent.delta.y < 0f)
+                    {
+                        MoveCharacterSelection(-1);
+                        currentEvent.Use();
+                    }
+                }
                 else
                 {
                     if (currentEvent.delta.y > 0f)
@@ -213,6 +243,36 @@ namespace Dagon.Bootstrap
                         currentEvent.Use();
                     }
                 }
+            }
+        }
+
+        private void HandleCharacterSelectInput(Event currentEvent)
+        {
+            if (currentEvent.keyCode == KeyCode.LeftArrow || currentEvent.keyCode == KeyCode.A)
+            {
+                MoveCharacterSelection(-1);
+                currentEvent.Use();
+                return;
+            }
+
+            if (currentEvent.keyCode == KeyCode.RightArrow || currentEvent.keyCode == KeyCode.D)
+            {
+                MoveCharacterSelection(1);
+                currentEvent.Use();
+                return;
+            }
+
+            if (currentEvent.keyCode == KeyCode.Escape || currentEvent.keyCode == KeyCode.Backspace)
+            {
+                ReturnToMainMenu();
+                currentEvent.Use();
+                return;
+            }
+
+            if (currentEvent.keyCode == KeyCode.Return || currentEvent.keyCode == KeyCode.KeypadEnter || currentEvent.keyCode == KeyCode.Space)
+            {
+                ActivateCharacterSelection();
+                currentEvent.Use();
             }
         }
 
@@ -328,6 +388,81 @@ namespace Dagon.Bootstrap
             {
                 currentAlterationsSelection = AlterationsSelection.Back;
             }
+        }
+
+        private void DrawCharacterSelect(float left, float top, float width, float height)
+        {
+            DrawLogo(left, top - 24f, width);
+
+            var panelRect = new Rect(left + 24f, top + 184f, width - 48f, height - 136f);
+            GUI.color = new Color(0.04f, 0.07f, 0.07f, 0.92f);
+            GUI.Box(panelRect, GUIContent.none, panelStyle);
+            GUI.color = Color.white;
+
+            GUI.Label(new Rect(panelRect.x + 28f, panelRect.y + 18f, panelRect.width - 56f, 38f), "CHOOSE YOUR SURVIVOR", panelTitleStyle);
+            GUI.Label(new Rect(panelRect.x + 28f, panelRect.y + 54f, panelRect.width - 56f, 22f), "Each character starts with a different weapon and signature active.", settingsValueStyle);
+
+            if (characterProfiles == null || characterProfiles.Length == 0)
+            {
+                return;
+            }
+
+            const float gap = 18f;
+            var cardWidth = (panelRect.width - 56f - (gap * 2f)) / 3f;
+            var cardHeight = panelRect.height - 132f;
+            var cardTop = panelRect.y + 92f;
+            var mousePosition = Event.current != null ? Event.current.mousePosition : Vector2.zero;
+
+            for (var index = 0; index < characterProfiles.Length; index++)
+            {
+                var cardLeft = panelRect.x + 28f + (index * (cardWidth + gap));
+                var cardRect = new Rect(cardLeft, cardTop, cardWidth, cardHeight);
+                var isSelected = index == currentCharacterSelectionIndex;
+                var isHovered = cardRect.Contains(mousePosition);
+                DrawCharacterCard(cardRect, characterProfiles[index], characterPortraits != null && index < characterPortraits.Length ? characterPortraits[index] : null, isSelected || isHovered);
+
+                if (isHovered)
+                {
+                    currentCharacterSelectionIndex = index;
+                }
+
+                if (Event.current != null && Event.current.type == EventType.MouseDown && Event.current.button == 0 && cardRect.Contains(Event.current.mousePosition))
+                {
+                    currentCharacterSelectionIndex = index;
+                    ActivateCharacterSelection();
+                    Event.current.Use();
+                }
+            }
+
+            var footerRect = new Rect(panelRect.x + 28f, panelRect.yMax - 30f, panelRect.width - 56f, 20f);
+            GUI.Label(footerRect, "Enter: Confirm    Esc: Back", settingsValueStyle);
+        }
+
+        private void DrawCharacterCard(Rect rect, CharacterProfileDefinition profile, Texture2D portrait, bool highlighted)
+        {
+            var accent = profile != null ? profile.AccentColor : Color.white;
+            GUI.color = highlighted
+                ? new Color(accent.r * 0.25f + 0.12f, accent.g * 0.25f + 0.12f, accent.b * 0.25f + 0.12f, 0.96f)
+                : new Color(0.08f, 0.12f, 0.11f, 0.9f);
+            GUI.DrawTexture(rect, whiteTexture, ScaleMode.StretchToFill, false);
+
+            GUI.color = highlighted
+                ? new Color(accent.r, accent.g, accent.b, 0.92f)
+                : new Color(0.24f, 0.32f, 0.30f, 0.92f);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 2f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.DrawTexture(new Rect(rect.x, rect.yMax - 2f, rect.width, 2f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = Color.white;
+
+            var portraitRect = new Rect(rect.x + 18f, rect.y + 18f, rect.width - 36f, rect.height * 0.48f);
+            if (portrait != null)
+            {
+                GUI.DrawTexture(GetNativeImageRect(portraitRect, portrait), portrait, ScaleMode.ScaleToFit, true);
+            }
+
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 8f, rect.width - 32f, 26f), profile.DisplayName, characterNameStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 36f, rect.width - 32f, 18f), profile.StartingBaseWeapon.DisplayName, settingsValueStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 58f, rect.width - 32f, 18f), profile.StartingActive.DisplayName, settingsValueStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 86f, rect.width - 32f, rect.height - (portraitRect.height + 120f)), profile.Description, characterBodyStyle);
         }
 
         private void DrawMasterVolumeRow(Rect rect, AlterationsSelection selection)
@@ -498,7 +633,8 @@ namespace Dagon.Bootstrap
             switch (selection)
             {
                 case MenuSelection.Enter:
-                    SceneManager.LoadScene(BlackMireSceneName);
+                    currentView = MenuView.CharacterSelect;
+                    currentCharacterSelectionIndex = 0;
                     break;
                 case MenuSelection.Alterations:
                     currentView = MenuView.Alterations;
@@ -626,6 +762,7 @@ namespace Dagon.Bootstrap
         private void ReturnToMainMenu()
         {
             currentView = MenuView.Main;
+            currentCharacterSelectionIndex = 0;
         }
 
         private void BuildResolutionOptions()
@@ -852,6 +989,22 @@ namespace Dagon.Bootstrap
                 alignment = TextAnchor.MiddleCenter
             };
 
+            characterNameStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 24,
+                fontStyle = FontStyle.Bold
+            };
+            characterNameStyle.normal.textColor = new Color(0.94f, 0.96f, 0.90f, 1f);
+
+            characterBodyStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.UpperLeft,
+                fontSize = 16,
+                wordWrap = true
+            };
+            characterBodyStyle.normal.textColor = new Color(0.80f, 0.87f, 0.82f, 1f);
+
         }
 
         private void DrawBackground()
@@ -1012,6 +1165,61 @@ namespace Dagon.Bootstrap
             var clampedHeight = frameRect.width / textureAspect;
             var y = frameRect.y + ((frameRect.height - clampedHeight) * 0.5f);
             return new Rect(frameRect.x, y, frameRect.width, clampedHeight);
+        }
+
+        private void MoveCharacterSelection(int direction)
+        {
+            if (characterProfiles == null || characterProfiles.Length == 0)
+            {
+                currentCharacterSelectionIndex = 0;
+                return;
+            }
+
+            currentCharacterSelectionIndex += direction;
+            if (currentCharacterSelectionIndex < 0)
+            {
+                currentCharacterSelectionIndex = characterProfiles.Length - 1;
+            }
+            else if (currentCharacterSelectionIndex >= characterProfiles.Length)
+            {
+                currentCharacterSelectionIndex = 0;
+            }
+        }
+
+        private void ActivateCharacterSelection()
+        {
+            if (characterProfiles == null || characterProfiles.Length == 0)
+            {
+                SceneManager.LoadScene(BlackMireSceneName);
+                return;
+            }
+
+            var selectedProfile = characterProfiles[Mathf.Clamp(currentCharacterSelectionIndex, 0, characterProfiles.Length - 1)];
+            RunSelectionState.SelectCharacter(selectedProfile.CharacterId);
+            SceneManager.LoadScene(BlackMireSceneName);
+        }
+
+        private static Texture2D[] LoadCharacterPortraits(CharacterProfileDefinition[] profiles)
+        {
+            if (profiles == null || profiles.Length == 0)
+            {
+                return System.Array.Empty<Texture2D>();
+            }
+
+            var textures = new Texture2D[profiles.Length];
+            for (var i = 0; i < profiles.Length; i++)
+            {
+                if (profiles[i] == null || string.IsNullOrWhiteSpace(profiles[i].PortraitSpritePath))
+                {
+                    textures[i] = null;
+                    continue;
+                }
+
+                var sprite = Resources.Load<Sprite>(profiles[i].PortraitSpritePath);
+                textures[i] = sprite != null ? sprite.texture : null;
+            }
+
+            return textures;
         }
     }
 }

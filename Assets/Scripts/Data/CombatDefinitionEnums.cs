@@ -6,7 +6,9 @@ namespace Dagon.Data
         AnchorChain,
         RotLantern,
         BilgeSpray,
-        RotBeaconBomb
+        RotBeaconBomb,
+        Floodline,
+        Tideburst
     }
 
     public enum WeaponProjectileVisualKind
@@ -17,6 +19,8 @@ namespace Dagon.Data
 
     public enum ActiveAbilityRuntimeKind
     {
-        BrineSurge
+        BrineSurge,
+        Dash,
+        Frenzy
     }
 }

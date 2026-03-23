@@ -87,7 +87,7 @@ namespace Dagon.Gameplay
 
             AddWeightedPathOffer(selected, usedKeys);
             AddWeightedPathOffer(selected, usedKeys);
-            AddNewWeaponOrGlobalOffer(selected, usedKeys);
+            AddNewWeaponActiveOrGlobalOffer(selected, usedKeys);
 
             while (selected.Count < 3 && AddWeightedPathOffer(selected, usedKeys))
             {
@@ -112,6 +112,9 @@ namespace Dagon.Gameplay
                     {
                         combatLoadout?.UpgradeWeapon(reward.TargetWeaponId, reward.UpgradePath.Value);
                     }
+                    break;
+                case CombatRewardKind.UpgradeActiveAbility:
+                    combatLoadout?.UpgradeActive(reward.TargetAbilityId);
                     break;
                 case CombatRewardKind.MaxHealth:
                     if (health != null)
@@ -170,7 +173,7 @@ namespace Dagon.Gameplay
             candidates.Add((reward, weapon.GetPathSelectionWeight(path)));
         }
 
-        private void AddNewWeaponOrGlobalOffer(List<CombatRewardOption> selected, HashSet<string> usedKeys)
+        private void AddNewWeaponActiveOrGlobalOffer(List<CombatRewardOption> selected, HashSet<string> usedKeys)
         {
             var candidates = new List<(CombatRewardOption reward, float weight)>();
             if (combatLoadout != null)
@@ -186,6 +189,12 @@ namespace Dagon.Gameplay
                     {
                         candidates.Add((reward, GetWeaponOfferWeight(definition.WeaponId)));
                     }
+                }
+
+                var active = combatLoadout.GetPrimaryActive();
+                if (active != null && active.TryBuildUpgradeReward(out var activeReward) && !usedKeys.Contains(BuildOfferKey(activeReward)))
+                {
+                    candidates.Add((activeReward, 9.5f));
                 }
             }
 
@@ -238,7 +247,7 @@ namespace Dagon.Gameplay
 
         private static string BuildOfferKey(CombatRewardOption reward)
         {
-            return $"{reward.Kind}:{reward.TargetWeaponId}:{reward.UpgradePath}:{reward.Title}";
+            return $"{reward.Kind}:{reward.TargetWeaponId}:{reward.TargetAbilityId}:{reward.UpgradePath}:{reward.Title}";
         }
 
         private static float GetWeaponOfferWeight(string weaponId)
@@ -249,6 +258,8 @@ namespace Dagon.Gameplay
                 "weapon.rot_lantern" => 9f,
                 "weapon.bilge_spray" => 8f,
                 "weapon.rot_beacon_bomb" => 8.5f,
+                "weapon.floodline" => 8.75f,
+                "weapon.tideburst" => 8.25f,
                 _ => 5f
             };
         }

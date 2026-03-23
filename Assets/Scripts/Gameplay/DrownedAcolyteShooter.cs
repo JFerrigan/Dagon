@@ -26,6 +26,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float volleySpread = 24f;
         [SerializeField] private Camera worldCamera;
         [SerializeField] private EnemySlowReceiver slowReceiver;
+        [SerializeField] private BodyBlocker bodyBlocker;
 
         private float fireTimer;
         private float stateTimer;
@@ -37,6 +38,11 @@ namespace Dagon.Gameplay
             if (slowReceiver == null)
             {
                 slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+
+            if (bodyBlocker == null)
+            {
+                bodyBlocker = GetComponent<BodyBlocker>();
             }
 
             state = State.Reposition;
@@ -122,12 +128,19 @@ namespace Dagon.Gameplay
             var effectiveSpeed = moveSpeed * moveMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             if (distance > preferredRange + 0.75f)
             {
-                transform.position += toTarget.normalized * (effectiveSpeed * Time.deltaTime);
+                ApplyMovement(toTarget.normalized * (effectiveSpeed * Time.deltaTime));
             }
             else if (distance < preferredRange - 0.65f)
             {
-                transform.position -= toTarget.normalized * (effectiveSpeed * Time.deltaTime);
+                ApplyMovement(-toTarget.normalized * (effectiveSpeed * Time.deltaTime));
             }
+        }
+
+        private void ApplyMovement(Vector3 desiredDelta)
+        {
+            transform.position += bodyBlocker != null
+                ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
+                : desiredDelta;
         }
 
         private void TryStartVolley(Vector3 toTarget, float distance)

@@ -1,0 +1,13 @@
+{
+  "asset_id": "captain",
+  "asset_type": "character_sprite",
+  "prompt": "Playable female military captain survivor for Dagon, disciplined maritime officer, commanding readable silhouette, isolated gameplay sprite on transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Characters/captain.png",
+  "source_image": "Tools/AssetGen/generated/captain.png",
+  "processed_image": "Tools/AssetGen/processed/captain.png",
+  "size": [256, 256],
+  "palette_notes": "aged navy cloth, brass trim, algae green accents, swamp black, pale mire light",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Imported from the asset inbox as the first-pass captain character art. Shared between portrait and runtime sprite paths for now."
+}

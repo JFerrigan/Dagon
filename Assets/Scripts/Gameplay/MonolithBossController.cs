@@ -148,6 +148,13 @@ namespace Dagon.Gameplay
             collider.center = colliderCenter;
             collider.radius = colliderRadius;
             collider.height = colliderHeight;
+            summon.AddComponent<BodyBlocker>().Configure(
+                BodyBlocker.BodyTeam.Enemy,
+                Mathf.Max(0.28f, colliderRadius * 0.85f),
+                colliderHeight,
+                0.95f,
+                true,
+                true);
 
             var rigidbody = summon.AddComponent<Rigidbody>();
             rigidbody.isKinematic = true;

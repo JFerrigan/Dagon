@@ -335,6 +335,7 @@ namespace Dagon.Gameplay
             collider.center = new Vector3(0f, 0.45f, 0f);
             collider.height = 0.9f;
             collider.radius = 0.38f;
+            parasite.AddComponent<BodyBlocker>().Configure(BodyBlocker.BodyTeam.Enemy, 0.28f, 0.9f, 0.7f, true, true);
 
             var rigidbody = parasite.AddComponent<Rigidbody>();
             rigidbody.isKinematic = true;

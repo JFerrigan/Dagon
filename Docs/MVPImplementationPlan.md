@@ -1,5 +1,114 @@
 # Dagon - MVP Implementation Plan
 
+## Current State Snapshot
+
+This document started as the original MVP plan. The project has moved well past that narrow scope, so this top section records the actual implemented context as of March 2026. The older MVP breakdown below is still useful as historical planning, but it no longer reflects the full game state.
+
+## What Exists Now
+
+### Runtime architecture
+
+- `BlackMire` is the main gameplay scene and canonical run path.
+- Runtime assembly is handled by `SceneRuntimeBuilder`, not the old prototype bootstrap.
+- The main run is now continuous: biome progression happens in-place without scene loads, player repositioning, or run-state reset.
+- `WorldProgressionDirector` advances the active biome after boss kills and refreshes the world locally around the player.
+- `DeveloperSandbox` is a debug scene/runtime path with manual controls and an asset showcase.
+
+### Player / characters
+
+- The game now has three playable characters selected before the run:
+  - `Sailor`: `Harpoon Cast` + `Brine Surge`
+  - `Deckhand`: `Anchor Chain` + `Bilge Dash`
+  - `Captain`: `Rot Lantern` + `Frenzy`
+- Character selection is wired into the main menu flow.
+- Character profiles are data-driven through `CharacterProfileDefinition` and `RuntimeCharacterCatalog`.
+- Character art is now using real imported assets for `Deckhand` and `Captain`, while keeping portrait-path and runtime-sprite-path separate so portraits can diverge later.
+
+### Weapons / actives
+
+- Base and alternate weapons implemented in runtime:
+  - `Harpoon Cast`
+  - `Anchor Chain`
+  - `Rot Lantern`
+  - `Bilge Spray`
+  - `Rot Beacon Bomb`
+  - `Floodline`
+  - `Tideburst`
+- Active abilities implemented:
+  - `Brine Surge`
+  - `Bilge Dash`
+  - `Frenzy`
+- Signature actives can now level up through the reward flow instead of being static one-off skills.
+- Weapon range indicators and active attack-area overlays have been added and iterated for readability.
+
+### Enemy roster
+
+- Fodder:
+  - `Mire Wretch`
+  - `Parasite`
+- Specialists:
+  - `Drowned Acolyte`
+  - `Mermaid`
+  - `Watcher Eye`
+- Elites:
+  - `Deep Spawn`
+- Boss-only summons:
+  - `Wide Leech`
+  - `Tall Leech`
+
+### Boss roster
+
+- `Mire Colossus`
+- `Monolith of the Mire`
+- `Drowned Admiral`
+
+Bosses are now regular interchangeable run bosses:
+
+- the run randomly selects from the boss pool
+- bosses do not repeat until the available pool is exhausted
+- later boss spawns scale based on total bosses previously defeated
+- sandbox boss spawns use the same runtime definition path
+
+### Spawning / progression
+
+- Enemy spawning now uses ambient pressure plus stronger ramping instead of only obvious opening-wave behavior.
+- Spawn rate and alive-cap ramp over time.
+- Boss fights begin inside the existing run state instead of loading a separate boss scene.
+- Ambient enemies can persist into boss fights, with boss-phase spawn throttling instead of a hard full stop.
+- Parasites can spawn in grouped packs.
+- Health pickups now drop from specialist and elite enemies at configured rates.
+
+### Sandbox / debugging support
+
+- Developer sandbox supports:
+  - manual spawn buttons for specific enemies
+  - boss spawn buttons
+  - auto-spawn stop/start toggle
+  - runtime pressure controls
+  - asset showcase gallery
+- The asset showcase is now grouped by category and is being moved toward using the same visual setup data as runtime spawns so size/readability checks are accurate.
+
+## Immediate Implementation Focus
+
+These are the active practical tracks implied by the current repo state:
+
+1. Keep tightening visual parity between the developer asset showcase and real runtime presentation.
+2. Continue tuning character art scale, enemy size, and boss readability based on in-scene comparisons.
+3. Expand the continuous-run content set with additional enemies, bosses, biome art, and pickups without reintroducing hard scene boundaries.
+4. Keep migrating duplicated runtime constants toward shared visual/config helpers so debug tools and gameplay stay aligned.
+5. Close the remaining Unity verification gap by running compile/tests once the project-open lock is removed.
+
+## Notes On Outdated Parts Below
+
+Several sections later in this file describe older assumptions that are no longer true. In particular:
+
+- there are now multiple playable characters
+- there are now multiple bosses
+- the game no longer uses a simple one-boss-one-scene progression model
+- the runtime bootstrap has already evolved beyond the original prototype setup
+
+Treat the rest of this file as baseline MVP history unless a section still matches current implementation.
+
 ## Goal
 
 Build one complete playable run in the black mire that proves:
@@ -11,6 +120,72 @@ Build one complete playable run in the black mire that proves:
 - progression inside a run changes the player build in meaningful ways
 
 This plan is intentionally narrower than the full game vision. It focuses on the minimum functional components needed to ship a defensible first MVP.
+
+## Current Implementation Context
+
+This document started as the narrow MVP plan, but the repo has now moved into a more active combat and iteration pass. The current implementation state is:
+
+- the runtime is still built scene-first through `SceneRuntimeBuilder` and `RuntimeCharacterCatalog`
+- the project has moved beyond the original single-weapon MVP and now includes multiple player weapon runtimes and utility sandbox controls
+- current iteration priority is combat readability, enemy spacing/pressure, sprite-driven presentation cleanup, and faster developer iteration
+
+### Current combat / iteration direction
+
+- low-level combat hit registration has been refactored to support unique-hit resolution across multi-collider targets
+- weapon presentation is being separated from gameplay hit logic so combat can stay dependable even when art changes
+- developer sandbox controls are being expanded to speed up tuning of weapons, enemies, bosses, and progression
+- enemy presentation and prop dressing are being pushed away from placeholder/grid-like staging toward cleaner runtime art integration
+
+### Current implemented combat set
+
+Primary weapons and actives now in active runtime use include:
+
+- `Harpoon Cast`
+- `Anchor Chain`
+- `Rot Lantern`
+- `Bilge Spray`
+- `Rot Beacon Bomb`
+- `Floodline`
+- `Tideburst`
+- `Brine Surge` active
+
+### Current enemy / boss roster in active runtime use
+
+- `Mire Wretch`
+- `Drowned Acolyte`
+- `Mermaid`
+- `Watcher Eye`
+- `Parasite`
+- `Deep Spawn`
+- `Mire Colossus`
+- `Monolith`
+- `Drowned Admiral`
+
+### Current sandbox / tuning support
+
+The developer scene/runtime sandbox now supports:
+
+- live weapon loadout editing
+- live path upgrades
+- manual enemy and boss spawning
+- auto-spawn pressure controls
+- character switching
+- player invincibility toggle
+
+### Current movement / crowding work
+
+Enemy pressure is no longer only a spawn-count problem. Runtime work has started on body blocking and anti-stacking:
+
+- enemies now use a gameplay-side body blocker layer instead of full physics collision
+- normal player movement is blocked by enemy bodies
+- dash remains the intended exception and can still pass through
+- enemy movers are being resolved through the same body separation logic to reduce pile-ups and overlapping stacks
+
+### Current follow-up risks
+
+- Unity compile/play validation is still required after each major pass because this repo is often iterated in a live open editor session
+- several recent systems are functionally implemented but still need tuning, especially crowd blocking feel, Floodline shove/width feel, and newer weapon upgrade balance
+- visual alignment is now cleaner when gameplay leads, but bespoke asset swaps still need deliberate tuning rather than assuming 1:1 art-hit matching
 
 ## MVP Definition
 

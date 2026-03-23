@@ -19,11 +19,15 @@ namespace Dagon.Gameplay
         [SerializeField] private Health playerHealth;
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private PlayerCombatLoadout combatLoadout;
+        [SerializeField] private CorruptionRuntimeEffects corruptionEffects;
         private Texture2D heartTexture;
         private Texture2D whiteTexture;
         private GUIStyle centeredTitleStyle;
         private GUIStyle centeredBodyStyle;
         private GUIStyle upgradeButtonStyle;
+        private GUIStyle corruptionColumnStyle;
+        private int selectedCorruptionBoonIndex = -1;
+        private int selectedCorruptionDrawbackIndex = -1;
 
         private void Awake()
         {
@@ -45,6 +49,11 @@ namespace Dagon.Gameplay
             if (combatLoadout == null)
             {
                 combatLoadout = FindObjectOfType<PlayerCombatLoadout>();
+            }
+
+            if (corruptionEffects == null)
+            {
+                corruptionEffects = FindObjectOfType<CorruptionRuntimeEffects>();
             }
 
             heartTexture = Resources.Load<Texture2D>("Sprites/UI/heart");
@@ -71,6 +80,13 @@ namespace Dagon.Gameplay
             DrawCooldownPanel();
             DrawCorruptionBar();
             DrawWeaponStrip();
+
+            if (corruptionEffects != null && corruptionEffects.HasPendingChoice)
+            {
+                Time.timeScale = 0f;
+                DrawCorruptionOverlay(corruptionEffects.PeekPendingChoice());
+                return;
+            }
 
             if (!experienceController.HasPendingChoice)
             {
@@ -182,19 +198,34 @@ namespace Dagon.Gameplay
 
         private void DrawCorruptionBar()
         {
-            const float margin = 16f;
-            const float barWidth = 240f;
+            const float barWidth = 280f;
             const float barHeight = 12f;
+            const float topMargin = 44f;
 
             var currentCorruption = corruptionMeter?.CurrentCorruption ?? 0f;
             var maxCorruption = corruptionMeter?.MaxCorruption ?? 0f;
             var progress = maxCorruption > 0f ? Mathf.Clamp01(currentCorruption / maxCorruption) : 0f;
-            var barX = margin;
-            var barY = Screen.height - 28f;
+            var stage = corruptionMeter != null ? corruptionMeter.CurrentStageIndex + 1 : 0;
+            var barX = (Screen.width - barWidth) * 0.5f;
+            var barY = topMargin;
 
-            GUI.Label(new Rect(barX, barY - 18f, 180f, 18f), "Corruption");
+            GUI.Label(new Rect(barX, barY - 18f, 180f, 18f), stage > 0 ? $"Corruption T{stage}" : "Corruption");
             DrawMeter(new Rect(barX, barY, barWidth, barHeight), progress, CorruptionFill, CorruptionBackground);
-            GUI.Label(new Rect(barX + barWidth - 72f, barY - 18f, 72f, 18f), $"{currentCorruption:0}/{maxCorruption:0}");
+            if (corruptionMeter != null)
+            {
+                var thresholds = corruptionMeter.ThresholdValues;
+                if (thresholds != null)
+                {
+                    for (var i = 0; i < thresholds.Length; i++)
+                    {
+                        var markerProgress = maxCorruption > 0f ? thresholds[i] / maxCorruption : 0f;
+                        var markerX = barX + (barWidth * markerProgress);
+                        GUI.DrawTexture(new Rect(markerX - 1f, barY - 2f, 2f, barHeight + 4f), whiteTexture, ScaleMode.StretchToFill, false);
+                    }
+                }
+            }
+
+            GUI.Label(new Rect(barX + barWidth + 8f, barY - 4f, 96f, 18f), $"{currentCorruption:0}/{maxCorruption:0}");
         }
 
         private void DrawMeter(Rect rect, float progress, Color fillColor, Color backgroundColor)
@@ -220,7 +251,7 @@ namespace Dagon.Gameplay
 
         private void EnsureStyles()
         {
-            if (centeredTitleStyle != null && centeredBodyStyle != null && upgradeButtonStyle != null)
+            if (centeredTitleStyle != null && centeredBodyStyle != null && upgradeButtonStyle != null && corruptionColumnStyle != null)
             {
                 return;
             }
@@ -258,6 +289,12 @@ namespace Dagon.Gameplay
             upgradeButtonStyle.normal.textColor = new Color(0.93f, 0.98f, 0.94f, 1f);
             upgradeButtonStyle.hover.textColor = Color.white;
             upgradeButtonStyle.active.textColor = Color.white;
+
+            corruptionColumnStyle = new GUIStyle(centeredBodyStyle)
+            {
+                alignment = TextAnchor.UpperLeft,
+                fontSize = 14
+            };
         }
 
         private void DrawUpgradeOverlay(CombatRewardChoiceSet choices)
@@ -318,6 +355,91 @@ namespace Dagon.Gameplay
             GUI.matrix = previousMatrix;
             GUI.backgroundColor = Color.white;
             GUI.color = previousColor;
+        }
+
+        private void DrawCorruptionOverlay(CorruptionRuntimeEffects.CorruptionChoiceView choice)
+        {
+            if (whiteTexture == null)
+            {
+                return;
+            }
+
+            var previousColor = GUI.color;
+            GUI.color = new Color(0.02f, 0.04f, 0.04f, 0.58f);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), whiteTexture, ScaleMode.StretchToFill, false);
+
+            var scale = Mathf.Max(1.05f, Mathf.Min(Screen.width / 1450f, Screen.height / 920f) * 1.22f);
+            var panelWidth = 860f;
+            var panelHeight = 430f;
+            var scaledWidth = Screen.width / scale;
+            var scaledHeight = Screen.height / scale;
+            var panelX = (scaledWidth - panelWidth) * 0.5f;
+            var panelY = (scaledHeight - panelHeight) * 0.5f;
+
+            var previousMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
+
+            var panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
+            GUI.color = new Color(0.08f, 0.13f, 0.12f, 0.94f);
+            GUI.DrawTexture(panelRect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.29f, 0.44f, 0.36f, 0.95f);
+            GUI.DrawTexture(new Rect(panelRect.x + 4f, panelRect.y + 4f, panelRect.width - 8f, 6f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = previousColor;
+
+            GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 26f, panelRect.width - 80f, 34f), $"Corruption Stage {choice.StageIndex + 1}", centeredTitleStyle);
+            GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 62f, panelRect.width - 80f, 28f), $"Crossed {choice.ThresholdValue:0} corruption. Choose 1 boon and 1 drawback.", centeredBodyStyle);
+
+            var gutter = 26f;
+            var columnWidth = (panelRect.width - (gutter * 3f)) * 0.5f;
+            var columnHeight = 238f;
+            var boonRect = new Rect(panelRect.x + gutter, panelRect.y + 108f, columnWidth, columnHeight);
+            var drawbackRect = new Rect(boonRect.xMax + gutter, boonRect.y, columnWidth, columnHeight);
+
+            DrawCorruptionChoiceColumn(boonRect, "Boon", choice.Boons, true, ref selectedCorruptionBoonIndex, new Color(0.11f, 0.19f, 0.16f, 0.94f));
+            DrawCorruptionChoiceColumn(drawbackRect, "Burden", choice.Drawbacks, false, ref selectedCorruptionDrawbackIndex, new Color(0.12f, 0.15f, 0.14f, 0.94f));
+
+            var confirmRect = new Rect(panelRect.x + 250f, panelRect.yMax - 70f, panelRect.width - 500f, 42f);
+            DrawUpgradeButton(confirmRect);
+            var ready = selectedCorruptionBoonIndex >= 0 && selectedCorruptionDrawbackIndex >= 0;
+            GUI.enabled = ready;
+            if (GUI.Button(confirmRect, "Accept", upgradeButtonStyle))
+            {
+                corruptionEffects?.ApplyPendingChoice(selectedCorruptionBoonIndex, selectedCorruptionDrawbackIndex);
+                selectedCorruptionBoonIndex = -1;
+                selectedCorruptionDrawbackIndex = -1;
+                Time.timeScale = 1f;
+            }
+
+            GUI.enabled = true;
+            GUI.matrix = previousMatrix;
+            GUI.color = previousColor;
+        }
+
+        private void DrawCorruptionChoiceColumn(Rect rect, string title, CorruptionRuntimeEffects.CorruptionOptionView[] options, bool isBoon, ref int selectedIndex, Color backgroundColor)
+        {
+            GUI.color = backgroundColor;
+            GUI.DrawTexture(rect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(rect.x + 20f, rect.y + 12f, rect.width - 40f, 28f), title, centeredTitleStyle);
+
+            for (var i = 0; i < options.Length; i++)
+            {
+                var optionRect = new Rect(rect.x + 14f, rect.y + 48f + (i * 58f), rect.width - 28f, 50f);
+                var selected = selectedIndex == i;
+                GUI.color = selected
+                    ? (isBoon ? new Color(0.22f, 0.39f, 0.30f, 0.97f) : new Color(0.23f, 0.28f, 0.24f, 0.97f))
+                    : new Color(1f, 1f, 1f, 0.05f);
+                GUI.DrawTexture(optionRect, whiteTexture, ScaleMode.StretchToFill, false);
+                GUI.color = Color.white;
+
+                if (GUI.Button(optionRect, GUIContent.none, GUIStyle.none))
+                {
+                    selectedIndex = i;
+                }
+
+                GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 5f, optionRect.width - 24f, 18f), options[i].Title, centeredBodyStyle);
+                GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 22f, optionRect.width - 24f, 20f), options[i].Description, corruptionColumnStyle);
+            }
         }
 
         private void DrawUpgradeButton(Rect rect)

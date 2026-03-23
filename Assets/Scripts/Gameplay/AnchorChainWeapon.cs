@@ -106,6 +106,11 @@ namespace Dagon.Gameplay
             arcCount = Mathf.Max(1, arcCount + amount);
         }
 
+        public override float GetAttackRateEstimate()
+        {
+            return attacksPerSecond;
+        }
+
         protected override void ApplyDefinition(WeaponDefinition runtimeDefinition)
         {
             attacksPerSecond = Mathf.Max(0.1f, runtimeDefinition.AttacksPerSecond);

@@ -124,6 +124,8 @@ namespace Dagon.Gameplay
 
         public abstract void ModifyProjectileCount(int amount);
 
+        public abstract float GetAttackRateEstimate();
+
         protected abstract void ApplyDefinition(WeaponDefinition runtimeDefinition);
 
         protected abstract void ApplyPathUpgrade(WeaponUpgradePath path, int nextStep);

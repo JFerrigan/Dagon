@@ -38,16 +38,17 @@ namespace Dagon.Bootstrap
 
         private void CreateScene(Transform root)
         {
-            var player = CreatePlayer(root);
+            var selectedCharacter = ResolveSelectedCharacter();
+            var player = CreatePlayer(root, selectedCharacter);
             var cameraObject = ConfigureCamera(root, player.transform);
-            ConfigurePlayerCombat(player, cameraObject);
+            ConfigurePlayerCombat(player, cameraObject, selectedCharacter);
             CreateLight(root);
             var groundTiler = CreateGround(root, player.transform);
             var propScatterer = CreateProps(root, cameraObject, player.transform);
             CreateStageRuntimeSystems(root, player, cameraObject, groundTiler, propScatterer);
         }
 
-        private static GameObject CreatePlayer(Transform root)
+        private static GameObject CreatePlayer(Transform root, CharacterProfileDefinition selectedCharacter)
         {
             var player = new GameObject("Player");
             player.transform.SetParent(root);
@@ -68,6 +69,7 @@ namespace Dagon.Bootstrap
             player.AddComponent<CorruptionMeter>();
             player.AddComponent<Hurtbox>().Configure(CombatTeam.Player, player.GetComponent<Health>());
             player.AddComponent<KnockbackReceiver>().Configure(1f, 18f, 6f);
+            player.AddComponent<BodyBlocker>().Configure(BodyBlocker.BodyTeam.Player, 0.42f, 1.8f, 1.35f);
 
             player.AddComponent<PlayerMover>();
             player.AddComponent<PlayerSlowReceiver>();
@@ -80,14 +82,16 @@ namespace Dagon.Bootstrap
             visuals.transform.localPosition = Vector3.zero;
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Characters/sailor_idle_front");
+            renderer.sprite = RuntimeSpriteLibrary.LoadSprite(selectedCharacter.RuntimeSpritePath) ??
+                RuntimeSpriteLibrary.LoadSprite("Sprites/Characters/sailor_idle_front");
             renderer.sortingOrder = 10;
+            visuals.transform.localScale = Vector3.one * Mathf.Max(0.05f, selectedCharacter.RuntimeScale);
             visuals.AddComponent<BillboardSprite>();
 
             return player;
         }
 
-        private static void ConfigurePlayerCombat(GameObject player, Camera camera)
+        private static void ConfigurePlayerCombat(GameObject player, Camera camera, CharacterProfileDefinition selectedCharacter)
         {
             var loadout = player.GetComponent<PlayerCombatLoadout>();
             if (loadout == null)
@@ -95,9 +99,9 @@ namespace Dagon.Bootstrap
                 return;
             }
 
-            loadout.SetWeaponPool(CreateWeaponPool());
+            loadout.SetWeaponPool(RuntimeCharacterCatalog.GetWeaponPool());
             loadout.ConfigureRuntime(camera);
-            loadout.Initialize(CreateStartingLoadout());
+            loadout.Initialize(RuntimeCharacterCatalog.CreateLoadout(selectedCharacter));
         }
 
         private static Camera ConfigureCamera(Transform root, Transform player)
@@ -186,11 +190,30 @@ namespace Dagon.Bootstrap
 
             root.gameObject.AddComponent<ExperienceHud>();
             player.GetComponent<CorruptionRuntimeEffects>().Configure(spawnDirector);
+            var corruptionEventDirector = root.gameObject.AddComponent<CorruptionEventDirector>();
 
             if (includeRunStateManager)
             {
                 var runState = root.gameObject.AddComponent<RunStateManager>();
                 runState.Configure(player.transform, camera, spawnDirector, sprite, acolyteProjectile);
+                corruptionEventDirector.Configure(
+                    player.GetComponent<CorruptionMeter>(),
+                    spawnDirector,
+                    runState);
+
+                var fountainDirector = root.gameObject.AddComponent<CorruptionFountainDirector>();
+                fountainDirector.Configure(
+                    player.transform,
+                    camera,
+                    runState,
+                    player.GetComponent<CorruptionMeter>());
+            }
+            else
+            {
+                corruptionEventDirector.Configure(
+                    player.GetComponent<CorruptionMeter>(),
+                    spawnDirector,
+                    null);
             }
 
             return spawnDirector;
@@ -237,6 +260,9 @@ namespace Dagon.Bootstrap
             {
                 var sandboxController = root.gameObject.AddComponent<DeveloperSandboxController>();
                 sandboxController.Configure(player.GetComponent<PlayerCombatLoadout>());
+
+                var showcase = root.gameObject.AddComponent<DeveloperAssetShowcaseBuilder>();
+                showcase.Build(camera, root);
             }
         }
 
@@ -322,93 +348,10 @@ namespace Dagon.Bootstrap
             }
         }
 
-        private static CharacterLoadoutDefinition CreateStartingLoadout()
+        private static CharacterProfileDefinition ResolveSelectedCharacter()
         {
-            return CharacterLoadoutDefinition.CreateRuntime(
-                WeaponDefinition.CreateRuntime(
-                    "weapon.harpoon_cast",
-                    "Harpoon Cast",
-                    "Launches barbed harpoons in short bursts.",
-                    WeaponRuntimeKind.ProjectileLauncher,
-                    WeaponProjectileVisualKind.Harpoon,
-                    1.5f,
-                    10f,
-                    1f,
-                    1,
-                    0f),
-                ActiveAbilityDefinition.CreateRuntime(
-                    "ability.brine_surge",
-                    "Brine Surge",
-                    "A black-water burst that punishes crowd pressure.",
-                    ActiveAbilityRuntimeKind.BrineSurge,
-                    6f,
-                    2.8f,
-                    2f));
-        }
-
-        private static WeaponDefinition[] CreateWeaponPool()
-        {
-            return new[]
-            {
-                WeaponDefinition.CreateRuntime(
-                    "weapon.anchor_chain",
-                    "Anchor Chain",
-                    "Sweep a brutal chain arc that punishes enemies pressing too close.",
-                    WeaponRuntimeKind.AnchorChain,
-                    WeaponProjectileVisualKind.Harpoon,
-                    0.85f,
-                    0f,
-                    1.8f,
-                    1,
-                    0f,
-                    4.8f,
-                    105f,
-                    4.5f),
-                WeaponDefinition.CreateRuntime(
-                    "weapon.rot_lantern",
-                    "Rot Lantern",
-                    "A cursed lantern emits baleful pulses around the sailor.",
-                    WeaponRuntimeKind.RotLantern,
-                    WeaponProjectileVisualKind.Harpoon,
-                    0.75f,
-                    0f,
-                    0.8f,
-                    1,
-                    0f,
-                    4.4f),
-                WeaponDefinition.CreateRuntime(
-                    "weapon.bilge_spray",
-                    "Bilge Spray",
-                    "Blast foul brine in a short cone that slows and softens the swarm.",
-                    WeaponRuntimeKind.BilgeSpray,
-                    WeaponProjectileVisualKind.Harpoon,
-                    0.65f,
-                    0f,
-                    0.7f,
-                    1,
-                    0f,
-                    4.8f,
-                    120f,
-                    0f,
-                    0.25f,
-                    1.5f),
-                WeaponDefinition.CreateRuntime(
-                    "weapon.rot_beacon_bomb",
-                    "Rot Beacon Bomb",
-                    "Throw a cursed beacon bomb that lands, pulses a slowing field, then erupts in a final blast.",
-                    WeaponRuntimeKind.RotBeaconBomb,
-                    WeaponProjectileVisualKind.Orb,
-                    0.55f,
-                    8f,
-                    0.45f,
-                    2,
-                    0f,
-                    2.6f,
-                    3.6f,
-                    1.8f,
-                    0.25f,
-                    1.5f)
-            };
+            var selectedCharacterId = RunSelectionState.ConsumeSelectedCharacterId();
+            return RuntimeCharacterCatalog.GetProfileById(selectedCharacterId);
         }
     }
 }

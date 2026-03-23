@@ -112,6 +112,11 @@ namespace Dagon.Gameplay
             // Bilge Spray stays a single instant pulse.
         }
 
+        public override float GetAttackRateEstimate()
+        {
+            return attacksPerSecond;
+        }
+
         protected override void ApplyDefinition(WeaponDefinition runtimeDefinition)
         {
             attacksPerSecond = Mathf.Max(0.1f, runtimeDefinition.AttacksPerSecond);

@@ -12,6 +12,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float retargetIntervalMin = 1.2f;
         [SerializeField] private float retargetIntervalMax = 2.6f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
+        [SerializeField] private BodyBlocker bodyBlocker;
 
         private Vector3 origin;
         private Vector3 roamTarget;
@@ -22,6 +23,11 @@ namespace Dagon.Gameplay
             if (slowReceiver == null)
             {
                 slowReceiver = GetComponent<EnemySlowReceiver>();
+            }
+
+            if (bodyBlocker == null)
+            {
+                bodyBlocker = GetComponent<BodyBlocker>();
             }
 
             origin = transform.position;
@@ -51,7 +57,10 @@ namespace Dagon.Gameplay
             }
 
             var effectiveSpeed = moveSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
-            transform.position += offset.normalized * (effectiveSpeed * Time.deltaTime);
+            var desiredDelta = offset.normalized * (effectiveSpeed * Time.deltaTime);
+            transform.position += bodyBlocker != null
+                ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
+                : desiredDelta;
         }
 
         public void Configure(Transform newTarget, float newMoveSpeed, float newWanderRadius, float newChaseDistance)
