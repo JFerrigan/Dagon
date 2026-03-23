@@ -20,6 +20,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float weight = 1f;
         [SerializeField] private bool blocksPlayer = true;
         [SerializeField] private bool separatesFromEnemies = true;
+        [SerializeField] private bool immovable;
 
         public static IReadOnlyList<BodyBlocker> Active => ActiveBlockers;
 
@@ -29,6 +30,7 @@ namespace Dagon.Gameplay
         public float Weight => Mathf.Max(0.1f, weight);
         public bool BlocksPlayer => blocksPlayer;
         public bool SeparatesFromEnemies => separatesFromEnemies;
+        public bool Immovable => immovable;
         public bool Suppressed { get; private set; }
 
         public Vector3 PlanarPosition
@@ -56,7 +58,7 @@ namespace Dagon.Gameplay
 
         private void LateUpdate()
         {
-            if (Suppressed || team != BodyTeam.Enemy || !separatesFromEnemies)
+            if (Suppressed || immovable || team != BodyTeam.Enemy || !separatesFromEnemies)
             {
                 return;
             }
@@ -69,7 +71,7 @@ namespace Dagon.Gameplay
             }
         }
 
-        public void Configure(BodyTeam newTeam, float newRadius, float newHeight, float newWeight, bool newBlocksPlayer = true, bool newSeparatesFromEnemies = true)
+        public void Configure(BodyTeam newTeam, float newRadius, float newHeight, float newWeight, bool newBlocksPlayer = true, bool newSeparatesFromEnemies = true, bool newImmovable = false)
         {
             team = newTeam;
             bodyRadius = Mathf.Max(0.05f, newRadius);
@@ -77,6 +79,7 @@ namespace Dagon.Gameplay
             weight = Mathf.Max(0.1f, newWeight);
             blocksPlayer = newBlocksPlayer;
             separatesFromEnemies = newSeparatesFromEnemies;
+            immovable = newImmovable;
         }
 
         public void SetSuppressed(bool suppressed)

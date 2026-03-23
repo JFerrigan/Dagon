@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Dagon.Core;
+using Dagon.Data;
 using UnityEngine;
 
 namespace Dagon.Gameplay
@@ -9,14 +10,16 @@ namespace Dagon.Gameplay
     {
         public readonly struct CorruptionOptionView
         {
-            public CorruptionOptionView(string title, string description)
+            public CorruptionOptionView(string title, string description, bool isCorruptionActive = false)
             {
                 Title = title;
                 Description = description;
+                IsCorruptionActive = isCorruptionActive;
             }
 
             public string Title { get; }
             public string Description { get; }
+            public bool IsCorruptionActive { get; }
         }
 
         public readonly struct CorruptionChoiceView
@@ -51,21 +54,25 @@ namespace Dagon.Gameplay
             SpecialistCapBonus,
             EliteCapBonus,
             BossAmbientIntervalMultiplier,
-            EliteWaveEarlyUnlock
+            EliteWaveEarlyUnlock,
+            ReplacePrimaryActive
         }
 
         private readonly struct CorruptionEffect
         {
-            public CorruptionEffect(EffectKind kind, float value, bool fillBonusHealth = false)
+            public CorruptionEffect(EffectKind kind, float value, bool fillBonusHealth = false, ActiveAbilityDefinition activeDefinition = null)
             {
                 Kind = kind;
                 Value = value;
                 FillBonusHealth = fillBonusHealth;
+                ActiveDefinition = activeDefinition;
             }
 
             public EffectKind Kind { get; }
             public float Value { get; }
             public bool FillBonusHealth { get; }
+            public ActiveAbilityDefinition ActiveDefinition { get; }
+            public bool IsActiveReplacement => Kind == EffectKind.ReplacePrimaryActive && ActiveDefinition != null;
         }
 
         private readonly struct StageOptionDefinition
@@ -121,10 +128,15 @@ namespace Dagon.Gameplay
 
         private readonly Queue<int> pendingStageChoices = new();
         private readonly Dictionary<int, StageSelection> rememberedSelections = new();
+        private readonly Dictionary<int, StageOptionDefinition[]> stageBoons = new();
+        private readonly Dictionary<int, StageOptionDefinition[]> stageDrawbacks = new();
 
         private float appliedAttackRateBonus;
         private float appliedDamageBonus;
         private float appliedActiveRadiusBonus;
+        private ActiveAbilityDefinition abyssalRebirthAbility;
+        private ActiveAbilityDefinition bloodwakeStepAbility;
+        private ActiveAbilityDefinition riftheartAbility;
 
         public bool HasPendingChoice => pendingStageChoices.Count > 0;
 
@@ -144,6 +156,8 @@ namespace Dagon.Gameplay
             {
                 health = GetComponent<Health>();
             }
+
+            BuildCorruptionActiveDefinitions();
         }
 
         private void OnEnable()
@@ -178,8 +192,8 @@ namespace Dagon.Gameplay
             }
 
             var stageIndex = pendingStageChoices.Peek();
-            var boons = GetStageBoons(stageIndex);
-            var drawbacks = GetStageDrawbacks(stageIndex);
+            var boons = GetResolvedStageBoons(stageIndex);
+            var drawbacks = GetResolvedStageDrawbacks(stageIndex);
             return new CorruptionChoiceView(
                 stageIndex,
                 corruptionMeter != null ? corruptionMeter.GetThresholdValue(stageIndex) : (stageIndex + 1) * 25f,
@@ -195,11 +209,19 @@ namespace Dagon.Gameplay
             }
 
             var stageIndex = pendingStageChoices.Dequeue();
-            var boons = GetStageBoons(stageIndex);
-            var drawbacks = GetStageDrawbacks(stageIndex);
-            rememberedSelections[stageIndex] = new StageSelection(
-                Mathf.Clamp(boonIndex, 0, boons.Length - 1),
-                Mathf.Clamp(drawbackIndex, 0, drawbacks.Length - 1));
+            var boons = GetResolvedStageBoons(stageIndex);
+            var drawbacks = GetResolvedStageDrawbacks(stageIndex);
+            var resolvedBoonIndex = Mathf.Clamp(boonIndex, 0, boons.Length - 1);
+            var resolvedDrawbackIndex = Mathf.Clamp(drawbackIndex, 0, drawbacks.Length - 1);
+            rememberedSelections[stageIndex] = new StageSelection(resolvedBoonIndex, resolvedDrawbackIndex);
+
+            var chosenBoon = boons[resolvedBoonIndex].Effect;
+            if (chosenBoon.IsActiveReplacement)
+            {
+                combatLoadout?.ReplacePrimaryActive(chosenBoon.ActiveDefinition, true);
+                appliedActiveRadiusBonus = 0f;
+            }
+
             ReapplyActiveEffects();
         }
 
@@ -214,6 +236,8 @@ namespace Dagon.Gameplay
                         continue;
                     }
 
+                    GetResolvedStageBoons(stageIndex);
+                    GetResolvedStageDrawbacks(stageIndex);
                     pendingStageChoices.Enqueue(stageIndex);
                 }
             }
@@ -277,8 +301,8 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                ApplyEffect(aggregate, GetStageBoons(stageIndex)[selection.BoonIndex].Effect);
-                ApplyEffect(aggregate, GetStageDrawbacks(stageIndex)[selection.DrawbackIndex].Effect);
+                ApplyEffect(aggregate, GetResolvedStageBoons(stageIndex)[selection.BoonIndex].Effect);
+                ApplyEffect(aggregate, GetResolvedStageDrawbacks(stageIndex)[selection.DrawbackIndex].Effect);
             }
 
             return aggregate;
@@ -334,6 +358,8 @@ namespace Dagon.Gameplay
                 case EffectKind.EliteWaveEarlyUnlock:
                     aggregate.EliteWaveEarlyUnlock = effect.Value > 0.5f;
                     break;
+                case EffectKind.ReplacePrimaryActive:
+                    break;
             }
         }
 
@@ -342,15 +368,37 @@ namespace Dagon.Gameplay
             var views = new CorruptionOptionView[options.Length];
             for (var index = 0; index < options.Length; index++)
             {
-                views[index] = new CorruptionOptionView(options[index].Title, options[index].Description);
+                views[index] = new CorruptionOptionView(options[index].Title, options[index].Description, options[index].Effect.IsActiveReplacement);
             }
 
             return views;
         }
 
-        private static StageOptionDefinition[] GetStageBoons(int stageIndex)
+        private StageOptionDefinition[] GetResolvedStageBoons(int stageIndex)
         {
-            return stageIndex switch
+            if (!stageBoons.TryGetValue(stageIndex, out var definitions))
+            {
+                definitions = BuildStageBoons(stageIndex);
+                stageBoons[stageIndex] = definitions;
+            }
+
+            return definitions;
+        }
+
+        private StageOptionDefinition[] GetResolvedStageDrawbacks(int stageIndex)
+        {
+            if (!stageDrawbacks.TryGetValue(stageIndex, out var definitions))
+            {
+                definitions = BuildStageDrawbacks(stageIndex);
+                stageDrawbacks[stageIndex] = definitions;
+            }
+
+            return definitions;
+        }
+
+        private StageOptionDefinition[] BuildStageBoons(int stageIndex)
+        {
+            var boons = stageIndex switch
             {
                 0 => new[]
                 {
@@ -377,9 +425,26 @@ namespace Dagon.Gameplay
                     new StageOptionDefinition("+2 Max Hearts", "Gain two filled hearts.", new CorruptionEffect(EffectKind.MaxHealthBonus, 2f, fillBonusHealth: true))
                 }
             };
+
+            if (stageIndex < 1)
+            {
+                return boons;
+            }
+
+            var activeDefinition = DrawCorruptionActiveDefinition();
+            if (activeDefinition == null)
+            {
+                return boons;
+            }
+
+            boons[boons.Length - 1] = new StageOptionDefinition(
+                $"Corruption Active: {activeDefinition.DisplayName}",
+                $"Replace {GetCurrentActiveName()} with {activeDefinition.DisplayName}. Keeps active rank.",
+                new CorruptionEffect(EffectKind.ReplacePrimaryActive, 0f, false, activeDefinition));
+            return boons;
         }
 
-        private static StageOptionDefinition[] GetStageDrawbacks(int stageIndex)
+        private static StageOptionDefinition[] BuildStageDrawbacks(int stageIndex)
         {
             return stageIndex switch
             {
@@ -408,6 +473,97 @@ namespace Dagon.Gameplay
                     new StageOptionDefinition("+25% All Damage", "All enemy damage hurts more.", new CorruptionEffect(EffectKind.IncomingDamageMultiplier, 1.25f))
                 }
             };
+        }
+
+        private string GetCurrentActiveName()
+        {
+            var active = combatLoadout != null ? combatLoadout.GetPrimaryActive() : null;
+            return active != null ? active.DisplayName : "your active";
+        }
+
+        private ActiveAbilityDefinition DrawCorruptionActiveDefinition()
+        {
+            var pool = ListPool<ActiveAbilityDefinition>.Get();
+            try
+            {
+                var currentActiveId = combatLoadout != null ? combatLoadout.GetPrimaryActive()?.AbilityId : null;
+                AddEligibleActive(pool, abyssalRebirthAbility, currentActiveId);
+                AddEligibleActive(pool, bloodwakeStepAbility, currentActiveId);
+                AddEligibleActive(pool, riftheartAbility, currentActiveId);
+                if (pool.Count <= 0)
+                {
+                    return null;
+                }
+
+                return pool[Random.Range(0, pool.Count)];
+            }
+            finally
+            {
+                ListPool<ActiveAbilityDefinition>.Release(pool);
+            }
+        }
+
+        private static void AddEligibleActive(List<ActiveAbilityDefinition> pool, ActiveAbilityDefinition definition, string currentActiveId)
+        {
+            if (definition == null || definition.AbilityId == currentActiveId)
+            {
+                return;
+            }
+
+            pool.Add(definition);
+        }
+
+        private void BuildCorruptionActiveDefinitions()
+        {
+            abyssalRebirthAbility = ActiveAbilityDefinition.CreateRuntime(
+                "ability.abyssal_rebirth",
+                "Abyssal Rebirth",
+                "Detonate a wide corruption burst and briefly become untouchable.",
+                ActiveAbilityRuntimeKind.AbyssalRebirth,
+                11f,
+                5.8f,
+                6.5f,
+                durationSeconds: 0.6f);
+            bloodwakeStepAbility = ActiveAbilityDefinition.CreateRuntime(
+                "ability.bloodwake_step",
+                "Bloodwake Step",
+                "Dash through bodies and rupture the wake at both ends of the step.",
+                ActiveAbilityRuntimeKind.BloodwakeStep,
+                8f,
+                6.6f,
+                5f,
+                durationSeconds: 0.2f);
+            riftheartAbility = ActiveAbilityDefinition.CreateRuntime(
+                "ability.riftheart",
+                "Riftheart",
+                "Overclock your weapons and orbit corruption shards around your body.",
+                ActiveAbilityRuntimeKind.Riftheart,
+                15f,
+                1.9f,
+                1f,
+                durationSeconds: 4.5f,
+                magnitude: 2.15f);
+        }
+
+        private static class ListPool<T>
+        {
+            private static readonly Stack<List<T>> Pool = new();
+
+            public static List<T> Get()
+            {
+                return Pool.Count > 0 ? Pool.Pop() : new List<T>();
+            }
+
+            public static void Release(List<T> list)
+            {
+                if (list == null)
+                {
+                    return;
+                }
+
+                list.Clear();
+                Pool.Push(list);
+            }
         }
     }
 }

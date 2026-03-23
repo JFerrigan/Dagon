@@ -263,6 +263,29 @@ namespace Dagon.Gameplay
             return runtime;
         }
 
+        public ActiveAbilityRuntime ReplacePrimaryActive(ActiveAbilityDefinition definition, bool preserveRank = true)
+        {
+            if (definition == null)
+            {
+                return null;
+            }
+
+            var previousActive = GetPrimaryActive();
+            var targetRank = preserveRank && previousActive != null ? Mathf.Max(1, previousActive.Rank) : 1;
+            var runtime = EquipActive(0, definition);
+            if (runtime == null)
+            {
+                return null;
+            }
+
+            while (runtime.Rank < targetRank)
+            {
+                runtime.ApplyUpgrade();
+            }
+
+            return runtime;
+        }
+
         private void ClearWeapons()
         {
             for (var index = weapons.Count - 1; index >= 0; index--)
@@ -298,6 +321,9 @@ namespace Dagon.Gameplay
                 ActiveAbilityRuntimeKind.BrineSurge => gameObject.AddComponent<BrineSurgeAbility>(),
                 ActiveAbilityRuntimeKind.Dash => gameObject.AddComponent<DashAbility>(),
                 ActiveAbilityRuntimeKind.Frenzy => gameObject.AddComponent<FrenzyAbility>(),
+                ActiveAbilityRuntimeKind.AbyssalRebirth => gameObject.AddComponent<AbyssalRebirthAbility>(),
+                ActiveAbilityRuntimeKind.BloodwakeStep => gameObject.AddComponent<BloodwakeStepAbility>(),
+                ActiveAbilityRuntimeKind.Riftheart => gameObject.AddComponent<RiftheartAbility>(),
                 _ => gameObject.AddComponent<BrineSurgeAbility>()
             };
         }

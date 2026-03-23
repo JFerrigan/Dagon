@@ -269,8 +269,8 @@ namespace Dagon.Bootstrap
 
         private static void AddPickupEntries(List<ShowcaseEntry> entries)
         {
-            entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Barnacle Shard", "Sprites/Pickups/barnacle_shard", Vector3.one * 0.12f, 256f));
-            entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Health Pickup", "Sprites/UI/heart", Vector3.one * 0.9f, 256f));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Barnacle Shard", "Sprites/Pickups/barnacle_shard", Vector3.one * 0.24f, 256f));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Health Pickup", "Sprites/UI/heart", Vector3.one * 2.7f, 256f));
         }
 
         private void CreateCategoryHeader(Transform parent, ShowcaseCategory category, float zOffset)

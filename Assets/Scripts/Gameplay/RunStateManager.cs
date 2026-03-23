@@ -428,7 +428,8 @@ namespace Dagon.Gameplay
                 definition.ColliderHeight,
                 3.25f,
                 true,
-                true);
+                true,
+                definition.BossKind == BossKind.Monolith);
 
             var rigidbody = boss.AddComponent<Rigidbody>();
             rigidbody.isKinematic = true;
@@ -439,7 +440,10 @@ namespace Dagon.Gameplay
             bossHealth.Died += HandleBossDied;
             activeBosses.Add(bossHealth);
             boss.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, bossHealth);
-            boss.AddComponent<KnockbackReceiver>().Configure(0.18f, 22f, 2.4f);
+            boss.AddComponent<KnockbackReceiver>().Configure(
+                definition.BossKind == BossKind.Monolith ? 0f : 0.18f,
+                22f,
+                2.4f);
 
             if (definition.BossKind == BossKind.MireColossus)
             {

@@ -85,6 +85,16 @@ namespace Dagon.Gameplay
 
         private static float ResolveCorrectionFactor(BodyBlocker self, BodyBlocker other)
         {
+            if (self.Immovable)
+            {
+                return 0f;
+            }
+
+            if (other.Immovable)
+            {
+                return 1f;
+            }
+
             if ((self.Team == BodyBlocker.BodyTeam.Player && other.Team == BodyBlocker.BodyTeam.Enemy) ||
                 (self.Team == BodyBlocker.BodyTeam.Enemy && other.Team == BodyBlocker.BodyTeam.Player))
             {

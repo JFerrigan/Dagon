@@ -76,6 +76,7 @@ namespace Dagon.Bootstrap
             player.AddComponent<PlayerCombatLoadout>();
             player.AddComponent<ExperienceController>();
             player.AddComponent<CorruptionRuntimeEffects>();
+            player.AddComponent<TemporaryDamageImmunity>();
 
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(player.transform, false);
@@ -87,6 +88,12 @@ namespace Dagon.Bootstrap
             renderer.sortingOrder = 10;
             visuals.transform.localScale = Vector3.one * Mathf.Max(0.05f, selectedCharacter.RuntimeScale);
             visuals.AddComponent<BillboardSprite>();
+
+            var damageFeedback = player.AddComponent<PlayerDamageFeedback>();
+            damageFeedback.Configure(
+                renderer,
+                player.GetComponent<Health>(),
+                player.GetComponent<TemporaryDamageImmunity>());
 
             return player;
         }

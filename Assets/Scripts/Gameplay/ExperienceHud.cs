@@ -426,9 +426,13 @@ namespace Dagon.Gameplay
             {
                 var optionRect = new Rect(rect.x + 14f, rect.y + 48f + (i * 58f), rect.width - 28f, 50f);
                 var selected = selectedIndex == i;
+                var option = options[i];
+                var special = option.IsCorruptionActive;
                 GUI.color = selected
-                    ? (isBoon ? new Color(0.22f, 0.39f, 0.30f, 0.97f) : new Color(0.23f, 0.28f, 0.24f, 0.97f))
-                    : new Color(1f, 1f, 1f, 0.05f);
+                    ? (special
+                        ? new Color(0.42f, 0.15f, 0.17f, 0.98f)
+                        : (isBoon ? new Color(0.22f, 0.39f, 0.30f, 0.97f) : new Color(0.23f, 0.28f, 0.24f, 0.97f)))
+                    : (special ? new Color(0.92f, 0.20f, 0.24f, 0.16f) : new Color(1f, 1f, 1f, 0.05f));
                 GUI.DrawTexture(optionRect, whiteTexture, ScaleMode.StretchToFill, false);
                 GUI.color = Color.white;
 
@@ -437,8 +441,8 @@ namespace Dagon.Gameplay
                     selectedIndex = i;
                 }
 
-                GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 5f, optionRect.width - 24f, 18f), options[i].Title, centeredBodyStyle);
-                GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 22f, optionRect.width - 24f, 20f), options[i].Description, corruptionColumnStyle);
+                GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 5f, optionRect.width - 24f, 18f), option.Title, centeredBodyStyle);
+                GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 22f, optionRect.width - 24f, 20f), option.Description, corruptionColumnStyle);
             }
         }
 

@@ -1,12 +1,15 @@
 using UnityEngine;
 using UnityEngine.Events;
 using System;
+using Dagon.Gameplay;
 
 namespace Dagon.Core
 {
     [DisallowMultipleComponent]
     public sealed class Health : MonoBehaviour, IDamageable
     {
+        private const float PlayerHitInvincibilityDuration = 0.35f;
+
         [SerializeField] private float maxHealth = 10f;
         [SerializeField] private bool destroyOnDeath = true;
         [SerializeField] private UnityEvent onDamaged;
@@ -21,6 +24,7 @@ namespace Dagon.Core
 
         public event Action<Health, GameObject> Died;
         public event Action<Health> Changed;
+        public event Action<Health, float, GameObject> Damaged;
 
         public float CurrentHealth => currentHealth;
         public float MaxHealth => maxHealth + bonusMaxHealth;
@@ -42,10 +46,25 @@ namespace Dagon.Core
                 return;
             }
 
+            var temporaryImmunity = GetComponent<TemporaryDamageImmunity>();
+            if (temporaryImmunity != null && temporaryImmunity.IsActive)
+            {
+                Dagon.Gameplay.CombatDebug.Log(
+                    "Health",
+                    $"target={name} amount={amount:0.##} source={(source != null ? source.name : "null")} applied=false temporaryImmunity=true",
+                    this);
+                return;
+            }
+
             var scaledAmount = amount * incomingDamageMultiplier;
             if (source != null && source.GetComponent<Dagon.Gameplay.ContactDamage>() != null)
             {
                 scaledAmount *= incomingContactDamageMultiplier;
+            }
+
+            if (scaledAmount <= 0f)
+            {
+                return;
             }
 
             var previousHealth = currentHealth;
@@ -56,6 +75,12 @@ namespace Dagon.Core
                 this);
             onDamaged?.Invoke();
             Changed?.Invoke(this);
+            Damaged?.Invoke(this, scaledAmount, source);
+
+            if (currentHealth > 0f && IsPlayerHealth() && temporaryImmunity != null)
+            {
+                temporaryImmunity.Grant(PlayerHitInvincibilityDuration);
+            }
 
             if (currentHealth > 0f)
             {
@@ -138,6 +163,12 @@ namespace Dagon.Core
         public void SetIncomingContactDamageMultiplier(float multiplier)
         {
             incomingContactDamageMultiplier = Mathf.Max(0f, multiplier);
+        }
+
+        private bool IsPlayerHealth()
+        {
+            var hurtbox = GetComponent<Hurtbox>();
+            return hurtbox != null && hurtbox.Team == CombatTeam.Player;
         }
     }
 }

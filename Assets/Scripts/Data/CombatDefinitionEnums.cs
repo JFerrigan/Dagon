@@ -21,6 +21,9 @@ namespace Dagon.Data
     {
         BrineSurge,
         Dash,
-        Frenzy
+        Frenzy,
+        AbyssalRebirth,
+        BloodwakeStep,
+        Riftheart
     }
 }

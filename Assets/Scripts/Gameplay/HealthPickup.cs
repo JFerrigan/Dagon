@@ -36,7 +36,7 @@ namespace Dagon.Gameplay
                 camera,
                 PickupSpriteResourcePath,
                 new Color(1f, 0.85f, 0.85f, 1f),
-                new Vector3(0.9f, 0.9f, 1f),
+                new Vector3(2.7f, 2.7f, 1f),
                 new Vector3(0f, 0.02f, 0f));
 
             return component;
