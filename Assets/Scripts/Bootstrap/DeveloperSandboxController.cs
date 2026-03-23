@@ -22,6 +22,7 @@ namespace Dagon.Bootstrap
         private readonly List<WeaponDefinition> availableWeapons = new();
         private readonly HashSet<string> selectedWeaponIds = new();
         private CharacterProfileDefinition[] availableCharacterProfiles = System.Array.Empty<CharacterProfileDefinition>();
+        private ActiveAbilityDefinition[] availableActiveDefinitions = System.Array.Empty<ActiveAbilityDefinition>();
         private Vector2 scrollPosition;
         private bool panelVisible = true;
         private bool playerInvincible;
@@ -58,6 +59,7 @@ namespace Dagon.Bootstrap
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
             availableCharacterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
+            availableActiveDefinitions = BuildActiveCatalog(availableCharacterProfiles);
         }
 
         private void Update()
@@ -83,8 +85,13 @@ namespace Dagon.Bootstrap
             var panelHeight = Mathf.Min(Screen.height - 32f, 640f);
             var rect = new Rect(Screen.width - width - 16f, 16f, width, panelHeight);
             var currentProfile = ResolveCurrentCharacterProfile();
-            var nextProfile = ResolveNextCharacterProfile(currentProfile);
-            var contentHeight = 632f + (availableWeapons.Count * rowHeight);
+            var currentActive = combatLoadout.GetPrimaryActive();
+            var characterRows = Mathf.Max(1, Mathf.CeilToInt(availableCharacterProfiles.Length / 2f));
+            var abilityRows = Mathf.Max(1, Mathf.CeilToInt(availableActiveDefinitions.Length / 2f));
+            var contentHeight = 760f
+                + (characterRows * rowHeight)
+                + (abilityRows * rowHeight)
+                + (availableWeapons.Count * rowHeight);
 
             GUI.Box(rect, "Developer Sandbox");
             var viewRect = new Rect(
@@ -113,109 +120,114 @@ namespace Dagon.Bootstrap
                 RebuildWeaponCatalog();
                 SyncSelectionFromLoadout();
                 availableCharacterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
+                availableActiveDefinitions = BuildActiveCatalog(availableCharacterProfiles);
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 106f, contentRect.width, 24f), BuildCharacterSwitchLabel(currentProfile, nextProfile)))
-            {
-                SwitchCharacter(nextProfile);
-            }
+            GUI.Label(new Rect(0f, contentTop + 106f, contentRect.width, 18f), $"Character: {(currentProfile != null ? currentProfile.DisplayName : "Unknown")}");
+            DrawCharacterPicker(contentTop + 128f, contentRect.width, currentProfile);
 
-            if (GUI.Button(new Rect(0f, contentTop + 136f, 152f, 24f), "Upgrade A All"))
+            var abilitySectionTop = contentTop + 128f + (characterRows * rowHeight) + 12f;
+            GUI.Label(new Rect(0f, abilitySectionTop, contentRect.width, 18f), $"Primary Active: {(currentActive != null ? currentActive.DisplayName : "None")}");
+            DrawAbilityPicker(abilitySectionTop + 22f, contentRect.width, currentActive);
+
+            var controlsTop = abilitySectionTop + 22f + (abilityRows * rowHeight) + 12f;
+
+            if (GUI.Button(new Rect(0f, controlsTop, 152f, 24f), "Upgrade A All"))
             {
                 UpgradeAllActiveWeapons(WeaponUpgradePath.PathA);
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 136f, 152f, 24f), "Upgrade B All"))
+            if (GUI.Button(new Rect(160f, controlsTop, 152f, 24f), "Upgrade B All"))
             {
                 UpgradeAllActiveWeapons(WeaponUpgradePath.PathB);
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 168f, contentRect.width, 24f), GetInvincibilityToggleLabel()))
+            if (GUI.Button(new Rect(0f, controlsTop + 32f, contentRect.width, 24f), GetInvincibilityToggleLabel()))
             {
                 TogglePlayerInvincibility();
             }
 
-            GUI.Label(new Rect(0f, contentTop + 200f, contentRect.width, 36f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
-            if (GUI.Button(new Rect(0f, contentTop + 236f, contentRect.width, 24f), $"Increase Spawn Pressure ({spawnBoostCount})"))
+            GUI.Label(new Rect(0f, controlsTop + 64f, contentRect.width, 36f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
+            if (GUI.Button(new Rect(0f, controlsTop + 100f, contentRect.width, 24f), $"Increase Spawn Pressure ({spawnBoostCount})"))
             {
                 IncreaseSpawnPressure();
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 266f, contentRect.width, 24f), GetAutoSpawnToggleLabel()))
+            if (GUI.Button(new Rect(0f, controlsTop + 130f, contentRect.width, 24f), GetAutoSpawnToggleLabel()))
             {
                 ToggleAutoSpawning();
             }
 
-            GUI.Label(new Rect(0f, contentTop + 296f, contentRect.width, 18f), $"Manual enemy spawns: {manualSpawnCount}");
+            GUI.Label(new Rect(0f, controlsTop + 160f, contentRect.width, 18f), $"Manual enemy spawns: {manualSpawnCount}");
 
-            if (GUI.Button(new Rect(0f, contentTop + 318f, 152f, 24f), "Spawn Wretch"))
+            if (GUI.Button(new Rect(0f, controlsTop + 182f, 152f, 24f), "Spawn Wretch"))
             {
                 SpawnEnemy(SpawnEnemyKind.MireWretch);
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 318f, 152f, 24f), "Spawn Acolyte"))
+            if (GUI.Button(new Rect(160f, controlsTop + 182f, 152f, 24f), "Spawn Acolyte"))
             {
                 SpawnEnemy(SpawnEnemyKind.DrownedAcolyte);
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 346f, 152f, 24f), "Spawn Mermaid"))
+            if (GUI.Button(new Rect(0f, controlsTop + 210f, 152f, 24f), "Spawn Mermaid"))
             {
                 SpawnEnemy(SpawnEnemyKind.Mermaid);
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 346f, 152f, 24f), "Spawn Deep Spawn"))
+            if (GUI.Button(new Rect(160f, controlsTop + 210f, 152f, 24f), "Spawn Deep Spawn"))
             {
                 SpawnEnemy(SpawnEnemyKind.DeepSpawn);
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 374f, 152f, 24f), "Spawn Eye"))
+            if (GUI.Button(new Rect(0f, controlsTop + 238f, 152f, 24f), "Spawn Eye"))
             {
                 SpawnEnemy(SpawnEnemyKind.WatcherEye);
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 374f, 152f, 24f), "Spawn Parasite"))
+            if (GUI.Button(new Rect(160f, controlsTop + 238f, 152f, 24f), "Spawn Parasite"))
             {
                 SpawnEnemy(SpawnEnemyKind.Parasite);
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 402f, 152f, 24f), "Spawn Mire Boss"))
+            if (GUI.Button(new Rect(0f, controlsTop + 266f, 152f, 24f), "Spawn Mire Boss"))
             {
                 SpawnBoss();
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 402f, 152f, 24f), "Spawn Monolith"))
+            if (GUI.Button(new Rect(160f, controlsTop + 266f, 152f, 24f), "Spawn Monolith"))
             {
                 SpawnMonolithBoss();
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 430f, contentRect.width, 24f), "Spawn Admiral"))
+            if (GUI.Button(new Rect(0f, controlsTop + 294f, contentRect.width, 24f), "Spawn Admiral"))
             {
                 SpawnAdmiralBoss();
             }
 
-            GUI.Label(new Rect(0f, contentTop + 462f, contentRect.width, 18f), "Corruption Events");
+            GUI.Label(new Rect(0f, controlsTop + 326f, contentRect.width, 18f), "Corruption Events");
 
-            if (GUI.Button(new Rect(0f, contentTop + 484f, 152f, 24f), "Trigger Fodder"))
+            if (GUI.Button(new Rect(0f, controlsTop + 348f, 152f, 24f), "Trigger Fodder"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Fodder);
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 484f, 152f, 24f), "Trigger Specialist"))
+            if (GUI.Button(new Rect(160f, controlsTop + 348f, 152f, 24f), "Trigger Specialist"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Specialist);
             }
 
-            if (GUI.Button(new Rect(0f, contentTop + 512f, 152f, 24f), "Trigger Elite"))
+            if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Trigger Elite"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Elite);
             }
 
-            if (GUI.Button(new Rect(160f, contentTop + 512f, 152f, 24f), "Trigger Front"))
+            if (GUI.Button(new Rect(160f, controlsTop + 376f, 152f, 24f), "Trigger Front"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Front);
             }
 
-            var weaponListTop = contentTop + 548f;
+            var weaponListTop = controlsTop + 412f;
 
             for (var index = 0; index < availableWeapons.Count; index++)
             {
@@ -246,6 +258,8 @@ namespace Dagon.Bootstrap
             }
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
+            availableCharacterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
+            availableActiveDefinitions = BuildActiveCatalog(availableCharacterProfiles);
         }
 
         private string GetInvincibilityToggleLabel()
@@ -370,11 +384,53 @@ namespace Dagon.Bootstrap
             }
         }
 
-        private string BuildCharacterSwitchLabel(CharacterProfileDefinition currentProfile, CharacterProfileDefinition nextProfile)
+        private void DrawCharacterPicker(float top, float width, CharacterProfileDefinition currentProfile)
         {
-            var currentLabel = currentProfile != null ? currentProfile.DisplayName : "Unknown";
-            var nextLabel = nextProfile != null ? nextProfile.DisplayName : currentLabel;
-            return $"Switch Character: {currentLabel} -> {nextLabel}";
+            const float buttonWidth = 152f;
+
+            for (var index = 0; index < availableCharacterProfiles.Length; index++)
+            {
+                var profile = availableCharacterProfiles[index];
+                if (profile == null)
+                {
+                    continue;
+                }
+
+                var column = index % 2;
+                var row = index / 2;
+                var x = column == 0 ? 0f : width - buttonWidth;
+                var y = top + (row * 28f);
+                var label = currentProfile == profile ? $"[{profile.DisplayName}]" : profile.DisplayName;
+                if (GUI.Button(new Rect(x, y, buttonWidth, 24f), label))
+                {
+                    SwitchCharacter(profile);
+                }
+            }
+        }
+
+        private void DrawAbilityPicker(float top, float width, ActiveAbilityRuntime currentActive)
+        {
+            const float buttonWidth = 152f;
+
+            for (var index = 0; index < availableActiveDefinitions.Length; index++)
+            {
+                var definition = availableActiveDefinitions[index];
+                if (definition == null)
+                {
+                    continue;
+                }
+
+                var column = index % 2;
+                var row = index / 2;
+                var x = column == 0 ? 0f : width - buttonWidth;
+                var y = top + (row * 28f);
+                var isCurrent = currentActive != null && currentActive.AbilityId == definition.AbilityId;
+                var label = isCurrent ? $"[{definition.DisplayName}]" : definition.DisplayName;
+                if (GUI.Button(new Rect(x, y, buttonWidth, 24f), label))
+                {
+                    EquipPrimaryActive(definition);
+                }
+            }
         }
 
         private CharacterProfileDefinition ResolveCurrentCharacterProfile()
@@ -404,29 +460,6 @@ namespace Dagon.Bootstrap
             return availableCharacterProfiles[0];
         }
 
-        private CharacterProfileDefinition ResolveNextCharacterProfile(CharacterProfileDefinition currentProfile)
-        {
-            if (availableCharacterProfiles == null || availableCharacterProfiles.Length == 0)
-            {
-                return null;
-            }
-
-            var currentIndex = 0;
-            if (currentProfile != null)
-            {
-                for (var index = 0; index < availableCharacterProfiles.Length; index++)
-                {
-                    if (availableCharacterProfiles[index] == currentProfile)
-                    {
-                        currentIndex = index;
-                        break;
-                    }
-                }
-            }
-
-            return availableCharacterProfiles[(currentIndex + 1) % availableCharacterProfiles.Length];
-        }
-
         private void SwitchCharacter(CharacterProfileDefinition nextProfile)
         {
             if (nextProfile == null)
@@ -436,6 +469,31 @@ namespace Dagon.Bootstrap
 
             RunSelectionState.SelectCharacter(nextProfile.CharacterId);
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        private void EquipPrimaryActive(ActiveAbilityDefinition definition)
+        {
+            if (definition == null || combatLoadout == null)
+            {
+                return;
+            }
+
+            combatLoadout.EquipActive(0, definition);
+        }
+
+        private static ActiveAbilityDefinition[] BuildActiveCatalog(IEnumerable<CharacterProfileDefinition> profiles)
+        {
+            if (profiles == null)
+            {
+                return System.Array.Empty<ActiveAbilityDefinition>();
+            }
+
+            return profiles
+                .Where(profile => profile != null && profile.StartingActive != null)
+                .Select(profile => profile.StartingActive)
+                .GroupBy(definition => definition.AbilityId)
+                .Select(group => group.First())
+                .ToArray();
         }
 
         private void EquipBaseOnly()

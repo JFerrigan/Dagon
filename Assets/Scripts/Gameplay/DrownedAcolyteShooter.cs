@@ -104,6 +104,15 @@ namespace Dagon.Gameplay
             stateTimer = 0f;
         }
 
+        public void ApplyCorruptionModifiers(float damageMultiplier, float speedMultiplier, float cadenceMultiplier)
+        {
+            moveSpeed = Mathf.Max(0.1f, moveSpeed * Mathf.Max(0.1f, speedMultiplier));
+            projectileDamage = Mathf.Max(0.1f, projectileDamage * Mathf.Max(0.1f, damageMultiplier));
+            fireCooldown = Mathf.Max(0.2f, fireCooldown / Mathf.Max(0.1f, cadenceMultiplier));
+            windupDuration = Mathf.Max(0.12f, windupDuration / Mathf.Max(0.1f, cadenceMultiplier));
+            recoveryDuration = Mathf.Max(0.1f, recoveryDuration / Mathf.Max(0.1f, cadenceMultiplier));
+        }
+
         private void ResolveReferences()
         {
             if (target == null)

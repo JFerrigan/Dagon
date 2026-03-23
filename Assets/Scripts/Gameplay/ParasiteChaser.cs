@@ -57,5 +57,10 @@ namespace Dagon.Gameplay
             moveSpeed = Mathf.Max(0.1f, newMoveSpeed);
             stoppingDistance = Mathf.Max(0f, newStoppingDistance);
         }
+
+        public void ApplyCorruptionModifiers(float speedMultiplier)
+        {
+            moveSpeed = Mathf.Max(0.1f, moveSpeed * Mathf.Max(0.1f, speedMultiplier));
+        }
     }
 }

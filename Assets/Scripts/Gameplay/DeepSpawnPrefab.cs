@@ -68,6 +68,17 @@ namespace Dagon.Gameplay
             healthBar.Configure(worldCamera, new Vector3(0f, 1.8f, 0f), !healthBarsAlwaysVisible, visibleDurationAfterDamage);
         }
 
+        public void ApplyCorruptionModifiers(float healthMultiplier, float damageMultiplier, float speedMultiplier, float cadenceMultiplier)
+        {
+            EnsureSetup();
+            health.SetMaxHealth(maxHealth * Mathf.Max(0.1f, healthMultiplier), true);
+            contactDamage.Configure(contactDamageAmount * Mathf.Max(0.1f, damageMultiplier));
+            bruiser.Configure(
+                null,
+                driftSpeed * Mathf.Max(0.1f, speedMultiplier),
+                chargeSpeed * Mathf.Max(0.1f, speedMultiplier * Mathf.Max(0.1f, cadenceMultiplier)));
+        }
+
         private void EnsureSetup()
         {
             health = GetOrAddComponent(health);

@@ -107,6 +107,18 @@ namespace Dagon.Gameplay
             queuedAttack = Attack.None;
         }
 
+        public void ApplyCorruptionModifiers(float damageMultiplier, float speedMultiplier, float cadenceMultiplier)
+        {
+            var safeSpeedMultiplier = Mathf.Max(0.1f, speedMultiplier);
+            var safeDamageMultiplier = Mathf.Max(0.1f, damageMultiplier);
+            var safeCadenceMultiplier = Mathf.Max(0.1f, cadenceMultiplier);
+            hoverSpeed = Mathf.Max(0.1f, hoverSpeed * safeSpeedMultiplier);
+            orbDamage = Mathf.Max(0.1f, orbDamage * safeDamageMultiplier);
+            orbCooldown = Mathf.Max(0.3f, orbCooldown / safeCadenceMultiplier);
+            orbWindup = Mathf.Max(0.1f, orbWindup / safeCadenceMultiplier);
+            recoveryDuration = Mathf.Max(0.12f, recoveryDuration / safeCadenceMultiplier);
+        }
+
         private void ResolveReferences()
         {
             if (target == null)

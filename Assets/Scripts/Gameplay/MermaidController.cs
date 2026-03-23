@@ -112,6 +112,19 @@ namespace Dagon.Gameplay
             queuedAbility = CastAbility.None;
         }
 
+        public void ApplyCorruptionModifiers(float damageMultiplier, float speedMultiplier, float cadenceMultiplier)
+        {
+            var safeSpeedMultiplier = Mathf.Max(0.1f, speedMultiplier);
+            var safeDamageMultiplier = Mathf.Max(0.1f, damageMultiplier);
+            var safeCadenceMultiplier = Mathf.Max(0.1f, cadenceMultiplier);
+            moveSpeed = Mathf.Max(0.1f, moveSpeed * safeSpeedMultiplier);
+            retreatSpeed = Mathf.Max(moveSpeed, retreatSpeed * safeSpeedMultiplier);
+            sirenDamage = Mathf.Max(0.1f, sirenDamage * safeDamageMultiplier);
+            sirenCooldown = Mathf.Max(0.45f, sirenCooldown / safeCadenceMultiplier);
+            sirenWindupDuration = Mathf.Max(0.2f, sirenWindupDuration / safeCadenceMultiplier);
+            recoveryDuration = Mathf.Max(0.2f, recoveryDuration / safeCadenceMultiplier);
+        }
+
         private void ResolveReferences()
         {
             if (target == null)
