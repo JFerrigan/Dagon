@@ -86,14 +86,7 @@ namespace Dagon.Gameplay
             switch (path)
             {
                 case WeaponUpgradePath.PathA:
-                    if (nextStep <= 2)
-                    {
-                        pulseCount = nextStep + 1;
-                    }
-                    else
-                    {
-                        damage = 1.1f;
-                    }
+                    pulseCount = nextStep + 1;
                     break;
                 case WeaponUpgradePath.PathB:
                     damage = nextStep switch
@@ -125,11 +118,29 @@ namespace Dagon.Gameplay
             {
                 WeaponUpgradePath.PathA when nextStep == 1 => FlatCountDelta(1, "Pulse"),
                 WeaponUpgradePath.PathA when nextStep == 2 => FlatCountDelta(1, "Pulse"),
-                WeaponUpgradePath.PathA => FlatDamageDelta(0.3f),
+                WeaponUpgradePath.PathA => FlatCountDelta(1, "Pulse"),
                 WeaponUpgradePath.PathB when nextStep == 1 => FlatDamageDelta(0.4f),
                 WeaponUpgradePath.PathB when nextStep == 2 => FlatDamageDelta(0.4f),
                 _ => FlatDamageDelta(0.4f)
             };
+        }
+
+        protected override void ApplyOverflowUpgrade(WeaponUpgradePath path, int nextStep)
+        {
+            if (path == WeaponUpgradePath.PathA)
+            {
+                ModifyProjectileCount(1);
+                return;
+            }
+
+            ModifyProjectileDamage(0.4f);
+        }
+
+        protected override string GetOverflowUpgradeDescription(WeaponUpgradePath path, int nextStep)
+        {
+            return path == WeaponUpgradePath.PathA
+                ? FlatCountDelta(1, "Pulse")
+                : FlatDamageDelta(0.4f);
         }
 
         private IEnumerator PulseSequence()

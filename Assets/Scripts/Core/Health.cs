@@ -19,6 +19,7 @@ namespace Dagon.Core
         private float bonusMaxHealth;
         private float healingMultiplier = 1f;
         private float incomingDamageMultiplier = 1f;
+        private float externalIncomingDamageMultiplier = 1f;
         private float incomingContactDamageMultiplier = 1f;
         private bool isDead;
 
@@ -56,7 +57,7 @@ namespace Dagon.Core
                 return;
             }
 
-            var scaledAmount = amount * incomingDamageMultiplier;
+            var scaledAmount = amount * incomingDamageMultiplier * externalIncomingDamageMultiplier;
             if (source != null && source.GetComponent<Dagon.Gameplay.ContactDamage>() != null)
             {
                 scaledAmount *= incomingContactDamageMultiplier;
@@ -158,6 +159,11 @@ namespace Dagon.Core
         public void SetIncomingDamageMultiplier(float multiplier)
         {
             incomingDamageMultiplier = Mathf.Max(0f, multiplier);
+        }
+
+        public void SetExternalIncomingDamageMultiplier(float multiplier)
+        {
+            externalIncomingDamageMultiplier = Mathf.Max(0f, multiplier);
         }
 
         public void SetIncomingContactDamageMultiplier(float multiplier)

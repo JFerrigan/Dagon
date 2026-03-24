@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
         [SerializeField] private HarpoonProjectile orbProjectilePrefab;
         [SerializeField] private float driftSpeed = 0.95f;
         [SerializeField] private float projectileSpeed = 5.1f;
-        [SerializeField] private float projectileDamage = 2f;
+        [SerializeField] private float projectileDamage = 1f;
         [SerializeField] private int radialBurstCount = 10;
         [SerializeField] private int aimedVolleyCount = 5;
         [SerializeField] private float aimedVolleySpread = 26f;
@@ -40,7 +40,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float slamRadius = 3.2f;
         [SerializeField] private float slamDamage = 2f;
         [SerializeField] private float slamHazardDuration = 3f;
-        [SerializeField] private float slamHazardTickDamage = 0.75f;
+        [SerializeField] private float slamHazardTickDamage = 1f;
         [SerializeField] private float slamHazardTickInterval = 0.5f;
         [SerializeField] private Camera worldCamera;
 
@@ -320,6 +320,7 @@ namespace Dagon.Gameplay
                     orbProjectilePrefab,
                     transform.position + Vector3.up * 0.5f,
                     Quaternion.LookRotation(direction, Vector3.up));
+                EnlargeProjectileVisual(projectile.transform, 2f);
                 projectile.gameObject.SetActive(true);
                 projectile.Initialize(gameObject, direction, projectileSpeed, projectileDamage);
             }
@@ -365,8 +366,8 @@ namespace Dagon.Gameplay
             {
                 var directionA = Quaternion.Euler(0f, baseAngles[i], 0f) * Vector3.forward;
                 var directionB = Quaternion.Euler(0f, baseAngles[i] + 180f, 0f) * Vector3.forward;
-                SpawnProjectile(directionA, projectileSpeed + 0.8f, projectileDamage + 0.5f);
-                SpawnProjectile(directionB, projectileSpeed + 0.8f, projectileDamage + 0.5f);
+                SpawnProjectile(directionA, projectileSpeed + 0.8f, projectileDamage);
+                SpawnProjectile(directionB, projectileSpeed + 0.8f, projectileDamage);
             }
         }
 
@@ -381,8 +382,25 @@ namespace Dagon.Gameplay
                 orbProjectilePrefab,
                 transform.position + Vector3.up * 0.5f,
                 Quaternion.LookRotation(direction, Vector3.up));
+            EnlargeProjectileVisual(projectile.transform, 2f);
             projectile.gameObject.SetActive(true);
             projectile.Initialize(gameObject, direction, speed, damage);
+        }
+
+        private static void EnlargeProjectileVisual(Transform projectileTransform, float scaleMultiplier)
+        {
+            if (projectileTransform == null || scaleMultiplier <= 0f)
+            {
+                return;
+            }
+
+            var visuals = projectileTransform.Find("Visuals");
+            if (visuals == null)
+            {
+                return;
+            }
+
+            visuals.localScale *= scaleMultiplier;
         }
 
         private void PerformSlam()

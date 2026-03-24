@@ -3,12 +3,13 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class SimpleEnemyChaser : MonoBehaviour
+    public sealed class SimpleEnemyChaser : MonoBehaviour, IAuraMoveSpeedTarget
     {
         [SerializeField] private Transform target;
         [SerializeField] private float moveSpeed = 2.5f;
         [SerializeField] private float stoppingDistance = 0.8f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
+        private float auraMoveSpeedMultiplier = 1f;
 
         private void Awake()
         {
@@ -39,7 +40,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = moveSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = moveSpeed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             transform.position += offset.normalized * (effectiveSpeed * Time.deltaTime);
         }
 
@@ -47,6 +48,11 @@ namespace Dagon.Gameplay
         {
             moveSpeed = Mathf.Max(0.01f, newMoveSpeed);
             stoppingDistance = Mathf.Max(0f, newStoppingDistance);
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
         }
     }
 }

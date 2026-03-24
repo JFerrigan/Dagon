@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
         private readonly HashSet<GameObject> resolvedTargets = new();
 
         public override float CooldownRemaining => cooldownRemaining;
-        public override float CooldownDuration => cooldown;
+        public override float CooldownDuration => ResolveCooldownDuration(cooldown);
 
         private void Update()
         {
@@ -158,7 +158,8 @@ namespace Dagon.Gameplay
             }
 
             BrineSurgeVisual.Spawn(transform.position, radius, ResolveCamera());
-            cooldownRemaining = cooldown;
+            cooldownRemaining = CooldownDuration;
+            NotifyActivated();
         }
 
         private Camera ResolveCamera()

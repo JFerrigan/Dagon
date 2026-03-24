@@ -8,6 +8,20 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class CorruptionRuntimeEffects : MonoBehaviour
     {
+        private enum BoonBand
+        {
+            Early,
+            Mid,
+            Late
+        }
+
+        private enum DrawbackBand
+        {
+            Early,
+            Mid,
+            Late
+        }
+
         public readonly struct CorruptionOptionView
         {
             public CorruptionOptionView(string title, string description, bool isCorruptionActive = false)
@@ -24,38 +38,48 @@ namespace Dagon.Gameplay
 
         public readonly struct CorruptionChoiceView
         {
-            public CorruptionChoiceView(int stageIndex, float thresholdValue, CorruptionOptionView[] boons, CorruptionOptionView[] drawbacks)
+            public CorruptionChoiceView(int stageIndex, float thresholdValue, CorruptionOptionView[] boons, CorruptionOptionView[] drawbacks, bool requiresBoonSelection)
             {
                 StageIndex = stageIndex;
                 ThresholdValue = thresholdValue;
                 Boons = boons;
                 Drawbacks = drawbacks;
+                RequiresBoonSelection = requiresBoonSelection;
             }
 
             public int StageIndex { get; }
             public float ThresholdValue { get; }
             public CorruptionOptionView[] Boons { get; }
             public CorruptionOptionView[] Drawbacks { get; }
+            public bool RequiresBoonSelection { get; }
         }
 
         private enum EffectKind
         {
             AttackRateBonus,
-            DamageBonus,
-            ActiveRadiusBonus,
-            MaxHealthBonus,
             HealingMultiplier,
-            ContactDamageMultiplier,
             IncomingDamageMultiplier,
-            CorruptionGainMultiplier,
-            FodderWaveSizeMultiplier,
-            SpecialistWaveSizeMultiplier,
             EliteWaveSizeMultiplier,
-            SpecialistCapBonus,
-            EliteCapBonus,
             BossAmbientIntervalMultiplier,
             EliteWaveEarlyUnlock,
-            ReplacePrimaryActive
+            ReplacePrimaryActive,
+            AmbientSpawnIntervalMultiplier,
+            EnemyHealthMultiplier,
+            EnemyMoveSpeedMultiplier,
+            ActiveCooldownMultiplier,
+            DisableWorldHealing,
+            BossCorruptionChanceMultiplier,
+            CorruptedBossHealthMultiplier,
+            AmbientBossLaneEnable,
+            ResetProgression,
+            BloodInTheWake,
+            CarrionPull,
+            ExperiencePickupValueMultiplier,
+            BrineEngine,
+            CrashingSurge,
+            UpgradeAllWeaponsOnce,
+            AbyssalPulse,
+            DevourTheDeep
         }
 
         private readonly struct CorruptionEffect
@@ -73,20 +97,78 @@ namespace Dagon.Gameplay
             public bool FillBonusHealth { get; }
             public ActiveAbilityDefinition ActiveDefinition { get; }
             public bool IsActiveReplacement => Kind == EffectKind.ReplacePrimaryActive && ActiveDefinition != null;
+            public bool IsResetProgression => Kind == EffectKind.ResetProgression;
+            public bool UpgradesAllWeapons => Kind == EffectKind.UpgradeAllWeaponsOnce;
         }
 
         private readonly struct StageOptionDefinition
         {
-            public StageOptionDefinition(string title, string description, CorruptionEffect effect)
+            public StageOptionDefinition(string title, string description, params CorruptionEffect[] effects)
             {
                 Title = title;
                 Description = description;
-                Effect = effect;
+                Effects = effects ?? System.Array.Empty<CorruptionEffect>();
             }
 
             public string Title { get; }
             public string Description { get; }
-            public CorruptionEffect Effect { get; }
+            public CorruptionEffect[] Effects { get; }
+
+            public bool IsActiveReplacement
+            {
+                get
+                {
+                    for (var i = 0; i < Effects.Length; i++)
+                    {
+                        if (Effects[i].IsActiveReplacement)
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            }
+
+            public bool TriggersProgressionReset
+            {
+                get
+                {
+                    for (var i = 0; i < Effects.Length; i++)
+                    {
+                        if (Effects[i].IsResetProgression)
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            }
+        }
+
+        private readonly struct WeightedBoonDefinition
+        {
+            public WeightedBoonDefinition(BoonBand band, string title, string description, params CorruptionEffect[] effects)
+            {
+                Band = band;
+                Option = new StageOptionDefinition(title, description, effects);
+            }
+
+            public BoonBand Band { get; }
+            public StageOptionDefinition Option { get; }
+        }
+
+        private readonly struct WeightedDrawbackDefinition
+        {
+            public WeightedDrawbackDefinition(DrawbackBand band, string title, string description, params CorruptionEffect[] effects)
+            {
+                Band = band;
+                Option = new StageOptionDefinition(title, description, effects);
+            }
+
+            public DrawbackBand Band { get; }
+            public StageOptionDefinition Option { get; }
         }
 
         private readonly struct StageSelection
@@ -106,27 +188,52 @@ namespace Dagon.Gameplay
             private const float BaseCorruptionGainMultiplier = 0.6f;
 
             public float AttackRateBonus;
-            public float DamageBonus;
-            public float ActiveRadiusBonus;
-            public float BonusMaxHealth;
-            public bool FillBonusHealth;
             public float HealingMultiplier = 1f;
-            public float ContactDamageMultiplier = 1f;
             public float IncomingDamageMultiplier = 1f;
-            public float CorruptionGainMultiplier = BaseCorruptionGainMultiplier;
-            public float FodderWaveSizeMultiplier = 1f;
-            public float SpecialistWaveSizeMultiplier = 1f;
             public float EliteWaveSizeMultiplier = 1f;
-            public int SpecialistCapBonus;
-            public int EliteCapBonus;
             public float BossAmbientIntervalMultiplier = 1f;
             public bool EliteWaveEarlyUnlock;
+            public float CorruptionGainMultiplier = BaseCorruptionGainMultiplier;
+            public float AmbientSpawnIntervalMultiplier = 1f;
+            public float EnemyHealthMultiplier = 1f;
+            public float EnemyMoveSpeedMultiplier = 1f;
+            public float ActiveCooldownMultiplier = 1f;
+            public bool WorldHealingDisabled;
+            public float BossCorruptionChanceMultiplier = 1f;
+            public float CorruptedBossHealthMultiplier = 1f;
+            public bool AmbientBossLaneEnabled;
+            public bool BloodInTheWake;
+            public float PickupAttractRadiusMultiplier = 1f;
+            public float ExperiencePickupValueMultiplier = 1f;
+            public bool BrineEngine;
+            public bool CrashingSurge;
+            public bool AbyssalPulse;
+            public bool DevourTheDeep;
         }
+
+        private const int NormalCorruptionStageCount = 9;
+        private const int CatastropheStageIndex = 9;
+
+        private const float BloodInTheWakeDuration = 3.5f;
+        private const float BloodInTheWakeBonusPerStack = 0.08f;
+        private const int BloodInTheWakeMaxStacks = 3;
+        private const float BrineEngineBuildTime = 1.4f;
+        private const float BrineEngineMaxBonus = 0.18f;
+        private const float CrashingSurgeDuration = 2.5f;
+        private const float CrashingSurgeBonus = 0.22f;
+        private const int AbyssalPulseKillsPerTrigger = 10;
+        private const float AbyssalPulseRadius = 4.5f;
+        private const float AbyssalPulseDamage = 6f;
+        private const float DevourTheDeepCorruptionReduction = 3f;
 
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private PlayerCombatLoadout combatLoadout;
         [SerializeField] private Health health;
         [SerializeField] private SpawnDirector spawnDirector;
+        [SerializeField] private ExperienceController experienceController;
+        [SerializeField] private RunStateManager runStateManager;
+        [SerializeField] private PlayerMover playerMover;
+        [SerializeField] private LayerMask enemyMask = ~0;
 
         private readonly Queue<int> pendingStageChoices = new();
         private readonly Dictionary<int, StageSelection> rememberedSelections = new();
@@ -134,29 +241,41 @@ namespace Dagon.Gameplay
         private readonly Dictionary<int, StageOptionDefinition[]> stageDrawbacks = new();
 
         private float appliedAttackRateBonus;
-        private float appliedDamageBonus;
-        private float appliedActiveRadiusBonus;
+        private float appliedTransientAttackRateBonus;
+        private bool blocksWorldHealing;
+        private float pickupAttractRadiusMultiplier = 1f;
+        private float experiencePickupValueMultiplier = 1f;
+        private bool bloodInTheWakeEnabled;
+        private bool brineEngineEnabled;
+        private bool crashingSurgeEnabled;
+        private bool abyssalPulseEnabled;
+        private bool devourTheDeepEnabled;
+        private int bloodInTheWakeStacks;
+        private float bloodInTheWakeTimer;
+        private float brineEngineCharge;
+        private float crashingSurgeTimer;
+        private int abyssalPulseKillCounter;
         private ActiveAbilityDefinition abyssalRebirthAbility;
         private ActiveAbilityDefinition bloodwakeStepAbility;
         private ActiveAbilityDefinition riftheartAbility;
+        private ActiveAbilityRuntime subscribedActive;
+        private readonly HashSet<GameObject> resolvedTargets = new();
 
         public bool HasPendingChoice => pendingStageChoices.Count > 0;
+        public bool BlocksWorldHealing => blocksWorldHealing;
+        public float PickupAttractRadiusMultiplier => pickupAttractRadiusMultiplier;
+        public float ExperiencePickupValueMultiplier => experiencePickupValueMultiplier;
 
         private void Awake()
         {
-            if (corruptionMeter == null)
+            corruptionMeter ??= GetComponent<CorruptionMeter>();
+            combatLoadout ??= GetComponent<PlayerCombatLoadout>();
+            health ??= GetComponent<Health>();
+            experienceController ??= GetComponent<ExperienceController>();
+            playerMover ??= GetComponent<PlayerMover>();
+            if (runStateManager == null)
             {
-                corruptionMeter = GetComponent<CorruptionMeter>();
-            }
-
-            if (combatLoadout == null)
-            {
-                combatLoadout = GetComponent<PlayerCombatLoadout>();
-            }
-
-            if (health == null)
-            {
-                health = GetComponent<Health>();
+                runStateManager = FindFirstObjectByType<RunStateManager>();
             }
 
             BuildCorruptionActiveDefinitions();
@@ -169,6 +288,12 @@ namespace Dagon.Gameplay
                 corruptionMeter.StageChanged += HandleStageChanged;
             }
 
+            if (playerMover != null)
+            {
+                playerMover.DashStarted += HandleDashStarted;
+            }
+
+            RefreshActiveSubscription();
             ReapplyActiveEffects();
         }
 
@@ -178,11 +303,29 @@ namespace Dagon.Gameplay
             {
                 corruptionMeter.StageChanged -= HandleStageChanged;
             }
+
+            if (playerMover != null)
+            {
+                playerMover.DashStarted -= HandleDashStarted;
+            }
+
+            UnsubscribeActive();
+        }
+
+        private void Update()
+        {
+            RefreshActiveSubscription();
+            TickTransientPassives(Time.deltaTime);
         }
 
         public void Configure(SpawnDirector director)
         {
             spawnDirector = director;
+            if (runStateManager == null)
+            {
+                runStateManager = FindFirstObjectByType<RunStateManager>();
+            }
+
             ReapplyActiveEffects();
         }
 
@@ -200,7 +343,8 @@ namespace Dagon.Gameplay
                 stageIndex,
                 corruptionMeter != null ? corruptionMeter.GetThresholdValue(stageIndex) : (stageIndex + 1) * 25f,
                 ToOptionViews(boons),
-                ToOptionViews(drawbacks));
+                ToOptionViews(drawbacks),
+                boons.Length > 0);
         }
 
         public void ApplyPendingChoice(int boonIndex, int drawbackIndex)
@@ -213,18 +357,51 @@ namespace Dagon.Gameplay
             var stageIndex = pendingStageChoices.Dequeue();
             var boons = GetResolvedStageBoons(stageIndex);
             var drawbacks = GetResolvedStageDrawbacks(stageIndex);
-            var resolvedBoonIndex = Mathf.Clamp(boonIndex, 0, boons.Length - 1);
-            var resolvedDrawbackIndex = Mathf.Clamp(drawbackIndex, 0, drawbacks.Length - 1);
+            var resolvedBoonIndex = boons.Length > 0 ? Mathf.Clamp(boonIndex, 0, boons.Length - 1) : -1;
+            var resolvedDrawbackIndex = stageIndex >= CatastropheStageIndex
+                ? Mathf.Clamp(drawbackIndex, 0, drawbacks.Length - 1)
+                : (drawbacks.Length > 0 ? 0 : -1);
             rememberedSelections[stageIndex] = new StageSelection(resolvedBoonIndex, resolvedDrawbackIndex);
 
-            var chosenBoon = boons[resolvedBoonIndex].Effect;
-            if (chosenBoon.IsActiveReplacement)
+            if (resolvedBoonIndex >= 0)
             {
-                combatLoadout?.ReplacePrimaryActive(chosenBoon.ActiveDefinition, true);
-                appliedActiveRadiusBonus = 0f;
+                ApplySelectionSideEffects(boons[resolvedBoonIndex]);
             }
 
+            if (resolvedDrawbackIndex >= 0 && resolvedDrawbackIndex < drawbacks.Length)
+            {
+                ApplySelectionSideEffects(drawbacks[resolvedDrawbackIndex]);
+            }
             ReapplyActiveEffects();
+        }
+
+        public void NotifyEnemyKilled(GameObject enemyRoot, GameObject source)
+        {
+            if (!WasPlayerKill(source))
+            {
+                return;
+            }
+
+            if (bloodInTheWakeEnabled)
+            {
+                bloodInTheWakeStacks = Mathf.Min(BloodInTheWakeMaxStacks, bloodInTheWakeStacks + 1);
+                bloodInTheWakeTimer = BloodInTheWakeDuration;
+            }
+
+            if (abyssalPulseEnabled)
+            {
+                abyssalPulseKillCounter += 1;
+                while (abyssalPulseKillCounter >= AbyssalPulseKillsPerTrigger)
+                {
+                    abyssalPulseKillCounter -= AbyssalPulseKillsPerTrigger;
+                    TriggerAbyssalPulse();
+                }
+            }
+
+            if (devourTheDeepEnabled && enemyRoot != null && enemyRoot.GetComponent<CorruptedVariantMarker>() != null)
+            {
+                corruptionMeter?.ReduceCorruption(DevourTheDeepCorruptionReduction);
+            }
         }
 
         private void HandleStageChanged(int previousStageIndex, int currentStageIndex)
@@ -233,18 +410,51 @@ namespace Dagon.Gameplay
             {
                 for (var stageIndex = previousStageIndex + 1; stageIndex <= currentStageIndex; stageIndex++)
                 {
-                    if (rememberedSelections.ContainsKey(stageIndex) || pendingStageChoices.Contains(stageIndex))
+                    if (rememberedSelections.ContainsKey(stageIndex))
                     {
                         continue;
                     }
 
-                    GetResolvedStageBoons(stageIndex);
-                    GetResolvedStageDrawbacks(stageIndex);
-                    pendingStageChoices.Enqueue(stageIndex);
+                    if (!pendingStageChoices.Contains(stageIndex))
+                    {
+                        GetResolvedStageBoons(stageIndex);
+                        GetResolvedStageDrawbacks(stageIndex);
+                        pendingStageChoices.Enqueue(stageIndex);
+                    }
                 }
             }
 
             ReapplyActiveEffects();
+        }
+
+        private void ApplySelectionSideEffects(StageOptionDefinition option)
+        {
+            for (var i = 0; i < option.Effects.Length; i++)
+            {
+                var effect = option.Effects[i];
+                if (effect.IsActiveReplacement)
+                {
+                    combatLoadout?.ReplacePrimaryActive(effect.ActiveDefinition, true);
+                    RefreshActiveSubscription();
+                }
+                else if (effect.IsResetProgression)
+                {
+                    PerformCastDown();
+                }
+                else if (effect.UpgradesAllWeapons)
+                {
+                    UpgradeAllWeaponsOnce();
+                }
+            }
+        }
+
+        private void PerformCastDown()
+        {
+            experienceController?.ResetToStartingProgression();
+            combatLoadout?.ResetToStartingLoadout();
+            RefreshActiveSubscription();
+            appliedAttackRateBonus = 0f;
+            appliedTransientAttackRateBonus = 0f;
         }
 
         private void ReapplyActiveEffects()
@@ -258,43 +468,63 @@ namespace Dagon.Gameplay
                 appliedAttackRateBonus = aggregate.AttackRateBonus;
             }
 
-            var damageDelta = aggregate.DamageBonus - appliedDamageBonus;
-            if (Mathf.Abs(damageDelta) > 0.0001f)
-            {
-                combatLoadout?.ModifyAllWeaponsDamage(damageDelta);
-                appliedDamageBonus = aggregate.DamageBonus;
-            }
-
-            var activeRadiusDelta = aggregate.ActiveRadiusBonus - appliedActiveRadiusBonus;
-            if (Mathf.Abs(activeRadiusDelta) > 0.0001f)
-            {
-                combatLoadout?.GetPrimaryActive()?.ModifyRadius(activeRadiusDelta);
-                appliedActiveRadiusBonus = aggregate.ActiveRadiusBonus;
-            }
+            combatLoadout?.SetAllActiveCooldownMultiplier(aggregate.ActiveCooldownMultiplier);
 
             if (health != null)
             {
-                health.SetBonusMaxHealth(aggregate.BonusMaxHealth, aggregate.FillBonusHealth);
                 health.SetHealingMultiplier(aggregate.HealingMultiplier);
-                health.SetIncomingContactDamageMultiplier(aggregate.ContactDamageMultiplier);
                 health.SetIncomingDamageMultiplier(aggregate.IncomingDamageMultiplier);
+            }
+
+            pickupAttractRadiusMultiplier = aggregate.PickupAttractRadiusMultiplier;
+            experiencePickupValueMultiplier = aggregate.ExperiencePickupValueMultiplier;
+            bloodInTheWakeEnabled = aggregate.BloodInTheWake;
+            brineEngineEnabled = aggregate.BrineEngine;
+            crashingSurgeEnabled = aggregate.CrashingSurge;
+            abyssalPulseEnabled = aggregate.AbyssalPulse;
+            devourTheDeepEnabled = aggregate.DevourTheDeep;
+            blocksWorldHealing = aggregate.WorldHealingDisabled;
+
+            if (!bloodInTheWakeEnabled)
+            {
+                bloodInTheWakeStacks = 0;
+                bloodInTheWakeTimer = 0f;
+            }
+
+            if (!crashingSurgeEnabled)
+            {
+                crashingSurgeTimer = 0f;
+            }
+
+            if (!abyssalPulseEnabled)
+            {
+                abyssalPulseKillCounter = 0;
             }
 
             corruptionMeter?.SetCorruptionGainMultiplier(aggregate.CorruptionGainMultiplier);
             spawnDirector?.ConfigureCorruptionModifiers(
-                aggregate.FodderWaveSizeMultiplier,
-                aggregate.SpecialistWaveSizeMultiplier,
+                1f,
+                1f,
                 aggregate.EliteWaveSizeMultiplier,
-                aggregate.SpecialistCapBonus,
-                aggregate.EliteCapBonus,
+                0,
+                0,
                 aggregate.EliteWaveEarlyUnlock,
-                aggregate.BossAmbientIntervalMultiplier);
+                aggregate.BossAmbientIntervalMultiplier,
+                aggregate.AmbientSpawnIntervalMultiplier,
+                aggregate.EnemyHealthMultiplier,
+                aggregate.EnemyMoveSpeedMultiplier);
+            runStateManager?.ConfigureCorruptionBossModifiers(
+                aggregate.BossCorruptionChanceMultiplier,
+                aggregate.CorruptedBossHealthMultiplier,
+                aggregate.AmbientBossLaneEnabled,
+                1f,
+                1);
         }
 
         private StageAggregate BuildAggregate()
         {
             var aggregate = new StageAggregate();
-            var activeStageIndex = corruptionMeter != null ? corruptionMeter.CurrentStageIndex : -1;
+            var activeStageIndex = corruptionMeter != null ? Mathf.Min(NormalCorruptionStageCount - 1, corruptionMeter.CurrentStageIndex) : -1;
 
             for (var stageIndex = 0; stageIndex <= activeStageIndex; stageIndex++)
             {
@@ -303,11 +533,90 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
-                ApplyEffect(aggregate, GetResolvedStageBoons(stageIndex)[selection.BoonIndex].Effect);
-                ApplyEffect(aggregate, GetResolvedStageDrawbacks(stageIndex)[selection.DrawbackIndex].Effect);
+                var boons = GetResolvedStageBoons(stageIndex);
+                if (selection.BoonIndex >= 0 && selection.BoonIndex < boons.Length)
+                {
+                    ApplyEffects(aggregate, boons[selection.BoonIndex].Effects);
+                }
+
+                var drawbacks = GetResolvedStageDrawbacks(stageIndex);
+                if (selection.DrawbackIndex >= 0 && selection.DrawbackIndex < drawbacks.Length)
+                {
+                    ApplyEffects(aggregate, drawbacks[selection.DrawbackIndex].Effects);
+                }
+            }
+
+            if (corruptionMeter != null && corruptionMeter.CurrentStageIndex >= CatastropheStageIndex && rememberedSelections.TryGetValue(CatastropheStageIndex, out var catastrophicSelection))
+            {
+                var stageFive = GetResolvedStageDrawbacks(CatastropheStageIndex);
+                if (catastrophicSelection.DrawbackIndex >= 0 && catastrophicSelection.DrawbackIndex < stageFive.Length)
+                {
+                    ApplyEffects(aggregate, stageFive[catastrophicSelection.DrawbackIndex].Effects);
+                }
             }
 
             return aggregate;
+        }
+
+        private void TickTransientPassives(float deltaTime)
+        {
+            if (deltaTime <= 0f || combatLoadout == null)
+            {
+                return;
+            }
+
+            if (bloodInTheWakeTimer > 0f)
+            {
+                bloodInTheWakeTimer = Mathf.Max(0f, bloodInTheWakeTimer - deltaTime);
+                if (bloodInTheWakeTimer <= 0f)
+                {
+                    bloodInTheWakeStacks = 0;
+                }
+            }
+
+            if (crashingSurgeTimer > 0f)
+            {
+                crashingSurgeTimer = Mathf.Max(0f, crashingSurgeTimer - deltaTime);
+            }
+
+            if (brineEngineEnabled && playerMover != null)
+            {
+                var moving = playerMover.MoveDirection.sqrMagnitude > 0.05f;
+                var rate = moving ? 1f : -1.5f;
+                brineEngineCharge = Mathf.Clamp(brineEngineCharge + (deltaTime * rate), 0f, BrineEngineBuildTime);
+            }
+            else
+            {
+                brineEngineCharge = 0f;
+            }
+
+            var transientAttackRateBonus = 0f;
+            transientAttackRateBonus += bloodInTheWakeStacks * BloodInTheWakeBonusPerStack;
+            transientAttackRateBonus += (brineEngineCharge / BrineEngineBuildTime) * BrineEngineMaxBonus;
+            if (crashingSurgeTimer > 0f)
+            {
+                transientAttackRateBonus += CrashingSurgeBonus;
+            }
+
+            var delta = transientAttackRateBonus - appliedTransientAttackRateBonus;
+            if (Mathf.Abs(delta) > 0.0001f)
+            {
+                combatLoadout.ModifyAllWeaponsAttackRate(delta);
+                appliedTransientAttackRateBonus = transientAttackRateBonus;
+            }
+        }
+
+        private static void ApplyEffects(StageAggregate aggregate, CorruptionEffect[] effects)
+        {
+            if (effects == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < effects.Length; i++)
+            {
+                ApplyEffect(aggregate, effects[i]);
+            }
         }
 
         private static void ApplyEffect(StageAggregate aggregate, CorruptionEffect effect)
@@ -317,42 +626,14 @@ namespace Dagon.Gameplay
                 case EffectKind.AttackRateBonus:
                     aggregate.AttackRateBonus += effect.Value;
                     break;
-                case EffectKind.DamageBonus:
-                    aggregate.DamageBonus += effect.Value;
-                    break;
-                case EffectKind.ActiveRadiusBonus:
-                    aggregate.ActiveRadiusBonus += effect.Value;
-                    break;
-                case EffectKind.MaxHealthBonus:
-                    aggregate.BonusMaxHealth += effect.Value;
-                    aggregate.FillBonusHealth |= effect.FillBonusHealth;
-                    break;
                 case EffectKind.HealingMultiplier:
                     aggregate.HealingMultiplier *= effect.Value;
-                    break;
-                case EffectKind.ContactDamageMultiplier:
-                    aggregate.ContactDamageMultiplier *= effect.Value;
                     break;
                 case EffectKind.IncomingDamageMultiplier:
                     aggregate.IncomingDamageMultiplier *= effect.Value;
                     break;
-                case EffectKind.CorruptionGainMultiplier:
-                    aggregate.CorruptionGainMultiplier *= effect.Value;
-                    break;
-                case EffectKind.FodderWaveSizeMultiplier:
-                    aggregate.FodderWaveSizeMultiplier *= effect.Value;
-                    break;
-                case EffectKind.SpecialistWaveSizeMultiplier:
-                    aggregate.SpecialistWaveSizeMultiplier *= effect.Value;
-                    break;
                 case EffectKind.EliteWaveSizeMultiplier:
                     aggregate.EliteWaveSizeMultiplier *= effect.Value;
-                    break;
-                case EffectKind.SpecialistCapBonus:
-                    aggregate.SpecialistCapBonus += Mathf.RoundToInt(effect.Value);
-                    break;
-                case EffectKind.EliteCapBonus:
-                    aggregate.EliteCapBonus += Mathf.RoundToInt(effect.Value);
                     break;
                 case EffectKind.BossAmbientIntervalMultiplier:
                     aggregate.BossAmbientIntervalMultiplier *= effect.Value;
@@ -360,7 +641,54 @@ namespace Dagon.Gameplay
                 case EffectKind.EliteWaveEarlyUnlock:
                     aggregate.EliteWaveEarlyUnlock = effect.Value > 0.5f;
                     break;
+                case EffectKind.AmbientSpawnIntervalMultiplier:
+                    aggregate.AmbientSpawnIntervalMultiplier *= effect.Value;
+                    break;
+                case EffectKind.EnemyHealthMultiplier:
+                    aggregate.EnemyHealthMultiplier *= effect.Value;
+                    break;
+                case EffectKind.EnemyMoveSpeedMultiplier:
+                    aggregate.EnemyMoveSpeedMultiplier *= effect.Value;
+                    break;
+                case EffectKind.ActiveCooldownMultiplier:
+                    aggregate.ActiveCooldownMultiplier *= effect.Value;
+                    break;
+                case EffectKind.DisableWorldHealing:
+                    aggregate.WorldHealingDisabled = effect.Value > 0.5f;
+                    break;
+                case EffectKind.BossCorruptionChanceMultiplier:
+                    aggregate.BossCorruptionChanceMultiplier *= effect.Value;
+                    break;
+                case EffectKind.CorruptedBossHealthMultiplier:
+                    aggregate.CorruptedBossHealthMultiplier *= effect.Value;
+                    break;
+                case EffectKind.AmbientBossLaneEnable:
+                    aggregate.AmbientBossLaneEnabled |= effect.Value > 0.5f;
+                    break;
+                case EffectKind.BloodInTheWake:
+                    aggregate.BloodInTheWake = effect.Value > 0.5f;
+                    break;
+                case EffectKind.CarrionPull:
+                    aggregate.PickupAttractRadiusMultiplier *= effect.Value;
+                    break;
+                case EffectKind.ExperiencePickupValueMultiplier:
+                    aggregate.ExperiencePickupValueMultiplier *= effect.Value;
+                    break;
+                case EffectKind.BrineEngine:
+                    aggregate.BrineEngine = effect.Value > 0.5f;
+                    break;
+                case EffectKind.CrashingSurge:
+                    aggregate.CrashingSurge = effect.Value > 0.5f;
+                    break;
+                case EffectKind.AbyssalPulse:
+                    aggregate.AbyssalPulse = effect.Value > 0.5f;
+                    break;
+                case EffectKind.DevourTheDeep:
+                    aggregate.DevourTheDeep = effect.Value > 0.5f;
+                    break;
                 case EffectKind.ReplacePrimaryActive:
+                case EffectKind.ResetProgression:
+                case EffectKind.UpgradeAllWeaponsOnce:
                     break;
             }
         }
@@ -370,7 +698,7 @@ namespace Dagon.Gameplay
             var views = new CorruptionOptionView[options.Length];
             for (var index = 0; index < options.Length; index++)
             {
-                views[index] = new CorruptionOptionView(options[index].Title, options[index].Description, options[index].Effect.IsActiveReplacement);
+                views[index] = new CorruptionOptionView(options[index].Title, options[index].Description, options[index].IsActiveReplacement);
             }
 
             return views;
@@ -400,81 +728,464 @@ namespace Dagon.Gameplay
 
         private StageOptionDefinition[] BuildStageBoons(int stageIndex)
         {
-            var boons = stageIndex switch
+            if (stageIndex >= NormalCorruptionStageCount)
             {
-                0 => new[]
+                return System.Array.Empty<StageOptionDefinition>();
+            }
+
+            var candidates = ListPool<WeightedBoonDefinition>.Get();
+            var selected = ListPool<StageOptionDefinition>.Get();
+            try
+            {
+                BuildWeightedBoonCatalog(candidates);
+                if (candidates.Count == 0)
                 {
-                    new StageOptionDefinition("+15% Fire Rate", "All weapons fire faster.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.15f)),
-                    new StageOptionDefinition("+10% Damage", "All weapons hit harder.", new CorruptionEffect(EffectKind.DamageBonus, 0.10f)),
-                    new StageOptionDefinition("+15% Radius", "Your active ability grows wider.", new CorruptionEffect(EffectKind.ActiveRadiusBonus, 0.15f))
-                },
-                1 => new[]
-                {
-                    new StageOptionDefinition("+20% Fire Rate", "All weapons fire faster.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.20f)),
-                    new StageOptionDefinition("+20% Damage", "All weapons hit harder.", new CorruptionEffect(EffectKind.DamageBonus, 0.20f)),
-                    new StageOptionDefinition("+1 Max Heart", "Gain one filled heart.", new CorruptionEffect(EffectKind.MaxHealthBonus, 1f, fillBonusHealth: true))
-                },
-                2 => new[]
-                {
-                    new StageOptionDefinition("+25% Fire Rate", "All weapons fire faster.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.25f)),
-                    new StageOptionDefinition("+25% Damage", "All weapons hit harder.", new CorruptionEffect(EffectKind.DamageBonus, 0.25f)),
-                    new StageOptionDefinition("+25% Radius", "Your active ability grows wider.", new CorruptionEffect(EffectKind.ActiveRadiusBonus, 0.25f))
-                },
-                _ => new[]
-                {
-                    new StageOptionDefinition("+35% Fire Rate", "All weapons fire much faster.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.35f)),
-                    new StageOptionDefinition("+35% Damage", "All weapons hit much harder.", new CorruptionEffect(EffectKind.DamageBonus, 0.35f)),
-                    new StageOptionDefinition("+2 Max Hearts", "Gain two filled hearts.", new CorruptionEffect(EffectKind.MaxHealthBonus, 2f, fillBonusHealth: true))
+                    return System.Array.Empty<StageOptionDefinition>();
                 }
-            };
 
-            if (stageIndex < 1)
-            {
-                return boons;
+                while (selected.Count < 3 && candidates.Count > 0)
+                {
+                    var band = RollBandForStage(stageIndex, candidates);
+                    var matching = ListPool<int>.Get();
+                    try
+                    {
+                        for (var i = 0; i < candidates.Count; i++)
+                        {
+                            if (candidates[i].Band == band)
+                            {
+                                matching.Add(i);
+                            }
+                        }
+
+                        if (matching.Count <= 0)
+                        {
+                            candidates.RemoveAt(Random.Range(0, candidates.Count));
+                            continue;
+                        }
+
+                        var chosenCandidateIndex = matching[Random.Range(0, matching.Count)];
+                        selected.Add(candidates[chosenCandidateIndex].Option);
+                        candidates.RemoveAt(chosenCandidateIndex);
+                    }
+                    finally
+                    {
+                        ListPool<int>.Release(matching);
+                    }
+                }
+
+                return selected.ToArray();
             }
-
-            var activeDefinition = DrawCorruptionActiveDefinition();
-            if (activeDefinition == null)
+            finally
             {
-                return boons;
+                ListPool<WeightedBoonDefinition>.Release(candidates);
+                ListPool<StageOptionDefinition>.Release(selected);
             }
-
-            boons[boons.Length - 1] = new StageOptionDefinition(
-                $"Corruption Active: {activeDefinition.DisplayName}",
-                $"Replace {GetCurrentActiveName()} with {activeDefinition.DisplayName}. Keeps active rank.",
-                new CorruptionEffect(EffectKind.ReplacePrimaryActive, 0f, false, activeDefinition));
-            return boons;
         }
 
-        private static StageOptionDefinition[] BuildStageDrawbacks(int stageIndex)
+        private void BuildWeightedBoonCatalog(List<WeightedBoonDefinition> catalog)
+        {
+            AddWeightedBoon(catalog, BoonBand.Early, "Blood in the Wake", "Kills build short stacks of fire rate.", new CorruptionEffect(EffectKind.BloodInTheWake, 1f));
+            AddWeightedBoon(catalog, BoonBand.Early, "Carrion Pull", "Nearby pickups pull in from much farther away.", new CorruptionEffect(EffectKind.CarrionPull, 2f));
+            AddWeightedBoon(catalog, BoonBand.Early, "Greedy Undertow", "XP pickups are worth more.", new CorruptionEffect(EffectKind.ExperiencePickupValueMultiplier, 1.35f));
+
+            AddWeightedBoon(catalog, BoonBand.Mid, "Brine Engine", "Keep moving to build weapon tempo.", new CorruptionEffect(EffectKind.BrineEngine, 1f));
+            AddWeightedBoon(catalog, BoonBand.Mid, "Crashing Surge", "Dashing or using your active grants a short fire-rate spike.", new CorruptionEffect(EffectKind.CrashingSurge, 1f));
+
+            var activeDefinition = DrawCorruptionActiveDefinition();
+            if (activeDefinition != null)
+            {
+                AddWeightedBoon(catalog,
+                    BoonBand.Mid,
+                    $"Corruption Active: {activeDefinition.DisplayName}",
+                    $"Replace {GetCurrentActiveName()} with {activeDefinition.DisplayName}. Keeps active rank.",
+                    new CorruptionEffect(EffectKind.ReplacePrimaryActive, 0f, false, activeDefinition));
+            }
+
+            AddWeightedBoon(catalog, BoonBand.Mid, "Tide Ascendant", "Upgrade every owned weapon once.", new CorruptionEffect(EffectKind.UpgradeAllWeaponsOnce, 1f));
+
+            AddWeightedBoon(catalog, BoonBand.Late, "Abyssal Pulse", "Every few kills unleash a corruption pulse.", new CorruptionEffect(EffectKind.AbyssalPulse, 1f));
+            AddWeightedBoon(catalog, BoonBand.Late, "Devour the Deep", "Killing corrupted enemies reduces corruption.", new CorruptionEffect(EffectKind.DevourTheDeep, 1f));
+            AddWeightedBoon(catalog, BoonBand.Late, "Quickening Rot", "All weapons fire faster.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.25f));
+        }
+
+        private void AddWeightedBoon(List<WeightedBoonDefinition> catalog, BoonBand band, string title, string description, params CorruptionEffect[] effects)
+        {
+            if (HasSelectedBoonTitle(title))
+            {
+                return;
+            }
+
+            catalog.Add(new WeightedBoonDefinition(band, title, description, effects));
+        }
+
+        private bool HasSelectedBoonTitle(string title)
+        {
+            foreach (var pair in rememberedSelections)
+            {
+                var stageBoonsForSelection = GetResolvedStageBoons(pair.Key);
+                var boonIndex = pair.Value.BoonIndex;
+                if (boonIndex < 0 || boonIndex >= stageBoonsForSelection.Length)
+                {
+                    continue;
+                }
+
+                if (stageBoonsForSelection[boonIndex].Title == title)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static BoonBand RollBandForStage(int stageIndex, List<WeightedBoonDefinition> candidates)
+        {
+            var weights = GetStageBandWeights(stageIndex);
+
+            var earlyAvailable = false;
+            var midAvailable = false;
+            var lateAvailable = false;
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                switch (candidates[i].Band)
+                {
+                    case BoonBand.Early:
+                        earlyAvailable = true;
+                        break;
+                    case BoonBand.Mid:
+                        midAvailable = true;
+                        break;
+                    case BoonBand.Late:
+                        lateAvailable = true;
+                        break;
+                }
+            }
+
+            var total = 0f;
+            if (earlyAvailable)
+            {
+                total += weights[0];
+            }
+
+            if (midAvailable)
+            {
+                total += weights[1];
+            }
+
+            if (lateAvailable)
+            {
+                total += weights[2];
+            }
+
+            if (total <= 0f)
+            {
+                return BoonBand.Early;
+            }
+
+            var roll = Random.value * total;
+            if (earlyAvailable)
+            {
+                if (roll < weights[0])
+                {
+                    return BoonBand.Early;
+                }
+
+                roll -= weights[0];
+            }
+
+            if (midAvailable)
+            {
+                if (roll < weights[1])
+                {
+                    return BoonBand.Mid;
+                }
+
+                roll -= weights[1];
+            }
+
+            return lateAvailable ? BoonBand.Late : (midAvailable ? BoonBand.Mid : BoonBand.Early);
+        }
+
+        private static float[] GetStageBandWeights(int stageIndex)
         {
             return stageIndex switch
             {
-                0 => new[]
-                {
-                    new StageOptionDefinition("-25% Healing", "Healing restores less.", new CorruptionEffect(EffectKind.HealingMultiplier, 0.75f)),
-                    new StageOptionDefinition("+20% Fodder Waves", "Fodder waves grow larger.", new CorruptionEffect(EffectKind.FodderWaveSizeMultiplier, 1.20f)),
-                    new StageOptionDefinition("+15% Corruption Gain", "Pickups push corruption faster.", new CorruptionEffect(EffectKind.CorruptionGainMultiplier, 1.15f))
-                },
-                1 => new[]
-                {
-                    new StageOptionDefinition("+1 Specialist Cap", "One more specialist may stay active.", new CorruptionEffect(EffectKind.SpecialistCapBonus, 1f)),
-                    new StageOptionDefinition("+20% Specialist Waves", "Specialist waves grow larger.", new CorruptionEffect(EffectKind.SpecialistWaveSizeMultiplier, 1.20f)),
-                    new StageOptionDefinition("-40% Healing", "Healing restores much less.", new CorruptionEffect(EffectKind.HealingMultiplier, 0.60f))
-                },
-                2 => new[]
-                {
-                    new StageOptionDefinition("Early Elite Waves", "Elite waves unlock immediately.", new CorruptionEffect(EffectKind.EliteWaveEarlyUnlock, 1f)),
-                    new StageOptionDefinition("+25% Elite Waves", "Elite waves grow larger.", new CorruptionEffect(EffectKind.EliteWaveSizeMultiplier, 1.25f)),
-                    new StageOptionDefinition("+15% Contact Damage", "Body hits hurt more.", new CorruptionEffect(EffectKind.ContactDamageMultiplier, 1.15f))
-                },
-                _ => new[]
-                {
-                    new StageOptionDefinition("+1 Elite Cap", "One more elite may stay active.", new CorruptionEffect(EffectKind.EliteCapBonus, 1f)),
-                    new StageOptionDefinition("Boss Pressure Up", "Boss ambient spawns arrive faster.", new CorruptionEffect(EffectKind.BossAmbientIntervalMultiplier, 1.2f)),
-                    new StageOptionDefinition("+25% All Damage", "All enemy damage hurts more.", new CorruptionEffect(EffectKind.IncomingDamageMultiplier, 1.25f))
-                }
+                0 => new[] { 0.75f, 0.20f, 0.05f },
+                1 => new[] { 0.60f, 0.30f, 0.10f },
+                2 => new[] { 0.45f, 0.40f, 0.15f },
+                3 => new[] { 0.30f, 0.50f, 0.20f },
+                4 => new[] { 0.20f, 0.55f, 0.25f },
+                5 => new[] { 0.15f, 0.50f, 0.35f },
+                6 => new[] { 0.10f, 0.45f, 0.45f },
+                7 => new[] { 0.05f, 0.35f, 0.60f },
+                _ => new[] { 0.05f, 0.20f, 0.75f }
             };
+        }
+
+        private StageOptionDefinition[] BuildStageDrawbacks(int stageIndex)
+        {
+            if (stageIndex >= CatastropheStageIndex)
+            {
+                return new[]
+                {
+                    new StageOptionDefinition("No Healing", "Health pickups and fountains no longer help you.", new CorruptionEffect(EffectKind.DisableWorldHealing, 1f)),
+                    new StageOptionDefinition("Bosses Become Common", "Ambient bosses start appearing like elite threats.", new CorruptionEffect(EffectKind.AmbientBossLaneEnable, 1f)),
+                    new StageOptionDefinition("Cast Down", "Reset to level 1 with your starting weapons and abilities.", new CorruptionEffect(EffectKind.ResetProgression, 1f))
+                };
+            }
+
+            var catalog = ListPool<WeightedDrawbackDefinition>.Get();
+            try
+            {
+                BuildWeightedDrawbackCatalog(catalog);
+                if (catalog.Count <= 0)
+                {
+                    return System.Array.Empty<StageOptionDefinition>();
+                }
+
+                var band = RollDrawbackBandForStage(stageIndex, catalog);
+                var matches = ListPool<int>.Get();
+                try
+                {
+                    for (var i = 0; i < catalog.Count; i++)
+                    {
+                        if (catalog[i].Band == band)
+                        {
+                            matches.Add(i);
+                        }
+                    }
+
+                    if (matches.Count <= 0)
+                    {
+                        return new[] { catalog[Random.Range(0, catalog.Count)].Option };
+                    }
+
+                    var chosenIndex = matches[Random.Range(0, matches.Count)];
+                    return new[] { catalog[chosenIndex].Option };
+                }
+                finally
+                {
+                    ListPool<int>.Release(matches);
+                }
+            }
+            finally
+            {
+                ListPool<WeightedDrawbackDefinition>.Release(catalog);
+            }
+        }
+
+        private static void BuildWeightedDrawbackCatalog(List<WeightedDrawbackDefinition> catalog)
+        {
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Blighted Swarm", "Ambient swarms arrive faster.", new CorruptionEffect(EffectKind.AmbientSpawnIntervalMultiplier, 0.82f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Tainted Swiftness", "Enemies move faster.", new CorruptionEffect(EffectKind.EnemyMoveSpeedMultiplier, 1.14f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Ravenous Wounds", "Healing restores far less.", new CorruptionEffect(EffectKind.HealingMultiplier, 0.60f)));
+
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Fleshwarp I", "Enemy health swells further with corruption.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.20f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Drowned Hands", "Active abilities recover more slowly.", new CorruptionEffect(EffectKind.ActiveCooldownMultiplier, 1.45f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Tyrant Tide", "Boss ambient pressure worsens.", new CorruptionEffect(EffectKind.BossAmbientIntervalMultiplier, 0.78f)));
+
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "The Deep Opens", "Elite waves unlock immediately.", new CorruptionEffect(EffectKind.EliteWaveEarlyUnlock, 1f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Fleshwarp II", "Enemy health swells again.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.30f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Warhost Rising", "Elite waves grow larger.", new CorruptionEffect(EffectKind.EliteWaveSizeMultiplier, 1.25f)));
+            catalog.Add(new WeightedDrawbackDefinition(
+                DrawbackBand.Late,
+                "Black Omen",
+                "Corrupted bosses become far more likely and tougher.",
+                new CorruptionEffect(EffectKind.BossCorruptionChanceMultiplier, 1.85f),
+                new CorruptionEffect(EffectKind.CorruptedBossHealthMultiplier, 1.35f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Mortal Ruin", "All enemy damage is doubled.", new CorruptionEffect(EffectKind.IncomingDamageMultiplier, 2f)));
+        }
+
+        private static DrawbackBand RollDrawbackBandForStage(int stageIndex, List<WeightedDrawbackDefinition> candidates)
+        {
+            var weights = GetStageBandWeights(stageIndex);
+            var earlyAvailable = false;
+            var midAvailable = false;
+            var lateAvailable = false;
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                switch (candidates[i].Band)
+                {
+                    case DrawbackBand.Early:
+                        earlyAvailable = true;
+                        break;
+                    case DrawbackBand.Mid:
+                        midAvailable = true;
+                        break;
+                    case DrawbackBand.Late:
+                        lateAvailable = true;
+                        break;
+                }
+            }
+
+            var total = 0f;
+            if (earlyAvailable)
+            {
+                total += weights[0];
+            }
+
+            if (midAvailable)
+            {
+                total += weights[1];
+            }
+
+            if (lateAvailable)
+            {
+                total += weights[2];
+            }
+
+            if (total <= 0f)
+            {
+                return DrawbackBand.Early;
+            }
+
+            var roll = Random.value * total;
+            if (earlyAvailable)
+            {
+                if (roll < weights[0])
+                {
+                    return DrawbackBand.Early;
+                }
+
+                roll -= weights[0];
+            }
+
+            if (midAvailable)
+            {
+                if (roll < weights[1])
+                {
+                    return DrawbackBand.Mid;
+                }
+
+                roll -= weights[1];
+            }
+
+            return lateAvailable ? DrawbackBand.Late : (midAvailable ? DrawbackBand.Mid : DrawbackBand.Early);
+        }
+
+        private void UpgradeAllWeaponsOnce()
+        {
+            if (combatLoadout == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < combatLoadout.Weapons.Count; i++)
+            {
+                var weapon = combatLoadout.Weapons[i];
+                if (weapon == null)
+                {
+                    continue;
+                }
+
+                var pathA = weapon.GetPathUpgradesTaken(WeaponUpgradePath.PathA);
+                var pathB = weapon.GetPathUpgradesTaken(WeaponUpgradePath.PathB);
+                WeaponUpgradePath path;
+                if (pathA == pathB)
+                {
+                    path = Random.value < 0.5f ? WeaponUpgradePath.PathA : WeaponUpgradePath.PathB;
+                }
+                else
+                {
+                    path = pathA < pathB ? WeaponUpgradePath.PathA : WeaponUpgradePath.PathB;
+                }
+
+                weapon.ApplyPathUpgrade(path);
+            }
+        }
+
+        private void TriggerAbyssalPulse()
+        {
+            if (playerMover == null)
+            {
+                return;
+            }
+
+            var colliders = Physics.OverlapSphere(playerMover.transform.position, AbyssalPulseRadius, enemyMask, QueryTriggerInteraction.Collide);
+            resolvedTargets.Clear();
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                if (!CombatResolver.TryResolveUniqueHit(colliders[i], CombatTeam.Player, gameObject, resolvedTargets, out var resolvedHit))
+                {
+                    continue;
+                }
+
+                CombatResolver.TryApplyDamage(resolvedHit, gameObject, AbyssalPulseDamage, CombatTeam.Player);
+            }
+
+            RotLanternRadiusVisual.Spawn(playerMover.transform.position, AbyssalPulseRadius, 0.05f, 0.2f, new Color(0.86f, 0.18f, 0.18f, 0.34f), 0.35f, 1.1f, 15);
+            PlaceholderWeaponVisual.Spawn(
+                "AbyssalPulse",
+                playerMover.transform.position + Vector3.up * 0.06f,
+                new Vector3(AbyssalPulseRadius * 2.2f, AbyssalPulseRadius * 2.2f, 1f),
+                Camera.main,
+                new Color(0.94f, 0.22f, 0.24f, 0.28f),
+                0.32f,
+                1.12f,
+                0f,
+                spritePath: "Sprites/Effects/brine_surge",
+                pixelsPerUnit: 256f,
+                sortingOrder: 16,
+                groundPlane: true);
+        }
+
+        private void HandleDashStarted(PlayerMover mover)
+        {
+            if (crashingSurgeEnabled)
+            {
+                crashingSurgeTimer = Mathf.Max(crashingSurgeTimer, CrashingSurgeDuration);
+            }
+        }
+
+        private void HandleActiveActivated(ActiveAbilityRuntime ability)
+        {
+            if (crashingSurgeEnabled)
+            {
+                crashingSurgeTimer = Mathf.Max(crashingSurgeTimer, CrashingSurgeDuration);
+            }
+        }
+
+        private void RefreshActiveSubscription()
+        {
+            var currentActive = combatLoadout != null ? combatLoadout.GetPrimaryActive() : null;
+            if (ReferenceEquals(subscribedActive, currentActive))
+            {
+                return;
+            }
+
+            UnsubscribeActive();
+            subscribedActive = currentActive;
+            if (subscribedActive != null)
+            {
+                subscribedActive.Activated += HandleActiveActivated;
+            }
+        }
+
+        private void UnsubscribeActive()
+        {
+            if (subscribedActive != null)
+            {
+                subscribedActive.Activated -= HandleActiveActivated;
+                subscribedActive = null;
+            }
+        }
+
+        private bool WasPlayerKill(GameObject source)
+        {
+            if (source == null)
+            {
+                return false;
+            }
+
+            if (source.GetComponentInParent<PlayerMover>() != null ||
+                source.GetComponentInParent<PlayerCombatLoadout>() != null ||
+                source.GetComponentInParent<ActiveAbilityRuntime>() != null)
+            {
+                return true;
+            }
+
+            var hurtbox = source.GetComponentInParent<Hurtbox>();
+            return hurtbox != null && hurtbox.Team == CombatTeam.Player;
         }
 
         private string GetCurrentActiveName()

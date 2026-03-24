@@ -3,13 +3,14 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class ParasiteChaser : MonoBehaviour
+    public sealed class ParasiteChaser : MonoBehaviour, IAuraMoveSpeedTarget
     {
         [SerializeField] private Transform target;
         [SerializeField] private float moveSpeed = 7.8f;
         [SerializeField] private float stoppingDistance = 0.25f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
         [SerializeField] private BodyBlocker bodyBlocker;
+        private float auraMoveSpeedMultiplier = 1f;
 
         private void Awake()
         {
@@ -44,7 +45,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = moveSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = moveSpeed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             var desiredDelta = offset.normalized * (effectiveSpeed * Time.deltaTime);
             transform.position += bodyBlocker != null
                 ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
@@ -61,6 +62,11 @@ namespace Dagon.Gameplay
         public void ApplyCorruptionModifiers(float speedMultiplier)
         {
             moveSpeed = Mathf.Max(0.1f, moveSpeed * Mathf.Max(0.1f, speedMultiplier));
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
         }
     }
 }

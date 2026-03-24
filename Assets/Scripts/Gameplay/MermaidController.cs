@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class MermaidController : MonoBehaviour
+    public sealed class MermaidController : MonoBehaviour, IAuraMoveSpeedTarget, IAuraCadenceTarget
     {
         private enum State
         {
@@ -29,7 +29,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float sirenAngle = 48f;
         [SerializeField] private float sirenWindupDuration = 0.7f;
         [SerializeField] private float sirenCooldown = 4.5f;
-        [SerializeField] private float sirenDamage = 0.8f;
+        [SerializeField] private float sirenDamage = 1f;
         [SerializeField] private float sirenPullStrength = 4f;
         [SerializeField] private float sirenSlowAmount = 0.2f;
         [SerializeField] private float sirenSlowDuration = 0.85f;
@@ -41,6 +41,8 @@ namespace Dagon.Gameplay
         private float sirenCooldownTimer;
         private float strafeDirection = 1f;
         private float strafeSwapTimer;
+        private float auraMoveSpeedMultiplier = 1f;
+        private float auraCadenceMultiplier = 1f;
         private State state;
         private CastAbility queuedAbility;
         private Vector3 queuedAimDirection = Vector3.forward;
@@ -70,8 +72,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            sirenCooldownTimer = Mathf.Max(0f, sirenCooldownTimer - Time.deltaTime);
-            stateTimer -= Time.deltaTime;
+            sirenCooldownTimer = Mathf.Max(0f, sirenCooldownTimer - (Time.deltaTime * auraCadenceMultiplier));
+            stateTimer -= Time.deltaTime * auraCadenceMultiplier;
 
             var toTarget = target.position - transform.position;
             toTarget.y = 0f;
@@ -177,7 +179,7 @@ namespace Dagon.Gameplay
             }
 
             var speed = distance < closeRange ? retreatSpeed : moveSpeed;
-            var effectiveSpeed = speed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = speed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             ApplyMovement(desiredVelocity.normalized * (effectiveSpeed * Time.deltaTime));
         }
 
@@ -218,6 +220,16 @@ namespace Dagon.Gameplay
                 pixelsPerUnit: 256f,
                 sortingOrder: 9,
                 groundPlane: false);
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraCadenceMultiplier(float multiplier)
+        {
+            auraCadenceMultiplier = Mathf.Max(1f, multiplier);
         }
 
         private void ExecuteQueuedAbility()

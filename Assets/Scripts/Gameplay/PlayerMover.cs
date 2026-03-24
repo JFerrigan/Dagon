@@ -22,6 +22,7 @@ namespace Dagon.Gameplay
         public Vector3 AimDirection => aimDirection;
         public Vector3 MoveDirection { get; private set; }
         public bool IsDashing => dashRemaining > 0f;
+        public event System.Action<PlayerMover> DashStarted;
 
         private void OnEnable()
         {
@@ -193,6 +194,7 @@ namespace Dagon.Gameplay
             dashVelocity = resolvedDirection * (distance / dashRemaining);
             MoveDirection = resolvedDirection;
             aimDirection = resolvedDirection;
+            DashStarted?.Invoke(this);
             return true;
         }
     }

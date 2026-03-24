@@ -10,6 +10,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float maxSpeed = 6f;
 
         private Vector3 velocity;
+        private float externalStrengthMultiplier = 1f;
 
         private void Update()
         {
@@ -30,9 +31,15 @@ namespace Dagon.Gameplay
             maxSpeed = Mathf.Max(0.1f, newMaxSpeed);
         }
 
+        public void SetExternalStrengthMultiplier(float multiplier)
+        {
+            externalStrengthMultiplier = Mathf.Max(0f, multiplier);
+        }
+
         public void ApplyKnockback(Vector3 direction, float strength)
         {
-            if (strengthMultiplier <= 0f || strength <= 0f)
+            var resolvedStrengthMultiplier = strengthMultiplier * externalStrengthMultiplier;
+            if (resolvedStrengthMultiplier <= 0f || strength <= 0f)
             {
                 return;
             }
@@ -43,7 +50,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            velocity += direction.normalized * (strength * strengthMultiplier);
+            velocity += direction.normalized * (strength * resolvedStrengthMultiplier);
             var speed = velocity.magnitude;
             if (speed > maxSpeed)
             {

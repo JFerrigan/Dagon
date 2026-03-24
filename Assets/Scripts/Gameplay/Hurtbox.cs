@@ -8,9 +8,10 @@ namespace Dagon.Gameplay
     {
         [SerializeField] private CombatTeam team = CombatTeam.Neutral;
         [SerializeField] private Health health;
+        [SerializeField] private MonoBehaviour damageableOverride;
 
         public CombatTeam Team => team;
-        public IDamageable Damageable => health;
+        public IDamageable Damageable => damageableOverride as IDamageable ?? health;
         public Health Health => health;
 
         private void Awake()
@@ -35,8 +36,13 @@ namespace Dagon.Gameplay
 
             CombatDebug.Log(
                 "Hurtbox",
-                $"configured object={name} team={team} health={(health != null ? health.name : "null")}",
+                $"configured object={name} team={team} health={(health != null ? health.name : "null")} override={(damageableOverride != null ? damageableOverride.name : "null")}",
                 this);
+        }
+
+        public void SetDamageableOverride(MonoBehaviour overrideBehaviour)
+        {
+            damageableOverride = overrideBehaviour;
         }
     }
 }

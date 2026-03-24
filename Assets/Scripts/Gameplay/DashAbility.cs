@@ -17,7 +17,7 @@ namespace Dagon.Gameplay
         private float rechargeRemaining;
 
         public override float CooldownRemaining => currentCharges >= maxCharges ? 0f : rechargeRemaining;
-        public override float CooldownDuration => rechargeDuration;
+        public override float CooldownDuration => ResolveCooldownDuration(rechargeDuration);
 
         private void Awake()
         {
@@ -39,7 +39,7 @@ namespace Dagon.Gameplay
                     currentCharges += 1;
                     if (currentCharges < maxCharges)
                     {
-                        rechargeRemaining = rechargeDuration;
+                        rechargeRemaining = CooldownDuration;
                     }
                 }
             }
@@ -147,7 +147,7 @@ namespace Dagon.Gameplay
             currentCharges -= 1;
             if (currentCharges < maxCharges && rechargeRemaining <= 0f)
             {
-                rechargeRemaining = rechargeDuration;
+                rechargeRemaining = CooldownDuration;
             }
 
             damageImmunity?.Grant(dashDuration * 1.05f);
@@ -160,6 +160,7 @@ namespace Dagon.Gameplay
                 dashDuration,
                 1.12f,
                 groundPlane: true);
+            NotifyActivated();
         }
     }
 }

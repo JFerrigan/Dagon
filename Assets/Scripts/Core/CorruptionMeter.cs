@@ -14,8 +14,8 @@ namespace Dagon.Core
     {
         private const float BaseCorruptionGainMultiplier = 0.6f;
 
-        [SerializeField] private float maxCorruption = 100f;
-        [SerializeField] private float[] thresholdValues = { 25f, 50f, 75f, 100f };
+        [SerializeField] private float maxCorruption = 250f;
+        [SerializeField] private float[] thresholdValues = { 25f, 50f, 75f, 100f, 125f, 150f, 175f, 200f, 225f, 250f };
         [SerializeField] private CorruptionThresholdEvent onThresholdReached;
 
         private float currentCorruption;
@@ -87,7 +87,7 @@ namespace Dagon.Core
         private void SetCorruptionInternal(float amount)
         {
             var previousStageIndex = CurrentStageIndex;
-            currentCorruption = Mathf.Clamp(amount, 0f, maxCorruption);
+            currentCorruption = Mathf.Max(0f, amount);
             RefreshThresholds();
             var nextStageIndex = CurrentStageIndex;
             if (previousStageIndex != nextStageIndex)

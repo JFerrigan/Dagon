@@ -132,6 +132,7 @@ namespace Dagon.Gameplay
                     }
                     else
                     {
+                        arcCount = 4;
                         damage = 2.2f;
                     }
                     break;
@@ -165,7 +166,7 @@ namespace Dagon.Gameplay
             {
                 WeaponUpgradePath.PathA when nextStep == 1 => FlatCountDelta(1, "Sweep"),
                 WeaponUpgradePath.PathA when nextStep == 2 => FlatCountDelta(1, "Sweep"),
-                WeaponUpgradePath.PathA => "+4 Sweep DMG",
+                WeaponUpgradePath.PathA => "+1 Sweep, +0.4 Sweep DMG",
                 WeaponUpgradePath.PathB when nextStep == 1 => FlatDamageDelta(0.7f),
                 WeaponUpgradePath.PathB when nextStep == 2 => FlatDamageDelta(0.7f),
                 _ => FlatDamageDelta(0.8f)

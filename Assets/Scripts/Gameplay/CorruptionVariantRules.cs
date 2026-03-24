@@ -42,6 +42,16 @@ namespace Dagon.Gameplay
             return Mathf.Lerp(0.04f, 0.38f, Mathf.SmoothStep(0f, 1f, t));
         }
 
+        public static float GetEnemyHealthMultiplierFromCorruption(float currentCorruption)
+        {
+            if (currentCorruption <= 0f)
+            {
+                return 1f;
+            }
+
+            return 1f + (currentCorruption / 200f);
+        }
+
         public static StatModifiers GetEnemyModifiers(EnemyArchetype archetype)
         {
             return archetype switch

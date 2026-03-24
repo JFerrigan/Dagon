@@ -91,7 +91,7 @@ namespace Dagon.Gameplay
                     {
                         if (slashAfterDash)
                         {
-                            BeginSlash(ResolveDirectionToTarget(), 0.18f, 1.8f);
+                            BeginSlash(ResolveDirectionToTarget(), 0.18f, 2f);
                         }
                         else
                         {
@@ -185,7 +185,7 @@ namespace Dagon.Gameplay
         {
             if (distance <= slashRange && slashCooldownTimer <= 0f)
             {
-                BeginSlash(toTarget.normalized, 0.22f, 1.5f);
+                BeginSlash(toTarget.normalized, 0.22f, 2f);
                 return;
             }
 
@@ -299,7 +299,7 @@ namespace Dagon.Gameplay
                 transform.position + Vector3.up * 0.48f,
                 Quaternion.LookRotation(dashDirection, Vector3.up));
             projectile.gameObject.SetActive(true);
-            projectile.Initialize(gameObject, dashDirection, 7.8f + (difficultyTier * 0.18f), 1.4f * damageMultiplier);
+            projectile.Initialize(gameObject, dashDirection, 7.8f + (difficultyTier * 0.18f), 1f * damageMultiplier);
         }
 
         private void BeginParasiteCall()
@@ -358,7 +358,7 @@ namespace Dagon.Gameplay
             health.SetMaxHealth(1.3f, true);
             parasite.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, health);
             parasite.AddComponent<KnockbackReceiver>().Configure(1.2f, 16f, 5.8f);
-            parasite.AddComponent<ContactDamage>().Configure(1f * damageMultiplier);
+            parasite.AddComponent<ContactDamage>().Configure(2f * damageMultiplier);
             parasite.AddComponent<ParasiteChaser>().Configure(target, (7.4f + (difficultyTier * 0.08f)) * 1.08f, 0.2f);
             parasite.AddComponent<EnemyDeathRewards>().Configure(0, 0f);
 

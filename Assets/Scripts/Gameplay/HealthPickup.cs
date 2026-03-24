@@ -7,9 +7,11 @@ namespace Dagon.Gameplay
     public sealed class HealthPickup : MonoBehaviour
     {
         private const string PickupSpriteResourcePath = "Sprites/UI/heart";
+        private const float DefaultLifetime = 20f;
         [SerializeField] private float healAmount = 2f;
         [SerializeField] private float attractDistance = 3f;
         [SerializeField] private float moveSpeed = 5f;
+        [SerializeField] private float lifetime = DefaultLifetime;
 
         private Health playerHealth;
         private Transform player;
@@ -52,6 +54,13 @@ namespace Dagon.Gameplay
 
         private void Update()
         {
+            lifetime -= Time.deltaTime;
+            if (lifetime <= 0f)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             var bob = Mathf.Sin(Time.time * 4f) * 0.08f;
             transform.position = new Vector3(transform.position.x, basePosition.y + bob, transform.position.z);
 
@@ -62,7 +71,14 @@ namespace Dagon.Gameplay
 
             var toPlayer = player.position - transform.position;
             toPlayer.y = 0f;
-            if (toPlayer.sqrMagnitude > attractDistance * attractDistance)
+            var effectiveAttractDistance = attractDistance;
+            var runtimeEffects = player != null ? player.GetComponent<CorruptionRuntimeEffects>() : null;
+            if (runtimeEffects != null)
+            {
+                effectiveAttractDistance *= runtimeEffects.PickupAttractRadiusMultiplier;
+            }
+
+            if (toPlayer.sqrMagnitude > effectiveAttractDistance * effectiveAttractDistance)
             {
                 return;
             }
@@ -74,6 +90,13 @@ namespace Dagon.Gameplay
         {
             if (!other.CompareTag("Player"))
             {
+                return;
+            }
+
+            var runtimeEffects = other.GetComponent<CorruptionRuntimeEffects>();
+            if (runtimeEffects != null && runtimeEffects.BlocksWorldHealing)
+            {
+                Destroy(gameObject);
                 return;
             }
 

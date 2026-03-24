@@ -34,7 +34,7 @@ namespace Dagon.Gameplay
         private float shardPulseTimer;
 
         public override float CooldownRemaining => cooldownRemaining;
-        public override float CooldownDuration => cooldown;
+        public override float CooldownDuration => ResolveCooldownDuration(cooldown);
 
         private void Awake()
         {
@@ -149,7 +149,7 @@ namespace Dagon.Gameplay
             SpawnShards();
             activeRemaining = duration;
             shardPulseTimer = 0f;
-            cooldownRemaining = cooldown;
+            cooldownRemaining = CooldownDuration;
 
             PlaceholderWeaponVisual.Spawn(
                 "RiftheartBurst",
@@ -164,6 +164,7 @@ namespace Dagon.Gameplay
                 pixelsPerUnit: 256f,
                 sortingOrder: 16,
                 groundPlane: true);
+            NotifyActivated();
         }
 
         private void ApplyBuff()

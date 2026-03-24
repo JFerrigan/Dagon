@@ -7,14 +7,17 @@ namespace Dagon.Gameplay
     public sealed class ExperiencePickup : MonoBehaviour
     {
         private const string PickupSpriteResourcePath = "Sprites/Pickups/barnacle_shard";
+        private const float DefaultLifetime = 20f;
 
         [SerializeField] private int experienceValue = 1;
         [SerializeField] private float corruptionValue = 0.5f;
         [SerializeField] private float attractDistance = 3f;
         [SerializeField] private float moveSpeed = 5f;
+        [SerializeField] private float lifetime = DefaultLifetime;
 
         private ExperienceController experienceController;
         private CorruptionMeter corruptionMeter;
+        private CorruptionRuntimeEffects corruptionEffects;
         private Transform player;
         private Vector3 basePosition;
 
@@ -53,10 +56,18 @@ namespace Dagon.Gameplay
             var playerObject = FindObjectOfType<PlayerMover>();
             player = playerObject != null ? playerObject.transform : null;
             corruptionMeter = playerObject != null ? playerObject.GetComponent<CorruptionMeter>() : null;
+            corruptionEffects = playerObject != null ? playerObject.GetComponent<CorruptionRuntimeEffects>() : null;
         }
 
         private void Update()
         {
+            lifetime -= Time.deltaTime;
+            if (lifetime <= 0f)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             var bob = Mathf.Sin(Time.time * 4f) * 0.08f;
             transform.position = new Vector3(transform.position.x, basePosition.y + bob, transform.position.z);
 
@@ -67,7 +78,8 @@ namespace Dagon.Gameplay
 
             var toPlayer = player.position - transform.position;
             toPlayer.y = 0f;
-            if (toPlayer.sqrMagnitude > attractDistance * attractDistance)
+            var effectiveAttractDistance = attractDistance * (corruptionEffects != null ? corruptionEffects.PickupAttractRadiusMultiplier : 1f);
+            if (toPlayer.sqrMagnitude > effectiveAttractDistance * effectiveAttractDistance)
             {
                 return;
             }
@@ -82,7 +94,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            experienceController?.AddExperience(experienceValue);
+            var effectiveExperience = Mathf.Max(1, Mathf.RoundToInt(experienceValue * (corruptionEffects != null ? corruptionEffects.ExperiencePickupValueMultiplier : 1f)));
+            experienceController?.AddExperience(effectiveExperience);
             corruptionMeter?.AddCorruption(corruptionValue);
             Destroy(gameObject);
         }

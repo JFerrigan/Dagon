@@ -87,6 +87,12 @@ namespace Dagon.Gameplay
                 return;
             }
 
+            var runtimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
+            if (runtimeEffects != null && runtimeEffects.BlocksWorldHealing)
+            {
+                return;
+            }
+
             var toPlayer = player.position - transform.position;
             toPlayer.y = 0f;
             if (toPlayer.sqrMagnitude > interactionRadius * interactionRadius)
@@ -113,7 +119,8 @@ namespace Dagon.Gameplay
             }
 
             var rect = new Rect((Screen.width * 0.5f) - 90f, Screen.height - 88f, 180f, 24f);
-            GUI.Label(rect, "Press E - Cleanse Corruption");
+            var runtimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
+            GUI.Label(rect, runtimeEffects != null && runtimeEffects.BlocksWorldHealing ? "Fountain Sealed" : "Press E - Cleanse Corruption");
         }
 
         public void SetDepleted(bool depleted)

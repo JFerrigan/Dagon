@@ -1,4 +1,5 @@
 using Dagon.Core;
+using Dagon.Gameplay;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,14 +10,18 @@ namespace Dagon.Bootstrap
     {
         private sealed class ActiveTile
         {
-            public ActiveTile(GameObject root, Vector2Int coordinate)
+            public ActiveTile(GameObject root, Vector2Int coordinate, SpriteRenderer baseRenderer, SpriteRenderer overlayRenderer)
             {
                 Root = root;
                 Coordinate = coordinate;
+                BaseRenderer = baseRenderer;
+                OverlayRenderer = overlayRenderer;
             }
 
             public GameObject Root { get; }
             public Vector2Int Coordinate { get; }
+            public SpriteRenderer BaseRenderer { get; }
+            public SpriteRenderer OverlayRenderer { get; }
         }
 
         private readonly Dictionary<string, Sprite> spriteCache = new();
@@ -54,6 +59,7 @@ namespace Dagon.Bootstrap
         private BoxCollider groundCollider;
         private Vector2Int currentCenterTile = new(int.MinValue, int.MinValue);
         private RuntimeBiomeProfile currentBiomeProfile;
+        private WorldProgressionDirector progressionDirector;
 
         private void Update()
         {
@@ -65,11 +71,13 @@ namespace Dagon.Bootstrap
             var nextCenterTile = WorldToTile(trackedTarget.position);
             if (nextCenterTile == currentCenterTile)
             {
+                RefreshProgressionPresentation();
                 return;
             }
 
             currentCenterTile = nextCenterTile;
             RefreshTiles();
+            RefreshProgressionPresentation();
         }
 
         public void Configure(Transform target)
@@ -80,6 +88,12 @@ namespace Dagon.Bootstrap
         public void ApplyBiomeProfile(RuntimeBiomeProfile profile)
         {
             currentBiomeProfile = profile;
+        }
+
+        public void ConfigureProgression(WorldProgressionDirector director)
+        {
+            progressionDirector = director;
+            RefreshProgressionPresentation();
         }
 
         public void Build()
@@ -102,6 +116,7 @@ namespace Dagon.Bootstrap
 
             currentCenterTile = trackedTarget != null ? WorldToTile(trackedTarget.position) : Vector2Int.zero;
             RefreshTiles();
+            RefreshProgressionPresentation();
         }
 
         public void RefreshBiomeRadius(Vector3 worldCenter, float radius)
@@ -155,6 +170,22 @@ namespace Dagon.Bootstrap
 
                     CreateTile(coordinate);
                 }
+            }
+
+            RefreshProgressionPresentation();
+        }
+
+        public void RefreshProgressionPresentation()
+        {
+            foreach (var entry in activeTiles)
+            {
+                var tile = entry.Value;
+                if (tile == null || tile.Root == null)
+                {
+                    continue;
+                }
+
+                ApplyTilePresentation(tile);
             }
         }
 
@@ -212,7 +243,8 @@ namespace Dagon.Bootstrap
 
         private void CreateTile(Vector2Int coordinate)
         {
-            var sprite = LoadTileSprite(ChooseTilePath(coordinate.x, coordinate.y));
+            var profile = ResolveBiomeProfile(coordinate);
+            var sprite = LoadTileSprite(ChooseTilePath(coordinate.x, coordinate.y, profile));
             if (sprite == null)
             {
                 return;
@@ -230,11 +262,13 @@ namespace Dagon.Bootstrap
             var renderer = tile.AddComponent<SpriteRenderer>();
             renderer.sprite = sprite;
             renderer.sortingOrder = -100;
-            renderer.color = currentBiomeProfile != null ? currentBiomeProfile.GroundTint : Color.white;
+            renderer.color = Color.white;
 
-            CreateOverlayTile(tile.transform, coordinate);
+            var overlayRenderer = CreateOverlayTile(tile.transform, coordinate, profile);
 
-            activeTiles[coordinate] = new ActiveTile(tile, coordinate);
+            var activeTile = new ActiveTile(tile, coordinate, renderer, overlayRenderer);
+            activeTiles[coordinate] = activeTile;
+            ApplyTilePresentation(activeTile);
         }
 
         private void RepositionTile(Transform tileTransform, Vector2Int coordinate)
@@ -250,18 +284,18 @@ namespace Dagon.Bootstrap
                 (coordinate.y - currentCenterTile.y) * tileSize);
         }
 
-        private void CreateOverlayTile(Transform parent, Vector2Int coordinate)
+        private SpriteRenderer CreateOverlayTile(Transform parent, Vector2Int coordinate, RuntimeBiomeProfile profile)
         {
-            var overlayPath = ChooseOverlayPath(coordinate.x, coordinate.y);
+            var overlayPath = ChooseOverlayPath(coordinate.x, coordinate.y, profile);
             if (string.IsNullOrWhiteSpace(overlayPath))
             {
-                return;
+                return null;
             }
 
             var overlaySprite = LoadTileSprite(overlayPath);
             if (overlaySprite == null)
             {
-                return;
+                return null;
             }
 
             var overlay = new GameObject("Overlay");
@@ -273,14 +307,15 @@ namespace Dagon.Bootstrap
             var overlayRenderer = overlay.AddComponent<SpriteRenderer>();
             overlayRenderer.sprite = overlaySprite;
             overlayRenderer.sortingOrder = -90;
-            overlayRenderer.color = currentBiomeProfile != null ? currentBiomeProfile.OverlayTint : new Color(1f, 1f, 1f, 0.92f);
+            overlayRenderer.color = new Color(1f, 1f, 1f, 0.92f);
+            return overlayRenderer;
         }
 
-        private string ChooseTilePath(int x, int z)
+        private string ChooseTilePath(int x, int z, RuntimeBiomeProfile profile)
         {
-            var activeBaseTiles = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.BaseTileResourcePaths : null, baseTileResourcePaths);
-            var activeMediumAccents = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.MediumAccentTileResourcePaths : null, mediumAccentTileResourcePaths);
-            var activeRareAccents = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.RareAccentTileResourcePaths : null, rareAccentTileResourcePaths);
+            var activeBaseTiles = ResolvePaths(profile != null ? profile.BaseTileResourcePaths : null, baseTileResourcePaths);
+            var activeMediumAccents = ResolvePaths(profile != null ? profile.MediumAccentTileResourcePaths : null, mediumAccentTileResourcePaths);
+            var activeRareAccents = ResolvePaths(profile != null ? profile.RareAccentTileResourcePaths : null, rareAccentTileResourcePaths);
             var accentNoise = SampleNoise(x, z, 0.073f, 0.041f, 13.7f, 7.3f);
             var detailNoise = SampleNoise(x, z, 0.19f, 0.16f, 4.1f, 19.4f);
 
@@ -305,9 +340,9 @@ namespace Dagon.Bootstrap
             return activeBaseTiles[ChooseIndex(activeBaseTiles.Length, groupedChoice)];
         }
 
-        private string ChooseOverlayPath(int x, int z)
+        private string ChooseOverlayPath(int x, int z, RuntimeBiomeProfile profile)
         {
-            var activeOverlays = ResolvePaths(currentBiomeProfile != null ? currentBiomeProfile.OverlayTileResourcePaths : null, overlayTileResourcePaths);
+            var activeOverlays = ResolvePaths(profile != null ? profile.OverlayTileResourcePaths : null, overlayTileResourcePaths);
             if (activeOverlays == null || activeOverlays.Length == 0)
             {
                 return null;
@@ -385,6 +420,42 @@ namespace Dagon.Bootstrap
         private static string[] ResolvePaths(string[] primaryPaths, string[] fallbackPaths)
         {
             return primaryPaths != null && primaryPaths.Length > 0 ? primaryPaths : fallbackPaths;
+        }
+
+        private RuntimeBiomeProfile ResolveBiomeProfile(Vector2Int coordinate)
+        {
+            if (progressionDirector == null)
+            {
+                return currentBiomeProfile;
+            }
+
+            var worldPosition = new Vector3(coordinate.x * tileSize, 0f, coordinate.y * tileSize);
+            return progressionDirector.ResolveBiomeAtPosition(worldPosition) ?? currentBiomeProfile;
+        }
+
+        private void ApplyTilePresentation(ActiveTile tile)
+        {
+            if (tile == null || tile.BaseRenderer == null)
+            {
+                return;
+            }
+
+            var profile = ResolveBiomeProfile(tile.Coordinate);
+            var worldPosition = new Vector3(tile.Coordinate.x * tileSize, 0f, tile.Coordinate.y * tileSize);
+            var baseTint = profile != null ? profile.GroundTint : Color.white;
+            var overlayTint = profile != null ? profile.OverlayTint : new Color(1f, 1f, 1f, 0.92f);
+            var corrupted = progressionDirector != null && progressionDirector.IsPositionCorrupted(worldPosition);
+
+            tile.BaseRenderer.color = corrupted ? ApplyCorruptionShadow(baseTint) : baseTint;
+            if (tile.OverlayRenderer != null)
+            {
+                tile.OverlayRenderer.color = corrupted ? ApplyCorruptionShadow(overlayTint) : overlayTint;
+            }
+        }
+
+        private static Color ApplyCorruptionShadow(Color source)
+        {
+            return new Color(source.r * 0.48f, source.g * 0.46f, source.b * 0.52f, source.a);
         }
     }
 }

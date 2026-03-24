@@ -66,6 +66,11 @@ namespace Dagon.Gameplay
         private const float SpecialistCooldownJitter = 2.25f;
         private const float EliteBaseCooldown = 19f;
         private const float EliteCooldownJitter = 5f;
+        private const float ThreatTierSpecialistUnlockReduction = 10f;
+        private const float ThreatTierEliteUnlockReduction = 18f;
+        private const float ThreatTierMermaidUnlockReduction = 12f;
+        private const float ThreatTierWatcherUnlockReduction = 8f;
+        private const float ThreatTierParasiteUnlockReduction = 10f;
         private const float WaveBaseInterval = 60f;
         private const float WaveIntervalJitter = 10f;
         private const float WaveSpawnRadiusMultiplier = 1.45f;
@@ -112,6 +117,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Camera worldCamera;
         [SerializeField] private RunStateManager runStateManager;
         [SerializeField] private CorruptionMeter corruptionMeter;
+        [SerializeField] private CorruptionRuntimeEffects corruptionRuntimeEffects;
         [SerializeField] private Sprite mireSprite;
         [SerializeField] private Sprite acolyteSprite;
         [SerializeField] private Sprite mermaidSprite;
@@ -154,7 +160,11 @@ namespace Dagon.Gameplay
         private float corruptionFodderWaveSizeMultiplier = 1f;
         private float corruptionSpecialistWaveSizeMultiplier = 1f;
         private float corruptionEliteWaveSizeMultiplier = 1f;
+        private float corruptionAmbientSpawnIntervalMultiplier = 1f;
+        private float corruptionEnemyHealthMultiplier = 1f;
+        private float corruptionEnemyMoveSpeedMultiplier = 1f;
         private float corruptionBossAmbientIntervalMultiplier = 1f;
+        private float distanceThreatIntervalReduction;
         private int defeatedEnemies;
         private int totalSpawned;
         private int activeWaveRemainingSpawns;
@@ -164,6 +174,8 @@ namespace Dagon.Gameplay
         private int wavesStartedCount;
         private int corruptionSpecialistCapBonus;
         private int corruptionEliteCapBonus;
+        private int distanceThreatTier;
+        private int distanceThreatAliveCapBonus;
         private bool spawningStopped;
         private bool quotaNotified;
         private bool initialized;
@@ -450,7 +462,10 @@ namespace Dagon.Gameplay
             int specialistCapBonus,
             int eliteCapBonus,
             bool eliteWaveUnlockOverride,
-            float bossAmbientIntervalMultiplier)
+            float bossAmbientIntervalMultiplier,
+            float ambientSpawnIntervalMultiplier,
+            float enemyHealthMultiplier,
+            float enemyMoveSpeedMultiplier)
         {
             corruptionFodderWaveSizeMultiplier = Mathf.Max(0.1f, fodderWaveSizeMultiplier);
             corruptionSpecialistWaveSizeMultiplier = Mathf.Max(0.1f, specialistWaveSizeMultiplier);
@@ -458,7 +473,10 @@ namespace Dagon.Gameplay
             corruptionSpecialistCapBonus = Mathf.Max(0, specialistCapBonus);
             corruptionEliteCapBonus = Mathf.Max(0, eliteCapBonus);
             corruptionEliteWaveUnlockOverride = eliteWaveUnlockOverride;
-            corruptionBossAmbientIntervalMultiplier = Mathf.Max(1f, bossAmbientIntervalMultiplier);
+            corruptionBossAmbientIntervalMultiplier = Mathf.Max(0.1f, bossAmbientIntervalMultiplier);
+            corruptionAmbientSpawnIntervalMultiplier = Mathf.Max(0.1f, ambientSpawnIntervalMultiplier);
+            corruptionEnemyHealthMultiplier = Mathf.Max(1f, enemyHealthMultiplier);
+            corruptionEnemyMoveSpeedMultiplier = Mathf.Max(1f, enemyMoveSpeedMultiplier);
         }
 
         public void IncreaseSandboxPressure(float intervalReduction = 0.18f, int additionalAliveCap = 1)
@@ -538,6 +556,14 @@ namespace Dagon.Gameplay
             deepSpawnSprite = LoadBiomeSprite(profile != null ? profile.DeepSpawnSpritePath : null, "Sprites/Enemies/deep_spawn", deepSpawnSprite, 64f);
         }
 
+        public void ConfigureDistanceThreat(RuntimeBiomeProfile profile, int threatTier)
+        {
+            distanceThreatTier = Mathf.Max(0, threatTier);
+            distanceThreatIntervalReduction = profile != null ? Mathf.Max(0f, profile.SpawnIntervalReductionBonus) : 0f;
+            distanceThreatAliveCapBonus = profile != null ? Mathf.Max(0, profile.AdditionalAliveCap) : 0;
+            spawnTimer = Mathf.Min(spawnTimer, GetCurrentMinSpawnInterval());
+        }
+
         private bool TryInitializeRuntime(string contextLabel, bool emitWarnings = false)
         {
             if (initialized)
@@ -567,6 +593,10 @@ namespace Dagon.Gameplay
             if (corruptionMeter == null && player != null)
             {
                 corruptionMeter = player.GetComponent<CorruptionMeter>();
+            }
+            if (corruptionRuntimeEffects == null && player != null)
+            {
+                corruptionRuntimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
             }
             ResetDirectorState();
             if (openingWaveEnabled)
@@ -639,6 +669,11 @@ namespace Dagon.Gameplay
             var mire = new GameObject($"{(isCorrupted ? "Corrupted" : string.Empty)}{enemyKind}_{activeEnemies.Count + 1}");
             mire.transform.SetParent(transform);
             mire.transform.position = position;
+            if (isCorrupted)
+            {
+                mire.AddComponent<CorruptedVariantMarker>();
+            }
+            var corruptionHealthMultiplier = GetCorruptionEnemyHealthMultiplier() * corruptionEnemyHealthMultiplier;
             var modifiers = isCorrupted
                 ? CorruptionVariantRules.GetEnemyModifiers(GetEnemyArchetype(enemyKind))
                 : new CorruptionVariantRules.StatModifiers(1f, 1f, 1f, 1f);
@@ -653,7 +688,7 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var health = mire.AddComponent<Health>();
-            health.SetMaxHealth(GetMaxHealth(enemyKind) * modifiers.HealthMultiplier, true);
+            health.SetMaxHealth(GetMaxHealth(enemyKind) * corruptionHealthMultiplier * modifiers.HealthMultiplier, true);
             health.Died += HandleEnemyDied;
             mire.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, health);
             var knockbackReceiver = mire.AddComponent<KnockbackReceiver>();
@@ -665,10 +700,10 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(1f, 18f, 5.5f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
-                    contactDamage.Configure(1f * modifiers.DamageMultiplier);
+                    contactDamage.Configure(2f * modifiers.DamageMultiplier);
 
                     var wanderer = mire.AddComponent<MireWanderer>();
-                    wanderer.Configure(player, Random.Range(3.2f, 3.6f) * modifiers.SpeedMultiplier, 3f, 18f);
+                    wanderer.Configure(player, Random.Range(3.2f, 3.6f) * corruptionEnemyMoveSpeedMultiplier * modifiers.SpeedMultiplier, 3f, 18f);
                     rewards.Configure(1, 0f);
                     break;
                 }
@@ -676,7 +711,7 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(0.85f, 18f, 5f);
                     var shooter = mire.AddComponent<DrownedAcolyteShooter>();
-                    shooter.Configure(player, acolyteProjectilePrefab, Random.Range(2.4f, 2.8f), 6f, 1.6f, worldCamera);
+                    shooter.Configure(player, acolyteProjectilePrefab, Random.Range(2.4f, 2.8f) * corruptionEnemyMoveSpeedMultiplier, 6f, 1.6f, worldCamera);
                     if (isCorrupted)
                     {
                         shooter.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
@@ -688,7 +723,7 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(0.8f, 18f, 5f);
                     var mermaid = mire.AddComponent<MermaidController>();
-                    mermaid.Configure(player, worldCamera, Random.Range(2.1f, 2.4f), 7.1f);
+                    mermaid.Configure(player, worldCamera, Random.Range(2.1f, 2.4f) * corruptionEnemyMoveSpeedMultiplier, 7.1f);
                     if (isCorrupted)
                     {
                         mermaid.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
@@ -700,7 +735,7 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(0.7f, 18f, 5f);
                     var watcherEye = mire.AddComponent<WatcherEyeController>();
-                    watcherEye.Configure(player, watcherEyeProjectilePrefab, worldCamera, Random.Range(2.2f, 2.5f), 7.8f);
+                    watcherEye.Configure(player, watcherEyeProjectilePrefab, worldCamera, Random.Range(2.2f, 2.5f) * corruptionEnemyMoveSpeedMultiplier, 7.8f);
                     if (isCorrupted)
                     {
                         watcherEye.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
@@ -712,9 +747,9 @@ namespace Dagon.Gameplay
                 {
                     knockbackReceiver.Configure(1.2f, 16f, 5.8f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
-                    contactDamage.Configure(1f * modifiers.DamageMultiplier);
+                    contactDamage.Configure(2f * modifiers.DamageMultiplier);
                     var parasite = mire.AddComponent<ParasiteChaser>();
-                    parasite.Configure(player, Random.Range(7.5f, 8f), 0.2f);
+                    parasite.Configure(player, Random.Range(7.5f, 8f) * corruptionEnemyMoveSpeedMultiplier, 0.2f);
                     if (isCorrupted)
                     {
                         parasite.ApplyCorruptionModifiers(modifiers.SpeedMultiplier);
@@ -729,13 +764,17 @@ namespace Dagon.Gameplay
                     var bruiser = mire.AddComponent<DeepSpawnBruiser>();
                     bruiser.Configure(player, 1.2f, 4.8f);
                     var contactDamage = mire.AddComponent<ContactDamage>();
-                    contactDamage.Configure(3f);
+                    contactDamage.Configure(2f);
                     rewards.Configure(6, 4f, EliteHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
             }
 
             ConfigureVisuals(mire.transform, enemyKind, isCorrupted);
+            if (isCorrupted)
+            {
+                AttachCorruptionAffix(mire, enemyKind);
+            }
             ConfigureHealthBar(mire.transform, health, enemyKind);
             RegisterEnemy(mire);
             totalSpawned += 1;
@@ -834,6 +873,10 @@ namespace Dagon.Gameplay
 
             var deepSpawnObject = Instantiate(deepSpawnPrefab, position, Quaternion.identity, transform);
             deepSpawnObject.name = $"{(isCorrupted ? "Corrupted" : string.Empty)}{EnemyKind.DeepSpawn}_{activeEnemies.Count + 1}";
+            if (isCorrupted)
+            {
+                deepSpawnObject.AddComponent<CorruptedVariantMarker>();
+            }
 
             var deepSpawn = deepSpawnObject.GetComponent<DeepSpawnPrefab>();
             if (deepSpawn == null)
@@ -843,6 +886,11 @@ namespace Dagon.Gameplay
             }
 
             deepSpawn.Configure(player, worldCamera, enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
+            var corruptionHealthMultiplier = GetCorruptionEnemyHealthMultiplier() * corruptionEnemyHealthMultiplier;
+            if (corruptionHealthMultiplier > 1f || corruptionEnemyMoveSpeedMultiplier > 1f)
+            {
+                deepSpawn.ApplyCorruptionModifiers(corruptionHealthMultiplier, 1f, corruptionEnemyMoveSpeedMultiplier, 1f);
+            }
             if (isCorrupted)
             {
                 var modifiers = CorruptionVariantRules.GetEnemyModifiers(CorruptionVariantRules.EnemyArchetype.Elite);
@@ -858,6 +906,8 @@ namespace Dagon.Gameplay
                     var baseColor = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
                     renderer.gameObject.AddComponent<CorruptedVariantVisual>().Apply(renderer, baseColor);
                 }
+
+                AttachCorruptionAffix(deepSpawnObject, EnemyKind.DeepSpawn);
             }
 
             var health = deepSpawn.HealthComponent;
@@ -889,6 +939,18 @@ namespace Dagon.Gameplay
             return Random.value <= CorruptionVariantRules.GetEnemyCorruptionChance(corruptionMeter.CurrentCorruption);
         }
 
+        private float GetCorruptionEnemyHealthMultiplier()
+        {
+            if (corruptionMeter == null && player != null)
+            {
+                corruptionMeter = player.GetComponent<CorruptionMeter>();
+            }
+
+            return corruptionMeter != null
+                ? CorruptionVariantRules.GetEnemyHealthMultiplierFromCorruption(corruptionMeter.CurrentCorruption)
+                : 1f;
+        }
+
         private static CorruptionVariantRules.EnemyArchetype GetEnemyArchetype(EnemyKind enemyKind)
         {
             return enemyKind switch
@@ -898,6 +960,54 @@ namespace Dagon.Gameplay
                 EnemyKind.DeepSpawn => CorruptionVariantRules.EnemyArchetype.Elite,
                 _ => CorruptionVariantRules.EnemyArchetype.Fodder
             };
+        }
+
+        private void AttachCorruptionAffix(GameObject enemyRoot, EnemyKind enemyKind)
+        {
+            if (enemyRoot == null)
+            {
+                return;
+            }
+
+            var affixKind = DrawCorruptionAffix(enemyKind);
+            if (affixKind == CorruptionAffixController.CorruptionAffixKind.None)
+            {
+                return;
+            }
+
+            var affixController = enemyRoot.GetComponent<CorruptionAffixController>() ?? enemyRoot.AddComponent<CorruptionAffixController>();
+            affixController.Configure(affixKind, worldCamera);
+        }
+
+        private static CorruptionAffixController.CorruptionAffixKind DrawCorruptionAffix(EnemyKind enemyKind)
+        {
+            return enemyKind switch
+            {
+                EnemyKind.DrownedAcolyte => DrawFromPool(
+                    CorruptionAffixController.CorruptionAffixKind.Graveburst,
+                    CorruptionAffixController.CorruptionAffixKind.Rotwake,
+                    CorruptionAffixController.CorruptionAffixKind.FrenziedVolley,
+                    CorruptionAffixController.CorruptionAffixKind.HardenedHusk),
+                EnemyKind.WatcherEye => DrawFromPool(
+                    CorruptionAffixController.CorruptionAffixKind.Graveburst,
+                    CorruptionAffixController.CorruptionAffixKind.Rotwake,
+                    CorruptionAffixController.CorruptionAffixKind.FrenziedVolley,
+                    CorruptionAffixController.CorruptionAffixKind.HardenedHusk),
+                _ => DrawFromPool(
+                    CorruptionAffixController.CorruptionAffixKind.Graveburst,
+                    CorruptionAffixController.CorruptionAffixKind.Rotwake,
+                    CorruptionAffixController.CorruptionAffixKind.HardenedHusk)
+            };
+        }
+
+        private static CorruptionAffixController.CorruptionAffixKind DrawFromPool(params CorruptionAffixController.CorruptionAffixKind[] pool)
+        {
+            if (pool == null || pool.Length == 0)
+            {
+                return CorruptionAffixController.CorruptionAffixKind.None;
+            }
+
+            return pool[Random.Range(0, pool.Length)];
         }
 
         private void ConfigureHealthBar(Transform enemyRoot, Health health, EnemyKind enemyKind)
@@ -1005,6 +1115,12 @@ namespace Dagon.Gameplay
         private void HandleEnemyDied(Health health, GameObject source)
         {
             health.Died -= HandleEnemyDied;
+            if (corruptionRuntimeEffects == null && player != null)
+            {
+                corruptionRuntimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
+            }
+
+            corruptionRuntimeEffects?.NotifyEnemyKilled(health != null ? health.gameObject : null, source);
             UnregisterEnemy(health != null ? health.gameObject : null);
             defeatedEnemies = Mathf.Min(regularSpawnQuota, defeatedEnemies + 1);
             if (IsBattlefieldClear)
@@ -1023,7 +1139,10 @@ namespace Dagon.Gameplay
         {
             var currentMinInterval = GetCurrentMinSpawnInterval();
             var currentMaxInterval = GetCurrentMaxSpawnInterval(currentMinInterval);
-            spawnTimer = Random.Range(currentMinInterval, currentMaxInterval) * bossPhaseIntervalMultiplier * corruptionBossAmbientIntervalMultiplier;
+            spawnTimer = Random.Range(currentMinInterval, currentMaxInterval)
+                * bossPhaseIntervalMultiplier
+                * corruptionBossAmbientIntervalMultiplier
+                * corruptionAmbientSpawnIntervalMultiplier;
         }
 
         private void TickDirector(float deltaTime)
@@ -1037,14 +1156,14 @@ namespace Dagon.Gameplay
             eliteCooldownRemaining = Mathf.Max(0f, eliteCooldownRemaining - deltaTime);
 
             var elapsed = GetElapsedRunTime();
-            if (elapsed >= SpecialistUnlockTime)
+            if (elapsed >= GetCurrentSpecialistUnlockTime())
             {
                 specialistBudget = Mathf.Min(
                     SpecialistBudgetCap,
                     specialistBudget + (SpecialistBudgetGainPerSecond * deltaTime));
             }
 
-            if (elapsed >= EliteUnlockTime)
+            if (elapsed >= GetCurrentEliteUnlockTime())
             {
                 eliteBudget = Mathf.Min(
                     EliteBudgetCap,
@@ -1164,7 +1283,7 @@ namespace Dagon.Gameplay
 
         private float GetCurrentIntervalReduction()
         {
-            return pressureIntervalReduction + GetSpawnRampReduction();
+            return pressureIntervalReduction + distanceThreatIntervalReduction + GetSpawnRampReduction();
         }
 
         private float GetSpawnRampReduction()
@@ -1186,7 +1305,7 @@ namespace Dagon.Gameplay
 
         private int GetCurrentMaxAliveEnemies()
         {
-            var effectiveAliveCap = maxAliveEnemies + GetSpawnRampAliveCapBonus();
+            var effectiveAliveCap = maxAliveEnemies + distanceThreatAliveCapBonus + GetSpawnRampAliveCapBonus();
             if (waveActive)
             {
                 effectiveAliveCap += activeWaveAliveCapBonus;
@@ -1299,14 +1418,14 @@ namespace Dagon.Gameplay
             var aliveElites = GetAliveCountForClass(SpawnClass.Elite);
 
             var specialistReady =
-                elapsed >= SpecialistUnlockTime &&
+                elapsed >= GetCurrentSpecialistUnlockTime() &&
                 HasAvailableSpecialist(elapsed) &&
                 specialistBudget >= SpecialistSpawnCost &&
                 specialistCooldownRemaining <= 0f &&
                 aliveSpecialists < GetCurrentSpecialistCap(elapsed);
 
             var eliteReady =
-                elapsed >= EliteUnlockTime &&
+                elapsed >= GetCurrentEliteUnlockTime() &&
                 HasAvailableElite() &&
                 eliteBudget >= EliteSpawnCost &&
                 eliteCooldownRemaining <= 0f &&
@@ -1349,8 +1468,8 @@ namespace Dagon.Gameplay
             var elapsed = GetElapsedRunTime();
             var watcherAvailable = watcherEyeSprite != null &&
                                    watcherEyeProjectilePrefab != null &&
-                                   elapsed >= WatcherEyeFodderUnlockTime;
-            var parasiteAvailable = parasiteSprite != null && elapsed >= ParasiteUnlockTime;
+                                   elapsed >= GetCurrentWatcherUnlockTime();
+            var parasiteAvailable = parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime();
             if (!watcherAvailable && !parasiteAvailable)
             {
                 return EnemyKind.MireWretch;
@@ -1358,10 +1477,10 @@ namespace Dagon.Gameplay
 
             var mireWeight = 1f;
             var watcherWeight = watcherAvailable
-                ? Mathf.Lerp(0.2f, 0.45f, Mathf.Clamp01((elapsed - WatcherEyeFodderUnlockTime) / 90f))
+                ? Mathf.Lerp(0.2f, 0.45f + (distanceThreatTier * 0.08f), Mathf.Clamp01((elapsed - GetCurrentWatcherUnlockTime()) / 90f))
                 : 0f;
             var parasiteWeight = parasiteAvailable
-                ? Mathf.Lerp(0.3f, 0.75f, Mathf.Clamp01((elapsed - ParasiteUnlockTime) / 90f))
+                ? Mathf.Lerp(0.3f + (distanceThreatTier * 0.06f), 0.75f + (distanceThreatTier * 0.10f), Mathf.Clamp01((elapsed - GetCurrentParasiteUnlockTime()) / 90f))
                 : 0f;
             var totalWeight = mireWeight + watcherWeight + parasiteWeight;
             if (totalWeight <= 0f)
@@ -1388,14 +1507,14 @@ namespace Dagon.Gameplay
         {
             var elapsed = GetElapsedRunTime();
             var acolyteAvailable = acolyteSprite != null && acolyteProjectilePrefab != null;
-            var mermaidAvailable = mermaidSprite != null && elapsed >= MermaidUnlockTime;
+            var mermaidAvailable = mermaidSprite != null && elapsed >= GetCurrentMermaidUnlockTime();
 
             if (!mermaidAvailable || !acolyteAvailable)
             {
                 return mermaidAvailable ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
             }
 
-            var mermaidWeight = Mathf.Lerp(0.28f, 0.58f, Mathf.Clamp01((elapsed - MermaidUnlockTime) / 100f));
+            var mermaidWeight = Mathf.Lerp(0.28f, 0.58f + (distanceThreatTier * 0.08f), Mathf.Clamp01((elapsed - GetCurrentMermaidUnlockTime()) / 100f));
             return Random.value < mermaidWeight ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
         }
 
@@ -1455,6 +1574,31 @@ namespace Dagon.Gameplay
             return initialized ? Mathf.Max(0f, Time.time - runtimeStartedAt) : 0f;
         }
 
+        private float GetCurrentSpecialistUnlockTime()
+        {
+            return Mathf.Max(0f, SpecialistUnlockTime - (distanceThreatTier * ThreatTierSpecialistUnlockReduction));
+        }
+
+        private float GetCurrentEliteUnlockTime()
+        {
+            return Mathf.Max(0f, EliteUnlockTime - (distanceThreatTier * ThreatTierEliteUnlockReduction));
+        }
+
+        private float GetCurrentMermaidUnlockTime()
+        {
+            return Mathf.Max(0f, MermaidUnlockTime - (distanceThreatTier * ThreatTierMermaidUnlockReduction));
+        }
+
+        private float GetCurrentWatcherUnlockTime()
+        {
+            return Mathf.Max(0f, WatcherEyeFodderUnlockTime - (distanceThreatTier * ThreatTierWatcherUnlockReduction));
+        }
+
+        private float GetCurrentParasiteUnlockTime()
+        {
+            return Mathf.Max(0f, ParasiteUnlockTime - (distanceThreatTier * ThreatTierParasiteUnlockReduction));
+        }
+
         private int GetAliveCountForClass(SpawnClass spawnClass)
         {
             var count = 0;
@@ -1507,7 +1651,7 @@ namespace Dagon.Gameplay
         private int GetCurrentSpecialistCap(float elapsedTime)
         {
             var baseCap = 0;
-            if (elapsedTime < SpecialistUnlockTime)
+            if (elapsedTime < GetCurrentSpecialistUnlockTime())
             {
                 baseCap = 0;
             }
@@ -1524,13 +1668,13 @@ namespace Dagon.Gameplay
                 baseCap = 3;
             }
 
-            return Mathf.Max(0, baseCap + corruptionSpecialistCapBonus);
+            return Mathf.Max(0, baseCap + corruptionSpecialistCapBonus + Mathf.Max(0, distanceThreatTier - 1));
         }
 
         private int GetCurrentEliteCap(float elapsedTime)
         {
             var baseCap = 0;
-            if (elapsedTime < EliteUnlockTime)
+            if (elapsedTime < GetCurrentEliteUnlockTime())
             {
                 baseCap = 0;
             }
@@ -1543,18 +1687,18 @@ namespace Dagon.Gameplay
                 baseCap = 2;
             }
 
-            return Mathf.Max(0, baseCap + corruptionEliteCapBonus);
+            return Mathf.Max(0, baseCap + corruptionEliteCapBonus + Mathf.Max(0, distanceThreatTier - 2));
         }
 
         private float GetSpecialistDirectorWeight(float elapsedTime)
         {
-            var timePressure = Mathf.Clamp01((elapsedTime - SpecialistUnlockTime) / 80f);
+            var timePressure = Mathf.Clamp01((elapsedTime - GetCurrentSpecialistUnlockTime()) / 80f);
             return 0.5f + (specialistBudget * 0.65f) + (timePressure * 0.35f);
         }
 
         private float GetEliteDirectorWeight(float elapsedTime)
         {
-            var timePressure = Mathf.Clamp01((elapsedTime - EliteUnlockTime) / 110f);
+            var timePressure = Mathf.Clamp01((elapsedTime - GetCurrentEliteUnlockTime()) / 110f);
             return 0.28f + (eliteBudget * 0.75f) + (timePressure * 0.24f);
         }
 
@@ -1610,7 +1754,7 @@ namespace Dagon.Gameplay
         private bool HasAvailableSpecialist(float elapsedTime)
         {
             var acolyteAvailable = acolyteSprite != null && acolyteProjectilePrefab != null;
-            var mermaidAvailable = mermaidSprite != null && elapsedTime >= MermaidUnlockTime;
+            var mermaidAvailable = mermaidSprite != null && elapsedTime >= GetCurrentMermaidUnlockTime();
             return acolyteAvailable || mermaidAvailable;
         }
 
@@ -1691,9 +1835,9 @@ namespace Dagon.Gameplay
             return enemyKind switch
             {
                 EnemyKind.DrownedAcolyte => acolyteSprite != null && acolyteProjectilePrefab != null,
-                EnemyKind.Mermaid => mermaidSprite != null && elapsed >= MermaidUnlockTime,
-                EnemyKind.WatcherEye => watcherEyeSprite != null && watcherEyeProjectilePrefab != null && elapsed >= WatcherEyeFodderUnlockTime,
-                EnemyKind.Parasite => parasiteSprite != null && elapsed >= ParasiteUnlockTime,
+                EnemyKind.Mermaid => mermaidSprite != null && elapsed >= GetCurrentMermaidUnlockTime(),
+                EnemyKind.WatcherEye => watcherEyeSprite != null && watcherEyeProjectilePrefab != null && elapsed >= GetCurrentWatcherUnlockTime(),
+                EnemyKind.Parasite => parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime(),
                 EnemyKind.DeepSpawn => HasAvailableElite(),
                 _ => mireSprite != null
             };
@@ -1741,11 +1885,11 @@ namespace Dagon.Gameplay
         {
             var watcherAvailable = watcherEyeSprite != null &&
                                    watcherEyeProjectilePrefab != null &&
-                                   elapsed >= WatcherEyeFodderUnlockTime;
-            var parasiteAvailable = parasiteSprite != null && elapsed >= ParasiteUnlockTime;
+                                   elapsed >= GetCurrentWatcherUnlockTime();
+            var parasiteAvailable = parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime();
             var mireWeight = 1f;
-            var watcherWeight = watcherAvailable ? 0.7f : 0f;
-            var parasiteWeight = parasiteAvailable ? 0.9f : 0f;
+            var watcherWeight = watcherAvailable ? 0.7f + (distanceThreatTier * 0.12f) : 0f;
+            var parasiteWeight = parasiteAvailable ? 0.9f + (distanceThreatTier * 0.14f) : 0f;
             var totalWeight = mireWeight + watcherWeight + parasiteWeight;
 
             var roll = Random.value * totalWeight;
@@ -1766,13 +1910,13 @@ namespace Dagon.Gameplay
         private EnemyKind ChooseWaveSpecialistKind(float elapsed)
         {
             var acolyteAvailable = acolyteSprite != null && acolyteProjectilePrefab != null;
-            var mermaidAvailable = mermaidSprite != null && elapsed >= MermaidUnlockTime;
+            var mermaidAvailable = mermaidSprite != null && elapsed >= GetCurrentMermaidUnlockTime();
             if (!mermaidAvailable || !acolyteAvailable)
             {
                 return mermaidAvailable ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
             }
 
-            return Random.value < 0.45f ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
+            return Random.value < (0.45f + (distanceThreatTier * 0.08f)) ? EnemyKind.Mermaid : EnemyKind.DrownedAcolyte;
         }
 
         private EnemyKind ChooseWaveEliteKind()

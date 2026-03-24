@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class TallLeechShooter : MonoBehaviour
+    public sealed class TallLeechShooter : MonoBehaviour, IAuraCadenceTarget, IAuraProjectileTarget
     {
         [SerializeField] private Transform target;
         [SerializeField] private HarpoonProjectile projectilePrefab;
@@ -13,11 +13,13 @@ namespace Dagon.Gameplay
         [SerializeField] private float fireCooldown = 1.9f;
         [SerializeField] private float windupDuration = 0.32f;
         [SerializeField] private float projectileSpeed = 7.2f;
-        [SerializeField] private float projectileDamage = 0.9f;
+        [SerializeField] private float projectileDamage = 1f;
 
         private float fireTimer;
         private float windupTimer;
         private Vector3 queuedAimDirection = Vector3.forward;
+        private float auraCadenceMultiplier = 1f;
+        private int auraProjectileMultiplier = 1;
         private bool windingUp;
 
         private void Update()
@@ -28,10 +30,10 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            fireTimer -= Time.deltaTime;
+            fireTimer -= Time.deltaTime * auraCadenceMultiplier;
             if (windingUp)
             {
-                windupTimer -= Time.deltaTime;
+                windupTimer -= Time.deltaTime * auraCadenceMultiplier;
                 if (windupTimer <= 0f)
                 {
                     FireShot();
@@ -118,12 +120,29 @@ namespace Dagon.Gameplay
             windingUp = false;
             fireTimer = fireCooldown;
 
-            var projectile = Instantiate(
-                projectilePrefab,
-                transform.position + Vector3.up * 0.55f,
-                Quaternion.LookRotation(queuedAimDirection, Vector3.up));
-            projectile.gameObject.SetActive(true);
-            projectile.Initialize(gameObject, queuedAimDirection, projectileSpeed, projectileDamage);
+            var shotCount = Mathf.Max(1, auraProjectileMultiplier);
+            var startAngle = shotCount > 1 ? -6f * (shotCount - 1) * 0.5f : 0f;
+            for (var index = 0; index < shotCount; index++)
+            {
+                var yaw = startAngle + (index * 6f);
+                var direction = Quaternion.AngleAxis(yaw, Vector3.up) * queuedAimDirection;
+                var projectile = Instantiate(
+                    projectilePrefab,
+                    transform.position + Vector3.up * 0.55f,
+                    Quaternion.LookRotation(direction, Vector3.up));
+                projectile.gameObject.SetActive(true);
+                projectile.Initialize(gameObject, direction.normalized, projectileSpeed, projectileDamage);
+            }
+        }
+
+        public void SetAuraCadenceMultiplier(float multiplier)
+        {
+            auraCadenceMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraProjectileMultiplier(int multiplier)
+        {
+            auraProjectileMultiplier = Mathf.Max(1, multiplier);
         }
     }
 }

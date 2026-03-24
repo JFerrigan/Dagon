@@ -14,7 +14,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float cleanseAmount = 25f;
         [SerializeField] private int visibleRadiusInLandmarkCells = 2;
         [SerializeField] private float landmarkCellSize = 180f;
-        [SerializeField] private float landmarkSpawnChance = 0.82f;
+        [SerializeField] private float landmarkSpawnChance = 0.95f;
         [SerializeField] private float spawnMargin = 18f;
 
         private readonly Dictionary<Vector2Int, CorruptionFountain> activeFountains = new();

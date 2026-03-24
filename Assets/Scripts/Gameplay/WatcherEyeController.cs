@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class WatcherEyeController : MonoBehaviour
+    public sealed class WatcherEyeController : MonoBehaviour, IAuraMoveSpeedTarget, IAuraCadenceTarget, IAuraProjectileTarget, ICorruptionVolleyAffixTarget
     {
         private enum State
         {
@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float orbCooldown = 2.2f;
         [SerializeField] private float orbWindup = 0.35f;
         [SerializeField] private float orbSpeed = 7.8f;
-        [SerializeField] private float orbDamage = 0.9f;
+        [SerializeField] private float orbDamage = 1f;
         [SerializeField] private float recoveryDuration = 0.4f;
         [SerializeField] private EnemySlowReceiver slowReceiver;
         [SerializeField] private BodyBlocker bodyBlocker;
@@ -37,6 +37,11 @@ namespace Dagon.Gameplay
         private float stateTimer;
         private float hoverDirection = 1f;
         private float hoverSwapTimer;
+        private float auraMoveSpeedMultiplier = 1f;
+        private float auraCadenceMultiplier = 1f;
+        private int auraProjectileMultiplier = 1;
+        private float corruptionCadenceMultiplier = 1f;
+        private int corruptionProjectileMultiplier = 1;
         private State state;
         private Attack queuedAttack;
         private Vector3 queuedAimDirection = Vector3.forward;
@@ -66,8 +71,9 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            orbCooldownTimer = Mathf.Max(0f, orbCooldownTimer - Time.deltaTime);
-            stateTimer -= Time.deltaTime;
+            var cadenceMultiplier = auraCadenceMultiplier * corruptionCadenceMultiplier;
+            orbCooldownTimer = Mathf.Max(0f, orbCooldownTimer - (Time.deltaTime * cadenceMultiplier));
+            stateTimer -= Time.deltaTime * cadenceMultiplier;
 
             var toTarget = target.position - transform.position;
             toTarget.y = 0f;
@@ -170,7 +176,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = hoverSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = hoverSpeed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             ApplyMovement(desiredVelocity.normalized * (effectiveSpeed * Time.deltaTime));
         }
 
@@ -233,12 +239,40 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var projectile = Instantiate(
-                orbProjectilePrefab,
-                transform.position + Vector3.up * 0.4f,
-                Quaternion.LookRotation(queuedAimDirection, Vector3.up));
-            projectile.gameObject.SetActive(true);
-            projectile.Initialize(gameObject, queuedAimDirection, orbSpeed, orbDamage);
+            var shotCount = Mathf.Max(1, auraProjectileMultiplier * corruptionProjectileMultiplier);
+            var startAngle = shotCount > 1 ? -7f * (shotCount - 1) * 0.5f : 0f;
+            for (var index = 0; index < shotCount; index++)
+            {
+                var yaw = startAngle + (index * 7f);
+                var direction = Quaternion.AngleAxis(yaw, Vector3.up) * queuedAimDirection;
+                var projectile = Instantiate(
+                    orbProjectilePrefab,
+                    transform.position + Vector3.up * 0.4f,
+                    Quaternion.LookRotation(direction, Vector3.up));
+                projectile.gameObject.SetActive(true);
+                projectile.Initialize(gameObject, direction.normalized, orbSpeed, orbDamage);
+            }
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraCadenceMultiplier(float multiplier)
+        {
+            auraCadenceMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraProjectileMultiplier(int multiplier)
+        {
+            auraProjectileMultiplier = Mathf.Max(1, multiplier);
+        }
+
+        public void SetCorruptionVolleyActive(bool active)
+        {
+            corruptionCadenceMultiplier = active ? 1.35f : 1f;
+            corruptionProjectileMultiplier = active ? 2 : 1;
         }
 
     }

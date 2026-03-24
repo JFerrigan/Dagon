@@ -12,6 +12,7 @@ namespace Dagon.Gameplay
 
         private Collider cachedCollider;
         private BodyBlocker cachedBodyBlocker;
+        private float auraCadenceMultiplier = 1f;
         private readonly HashSet<Hurtbox> overlappingTargets = new();
         private readonly Dictionary<Hurtbox, float> nextDamageTimes = new();
 
@@ -70,6 +71,11 @@ namespace Dagon.Gameplay
             {
                 cachedBodyBlocker = GetComponent<BodyBlocker>();
             }
+        }
+
+        public void SetAuraCadenceMultiplier(float multiplier)
+        {
+            auraCadenceMultiplier = Mathf.Max(1f, multiplier);
         }
 
         private void OnTriggerEnter(Collider other)
@@ -255,7 +261,7 @@ namespace Dagon.Gameplay
             }
 
             hurtbox.Damageable.ApplyDamage(damage, gameObject);
-            nextDamageTimes[hurtbox] = Time.time + cooldown;
+            nextDamageTimes[hurtbox] = Time.time + (cooldown / auraCadenceMultiplier);
             CombatDebug.Log(
                 "ContactDamage",
                 $"source={name} hit={CombatDebug.NameOf(hurtbox)} damage={damage:0.##}",

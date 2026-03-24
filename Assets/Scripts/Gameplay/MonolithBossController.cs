@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using Dagon.Core;
 using Dagon.Rendering;
@@ -7,10 +8,47 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class MonolithBossController : MonoBehaviour
+    public sealed class MonolithBossController : MonoBehaviour, IDamageable, IBossHealthDisplayOverride
     {
         private const string WideLeechSpritePath = "Sprites/Enemies/wide_leech";
         private const string TallLeechSpritePath = "Sprites/Enemies/tall_leech";
+        private const float PhaseOneHealthRatio = 2f / 3f;
+        private const float RelocationDistance = 30f;
+        private const float RelocationDistanceJitter = 3.5f;
+        private const float MinimumRelocationDistance = 20f;
+        private const float CorruptionSafetyBuffer = 4f;
+        private const float SinkDepth = 7f;
+        private const float SinkDuration = 0.42f;
+        private const float HiddenDuration = 0.3f;
+        private const float RiseDuration = 0.38f;
+        private const float PressureCadenceMultiplier = 3f;
+        private const int PressureWideCapBonus = 8;
+        private const int PressureTallCapBonus = 4;
+        private const float AuraPulseHeightOffset = 0.06f;
+        private const float AuraPulseDuration = 0.55f;
+        private const float AuraPulseScaleMultiplier = 1.08f;
+
+        private static readonly Color SpeedAuraColor = new(0.28f, 0.64f, 1f, 1f);
+        private static readonly Color BulwarkAuraColor = new(1f, 0.28f, 0.28f, 1f);
+        private static readonly Color MendAuraColor = new(0.28f, 0.95f, 0.42f, 1f);
+        private static readonly Color VolleyAuraColor = new(1f, 0.88f, 0.22f, 1f);
+
+        private enum AuraType
+        {
+            Speed,
+            Bulwark,
+            Mend,
+            Volley
+        }
+
+        private enum PhaseState
+        {
+            PhaseOne,
+            Transitioning,
+            RelocatedPressure,
+            PhaseTwo,
+            Dead
+        }
 
         [SerializeField] private Transform target;
         [SerializeField] private Camera worldCamera;
@@ -20,42 +58,130 @@ namespace Dagon.Gameplay
         [SerializeField] private float tallSummonCooldown = 4.9f;
         [SerializeField] private int maxWideLeeches = 6;
         [SerializeField] private int maxTallLeeches = 3;
+        [SerializeField] private float auraRadius = 8.5f;
+        [SerializeField] private float auraSwapInterval = 13f;
+        [SerializeField] private float speedAuraMoveMultiplier = 1.45f;
+        [SerializeField] private float bulwarkIncomingDamageMultiplier = 0.65f;
+        [SerializeField] private float mendHealPerTick = 0.85f;
+        [SerializeField] private float mendTickInterval = 1.1f;
+        [SerializeField] private int volleyProjectileMultiplier = 2;
+        [SerializeField] private float volleyFallbackCadenceMultiplier = 1.55f;
+        [SerializeField] private float auraRingThickness = 0.22f;
 
         private readonly List<GameObject> activeWideLeeches = new();
         private readonly List<GameObject> activeTallLeeches = new();
+        private readonly HashSet<EnemyAuraBuffReceiver> buffedEnemies = new();
+        private readonly HashSet<EnemyAuraBuffReceiver> trackedEnemies = new();
+        private readonly HashSet<EnemyAuraBuffReceiver> auraFrameTargets = new();
+        private readonly HashSet<GameObject> resolvedRoots = new();
+
         private Sprite wideLeechSprite;
         private Sprite tallLeechSprite;
+        private Health bossHealth;
+        private Hurtbox hurtbox;
+        private CapsuleCollider bossCollider;
+        private BodyBlocker bodyBlocker;
+        private EnemyDeathRewards deathRewards;
+        private KnockbackReceiver knockbackReceiver;
+        private WorldProgressionDirector worldProgressionDirector;
+        private Transform visualsRoot;
+        private SpriteRenderer primaryRenderer;
+        private SpriteRenderer glowRenderer;
+        private Vector3 baseVisualLocalPosition;
+        private Color baseTint = Color.white;
+
         private float wideSummonTimer;
         private float tallSummonTimer;
+        private float auraSwapTimer;
         private float damageMultiplier = 1f;
         private float cadenceMultiplier = 1f;
+        private float configuredWideSummonCooldown;
+        private float configuredTallSummonCooldown;
+        private int configuredMaxWideLeeches;
+        private int configuredMaxTallLeeches;
+        private float phaseOneMaxHealth;
+        private float phaseTwoMaxHealth;
+        private float phaseCurrentHealth;
+
+        private AuraType currentAura;
+        private PhaseState phaseState;
+        private Coroutine transitionRoutine;
+
+        public float DisplayedCurrentHealth => Mathf.Max(0f, phaseCurrentHealth);
+        public float DisplayedMaxHealth => phaseState switch
+        {
+            PhaseState.PhaseOne => Mathf.Max(0.01f, phaseOneMaxHealth),
+            PhaseState.RelocatedPressure => Mathf.Max(0.01f, phaseTwoMaxHealth),
+            PhaseState.PhaseTwo => Mathf.Max(0.01f, phaseTwoMaxHealth),
+            _ => Mathf.Max(0.01f, phaseTwoMaxHealth)
+        };
+
+        public bool IsBossHealthVisible => phaseState == PhaseState.PhaseOne || phaseState == PhaseState.PhaseTwo;
 
         private void Awake()
         {
             wideLeechSprite = RuntimeSpriteLibrary.LoadSprite(WideLeechSpritePath, 64f);
             tallLeechSprite = RuntimeSpriteLibrary.LoadSprite(TallLeechSpritePath, 64f);
+            ResolveReferences();
+            ResolveVisuals();
+            ChooseNextAura(initial: true);
         }
 
         private void Update()
         {
             ResolveReferences();
+            ResolveVisuals();
             CleanupDestroyedLeeches(activeWideLeeches);
             CleanupDestroyedLeeches(activeTallLeeches);
 
-            wideSummonTimer -= Time.deltaTime;
-            tallSummonTimer -= Time.deltaTime;
-
-            if (activeWideLeeches.Count < maxWideLeeches && wideSummonTimer <= 0f)
+            if (phaseState == PhaseState.Dead)
             {
-                SpawnWideLeech();
-                wideSummonTimer = wideSummonCooldown;
+                return;
             }
 
-            if (activeTallLeeches.Count < maxTallLeeches && tallSummonTimer <= 0f)
+            if (phaseState != PhaseState.Transitioning)
             {
-                SpawnTallLeech();
-                tallSummonTimer = tallSummonCooldown;
+                wideSummonTimer -= Time.deltaTime;
+                tallSummonTimer -= Time.deltaTime;
+                auraSwapTimer -= Time.deltaTime;
+
+                if (activeWideLeeches.Count < maxWideLeeches && wideSummonTimer <= 0f)
+                {
+                    SpawnWideLeech();
+                    wideSummonTimer = wideSummonCooldown;
+                }
+
+                if (activeTallLeeches.Count < maxTallLeeches && tallSummonTimer <= 0f)
+                {
+                    SpawnTallLeech();
+                    tallSummonTimer = tallSummonCooldown;
+                }
+
+                if (auraSwapTimer <= 0f)
+                {
+                    ChooseNextAura();
+                }
+
+                UpdateAuraVisuals();
+                ApplyAuraToNearbyEnemies();
             }
+
+            if (phaseState == PhaseState.RelocatedPressure && IsTargetWithinAuraRadius())
+            {
+                ExitRelocatedPressure();
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (transitionRoutine != null)
+            {
+                StopCoroutine(transitionRoutine);
+                transitionRoutine = null;
+            }
+
+            ClearAllBuffs();
+            SetMonolithPresentationActive(true);
         }
 
         public void Configure(
@@ -67,25 +193,75 @@ namespace Dagon.Gameplay
             int newMaxWideLeeches,
             int newMaxTallLeeches)
         {
+            ResolveReferences();
             target = newTarget;
             worldCamera = cameraReference;
             projectilePrefab = leechProjectilePrefab;
-            wideSummonCooldown = Mathf.Max(0.2f, newWideSummonCooldown);
-            tallSummonCooldown = Mathf.Max(0.2f, newTallSummonCooldown);
-            maxWideLeeches = Mathf.Max(1, newMaxWideLeeches);
-            maxTallLeeches = Mathf.Max(1, newMaxTallLeeches);
+            worldProgressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
+            configuredWideSummonCooldown = Mathf.Max(0.2f, newWideSummonCooldown);
+            configuredTallSummonCooldown = Mathf.Max(0.2f, newTallSummonCooldown);
+            configuredMaxWideLeeches = Mathf.Max(1, newMaxWideLeeches);
+            configuredMaxTallLeeches = Mathf.Max(1, newMaxTallLeeches);
+            ApplyNormalSummonPressure();
             wideSummonTimer = 0.9f;
             tallSummonTimer = 1.8f;
+            auraSwapTimer = 0.4f;
+
+            if (bossHealth != null)
+            {
+                var totalHealth = Mathf.Max(1f, bossHealth.MaxHealth);
+                phaseOneMaxHealth = totalHealth * PhaseOneHealthRatio;
+                phaseTwoMaxHealth = totalHealth - phaseOneMaxHealth;
+                phaseCurrentHealth = phaseOneMaxHealth;
+            }
+
+            phaseState = PhaseState.PhaseOne;
+            if (hurtbox != null)
+            {
+                hurtbox.SetDamageableOverride(this);
+            }
         }
 
         public void ApplyCorruptionModifiers(float summonCadenceMultiplier)
         {
             cadenceMultiplier = Mathf.Max(0.1f, summonCadenceMultiplier);
             damageMultiplier = 1.3f;
-            wideSummonCooldown = Mathf.Max(0.2f, wideSummonCooldown / cadenceMultiplier);
-            tallSummonCooldown = Mathf.Max(0.2f, tallSummonCooldown / cadenceMultiplier);
-            maxWideLeeches += 2;
-            maxTallLeeches += 1;
+            configuredWideSummonCooldown = Mathf.Max(0.2f, configuredWideSummonCooldown / cadenceMultiplier);
+            configuredTallSummonCooldown = Mathf.Max(0.2f, configuredTallSummonCooldown / cadenceMultiplier);
+            configuredMaxWideLeeches += 2;
+            configuredMaxTallLeeches += 1;
+            auraSwapInterval = Mathf.Max(2.5f, auraSwapInterval / Mathf.Max(1f, cadenceMultiplier * 0.85f));
+            ApplyNormalSummonPressure();
+        }
+
+        public void ApplyDamage(float amount, GameObject source)
+        {
+            if (phaseState == PhaseState.Dead || phaseState == PhaseState.Transitioning || phaseState == PhaseState.RelocatedPressure || amount <= 0f)
+            {
+                return;
+            }
+
+            phaseCurrentHealth = Mathf.Max(0f, phaseCurrentHealth - amount);
+            if (phaseState == PhaseState.PhaseOne)
+            {
+                if (phaseCurrentHealth > 0f)
+                {
+                    return;
+                }
+
+                BeginPhaseTransition();
+                return;
+            }
+
+            if (phaseCurrentHealth > 0f || bossHealth == null)
+            {
+                return;
+            }
+
+            phaseState = PhaseState.Dead;
+            ClearAllBuffs();
+            hurtbox?.SetDamageableOverride(null);
+            bossHealth.ApplyDamage(bossHealth.CurrentHealth, source != null ? source : gameObject);
         }
 
         private void ResolveReferences()
@@ -105,6 +281,449 @@ namespace Dagon.Gameplay
             {
                 projectilePrefab = RuntimeOrbProjectileFactory.Create(worldCamera);
             }
+
+            bossHealth ??= GetComponent<Health>();
+            hurtbox ??= GetComponent<Hurtbox>();
+            bossCollider ??= GetComponent<CapsuleCollider>();
+            bodyBlocker ??= GetComponent<BodyBlocker>();
+            deathRewards ??= GetComponent<EnemyDeathRewards>();
+            knockbackReceiver ??= GetComponent<KnockbackReceiver>();
+        }
+
+        private void ResolveVisuals()
+        {
+            if (visualsRoot == null)
+            {
+                visualsRoot = transform.Find("Visuals");
+                if (visualsRoot != null)
+                {
+                    baseVisualLocalPosition = visualsRoot.localPosition;
+                }
+            }
+
+            if (primaryRenderer == null && visualsRoot != null)
+            {
+                primaryRenderer = visualsRoot.GetComponent<SpriteRenderer>();
+                if (primaryRenderer != null)
+                {
+                    baseTint = primaryRenderer.color;
+                }
+            }
+
+            if (primaryRenderer != null && glowRenderer == null)
+            {
+                var glowTransform = primaryRenderer.transform.Find("MonolithAuraGlow");
+                if (glowTransform == null)
+                {
+                    var glowObject = new GameObject("MonolithAuraGlow");
+                    glowObject.transform.SetParent(primaryRenderer.transform, false);
+                    glowObject.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+                    glowObject.transform.localScale = Vector3.one * 1.1f;
+                    glowTransform = glowObject.transform;
+                }
+
+                glowRenderer = glowTransform.GetComponent<SpriteRenderer>();
+                if (glowRenderer == null)
+                {
+                    glowRenderer = glowTransform.gameObject.AddComponent<SpriteRenderer>();
+                }
+
+                glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                glowRenderer.receiveShadows = false;
+            }
+
+        }
+
+        private void ChooseNextAura(bool initial = false)
+        {
+            var nextAura = currentAura;
+            if (initial)
+            {
+                nextAura = AuraType.Speed;
+            }
+            else
+            {
+                var attempts = 0;
+                while (nextAura == currentAura && attempts < 8)
+                {
+                    nextAura = (AuraType)Random.Range(0, 4);
+                    attempts += 1;
+                }
+            }
+
+            currentAura = nextAura;
+            auraSwapTimer = auraSwapInterval;
+            TriggerAuraPulse();
+            UpdateAuraVisuals();
+            RefreshBuffedEnemies();
+        }
+
+        private void UpdateAuraVisuals()
+        {
+            var auraColor = ResolveAuraColor(currentAura);
+            if (primaryRenderer != null)
+            {
+                primaryRenderer.color = Color.Lerp(baseTint, auraColor, 0.35f);
+            }
+
+            if (glowRenderer != null && primaryRenderer != null)
+            {
+                glowRenderer.sprite = primaryRenderer.sprite;
+                glowRenderer.flipX = primaryRenderer.flipX;
+                glowRenderer.flipY = primaryRenderer.flipY;
+                glowRenderer.sortingOrder = primaryRenderer.sortingOrder + 1;
+                var pulse = 0.22f + (Mathf.Sin(Time.time * 3.8f) * 0.14f);
+                glowRenderer.color = new Color(auraColor.r, auraColor.g, auraColor.b, Mathf.Clamp01(pulse));
+            }
+
+        }
+
+        private void ApplyAuraToNearbyEnemies()
+        {
+            if (phaseState == PhaseState.Transitioning)
+            {
+                return;
+            }
+
+            auraFrameTargets.Clear();
+            resolvedRoots.Clear();
+            var colliders = Physics.OverlapSphere(transform.position, auraRadius, ~0, QueryTriggerInteraction.Collide);
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var hurtboxTarget = colliders[i] != null ? colliders[i].GetComponentInParent<Hurtbox>() : null;
+                if (hurtboxTarget == null || hurtboxTarget.Team != CombatTeam.Enemy || hurtboxTarget.gameObject == gameObject)
+                {
+                    continue;
+                }
+
+                if (!resolvedRoots.Add(hurtboxTarget.gameObject))
+                {
+                    continue;
+                }
+
+                var receiver = hurtboxTarget.GetComponent<EnemyAuraBuffReceiver>() ?? hurtboxTarget.gameObject.AddComponent<EnemyAuraBuffReceiver>();
+                receiver.ApplyAura(
+                    ToReceiverAura(currentAura),
+                    speedAuraMoveMultiplier,
+                    bulwarkIncomingDamageMultiplier,
+                    mendHealPerTick,
+                    mendTickInterval,
+                    volleyProjectileMultiplier,
+                    volleyFallbackCadenceMultiplier);
+                auraFrameTargets.Add(receiver);
+                trackedEnemies.Add(receiver);
+            }
+
+            buffedEnemies.RemoveWhere(receiver =>
+            {
+                if (receiver == null)
+                {
+                    trackedEnemies.Remove(receiver);
+                    return true;
+                }
+
+                return !auraFrameTargets.Contains(receiver);
+            });
+
+            foreach (var receiver in auraFrameTargets)
+            {
+                buffedEnemies.Add(receiver);
+            }
+        }
+
+        private void RefreshBuffedEnemies()
+        {
+            foreach (var receiver in buffedEnemies)
+            {
+                if (receiver == null)
+                {
+                    continue;
+                }
+
+                receiver.ApplyAura(
+                    ToReceiverAura(currentAura),
+                    speedAuraMoveMultiplier,
+                    bulwarkIncomingDamageMultiplier,
+                    mendHealPerTick,
+                    mendTickInterval,
+                    volleyProjectileMultiplier,
+                    volleyFallbackCadenceMultiplier);
+            }
+        }
+
+        private void ClearAllBuffs()
+        {
+            foreach (var receiver in trackedEnemies)
+            {
+                receiver?.ClearAura();
+            }
+
+            buffedEnemies.Clear();
+            trackedEnemies.Clear();
+            if (primaryRenderer != null)
+            {
+                primaryRenderer.color = baseTint;
+            }
+        }
+
+        private void BeginPhaseTransition()
+        {
+            if (phaseState != PhaseState.PhaseOne)
+            {
+                return;
+            }
+
+            phaseState = PhaseState.Transitioning;
+            phaseCurrentHealth = 0f;
+            ClearAllBuffs();
+            if (transitionRoutine != null)
+            {
+                StopCoroutine(transitionRoutine);
+            }
+
+            transitionRoutine = StartCoroutine(HandlePhaseTransition());
+        }
+
+        private IEnumerator HandlePhaseTransition()
+        {
+            if (bossCollider != null)
+            {
+                bossCollider.enabled = false;
+            }
+
+            if (bodyBlocker != null)
+            {
+                bodyBlocker.SetSuppressed(true);
+            }
+
+            yield return AnimateSinkAndRise(baseVisualLocalPosition, baseVisualLocalPosition + Vector3.down * SinkDepth, SinkDuration);
+
+            SetMonolithPresentationActive(false);
+            yield return new WaitForSeconds(HiddenDuration);
+
+            transform.position = BuildRelocationPosition();
+            if (visualsRoot != null)
+            {
+                visualsRoot.localPosition = baseVisualLocalPosition + Vector3.down * SinkDepth;
+            }
+
+            phaseCurrentHealth = phaseTwoMaxHealth;
+            phaseState = PhaseState.RelocatedPressure;
+            ApplyPressureSummonTuning();
+            wideSummonTimer = 0.08f;
+            tallSummonTimer = 0.18f;
+            SetMonolithPresentationActive(true);
+            yield return AnimateSinkAndRise(baseVisualLocalPosition + Vector3.down * SinkDepth, baseVisualLocalPosition, RiseDuration);
+            transitionRoutine = null;
+        }
+
+        private IEnumerator AnimateSinkAndRise(Vector3 from, Vector3 to, float duration)
+        {
+            if (visualsRoot == null)
+            {
+                yield break;
+            }
+
+            var elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                var progress = duration > 0f ? Mathf.Clamp01(elapsed / duration) : 1f;
+                visualsRoot.localPosition = Vector3.Lerp(from, to, progress);
+                yield return null;
+            }
+
+            visualsRoot.localPosition = to;
+        }
+
+        private void SetMonolithPresentationActive(bool active)
+        {
+            if (primaryRenderer != null)
+            {
+                primaryRenderer.enabled = active;
+            }
+
+            if (glowRenderer != null)
+            {
+                glowRenderer.enabled = active;
+            }
+
+            if (bossCollider != null)
+            {
+                bossCollider.enabled = active;
+            }
+
+            if (bodyBlocker != null)
+            {
+                bodyBlocker.SetSuppressed(!active);
+            }
+        }
+
+        private bool IsTargetWithinAuraRadius()
+        {
+            if (target == null)
+            {
+                return false;
+            }
+
+            var offset = target.position - transform.position;
+            offset.y = 0f;
+            return offset.sqrMagnitude <= auraRadius * auraRadius;
+        }
+
+        private void ExitRelocatedPressure()
+        {
+            if (phaseState != PhaseState.RelocatedPressure)
+            {
+                return;
+            }
+
+            phaseState = PhaseState.PhaseTwo;
+            ApplyNormalSummonPressure();
+        }
+
+        private void TriggerAuraPulse()
+        {
+            RotLanternRadiusVisual.Spawn(
+                transform.position,
+                auraRadius,
+                AuraPulseHeightOffset,
+                auraRingThickness,
+                ResolveAuraColor(currentAura),
+                AuraPulseDuration,
+                AuraPulseScaleMultiplier,
+                18);
+        }
+
+        private void ApplyNormalSummonPressure()
+        {
+            wideSummonCooldown = configuredWideSummonCooldown;
+            tallSummonCooldown = configuredTallSummonCooldown;
+            maxWideLeeches = configuredMaxWideLeeches;
+            maxTallLeeches = configuredMaxTallLeeches;
+        }
+
+        private void ApplyPressureSummonTuning()
+        {
+            wideSummonCooldown = Mathf.Max(0.08f, configuredWideSummonCooldown / PressureCadenceMultiplier);
+            tallSummonCooldown = Mathf.Max(0.08f, configuredTallSummonCooldown / PressureCadenceMultiplier);
+            maxWideLeeches = configuredMaxWideLeeches + PressureWideCapBonus;
+            maxTallLeeches = configuredMaxTallLeeches + PressureTallCapBonus;
+        }
+
+        private Vector3 BuildRelocationPosition()
+        {
+            var anchor = target != null ? target.position : transform.position;
+            worldProgressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
+
+            var corruptionOrigin = worldProgressionDirector != null ? worldProgressionDirector.WorldOrigin : Vector3.zero;
+            var corruptionRadius = worldProgressionDirector != null ? worldProgressionDirector.CurrentCorruptionRadius : 0f;
+            var bestPosition = ResolveFallbackRelocation(anchor, corruptionOrigin, corruptionRadius);
+            var bestOutsideScore = float.MinValue;
+            var bestFallbackScore = float.MinValue;
+
+            for (var attempt = 0; attempt < 12; attempt++)
+            {
+                var direction = Random.insideUnitCircle;
+                if (direction.sqrMagnitude <= 0.001f)
+                {
+                    direction = Vector2.right;
+                }
+
+                direction.Normalize();
+                var distance = RelocationDistance + Random.Range(-RelocationDistanceJitter, RelocationDistanceJitter);
+                var candidate = anchor + new Vector3(direction.x, 0f, direction.y) * distance;
+                candidate.y = transform.position.y;
+                var offset = candidate - transform.position;
+                offset.y = 0f;
+                if (offset.sqrMagnitude < MinimumRelocationDistance * MinimumRelocationDistance)
+                {
+                    continue;
+                }
+
+                var candidateDistanceFromOrigin = Vector3.Distance(Flatten(candidate), corruptionOrigin);
+                var outsideCorruption = corruptionRadius <= 0.01f || candidateDistanceFromOrigin >= corruptionRadius + CorruptionSafetyBuffer;
+                if (outsideCorruption)
+                {
+                    var outsideScore = candidateDistanceFromOrigin - corruptionRadius;
+                    if (outsideScore > bestOutsideScore)
+                    {
+                        bestOutsideScore = outsideScore;
+                        bestPosition = candidate;
+                    }
+
+                    continue;
+                }
+
+                if (candidateDistanceFromOrigin > bestFallbackScore)
+                {
+                    bestFallbackScore = candidateDistanceFromOrigin;
+                    bestPosition = candidate;
+                }
+            }
+
+            return bestPosition;
+        }
+
+        private Vector3 ResolveFallbackRelocation(Vector3 anchor, Vector3 corruptionOrigin, float corruptionRadius)
+        {
+            var away = Flatten(anchor) - corruptionOrigin;
+            if (away.sqrMagnitude <= 0.001f)
+            {
+                away = Flatten(transform.position) - corruptionOrigin;
+            }
+
+            if (away.sqrMagnitude <= 0.001f)
+            {
+                away = Vector3.forward;
+            }
+
+            away.Normalize();
+            var currentDistanceFromOrigin = Vector3.Distance(Flatten(transform.position), corruptionOrigin);
+            var desiredDistance = Mathf.Max(corruptionRadius + CorruptionSafetyBuffer, currentDistanceFromOrigin + 8f);
+            var fallback = corruptionOrigin + (away * desiredDistance);
+            fallback.y = transform.position.y;
+
+            var offset = fallback - transform.position;
+            offset.y = 0f;
+            if (offset.sqrMagnitude >= MinimumRelocationDistance * MinimumRelocationDistance)
+            {
+                return fallback;
+            }
+
+            var fartherDistance = Mathf.Max(desiredDistance, currentDistanceFromOrigin + MinimumRelocationDistance);
+            var fartherFallback = corruptionOrigin + (away * fartherDistance);
+            fartherFallback.y = transform.position.y;
+            return fartherFallback;
+        }
+
+        private static Vector3 Flatten(Vector3 position)
+        {
+            return new Vector3(position.x, 0f, position.z);
+        }
+
+        private static EnemyAuraBuffReceiver.AuraKind ToReceiverAura(AuraType auraType)
+        {
+            return auraType switch
+            {
+                AuraType.Speed => EnemyAuraBuffReceiver.AuraKind.Speed,
+                AuraType.Bulwark => EnemyAuraBuffReceiver.AuraKind.Bulwark,
+                AuraType.Mend => EnemyAuraBuffReceiver.AuraKind.Mend,
+                AuraType.Volley => EnemyAuraBuffReceiver.AuraKind.Volley,
+                _ => EnemyAuraBuffReceiver.AuraKind.None
+            };
+        }
+
+        private static Color ResolveAuraColor(AuraType auraType)
+        {
+            return auraType switch
+            {
+                AuraType.Speed => SpeedAuraColor,
+                AuraType.Bulwark => BulwarkAuraColor,
+                AuraType.Mend => MendAuraColor,
+                AuraType.Volley => VolleyAuraColor,
+                _ => Color.white
+            };
         }
 
         private void SpawnWideLeech()
@@ -116,7 +735,7 @@ namespace Dagon.Gameplay
 
             var leech = CreateBaseSummon("WideLeech", BuildSummonPosition(), 4f, new Vector3(0f, 0.21f, 0f), 0.23f, 0.45f, wideLeechSprite, new Vector3(0.85f, 0.85f, 1f), new Vector3(0f, 0.04f, 0f), new Vector3(0f, 0.52f, 0f));
             var contactDamage = leech.AddComponent<ContactDamage>();
-            contactDamage.Configure(1f * damageMultiplier);
+            contactDamage.Configure(2f * damageMultiplier);
             var chaser = leech.AddComponent<SimpleEnemyChaser>();
             chaser.Configure(4.1f, 0.32f);
             var rewards = leech.AddComponent<EnemyDeathRewards>();

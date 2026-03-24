@@ -28,7 +28,7 @@ namespace Dagon.Gameplay
         private bool activationLocked;
 
         public override float CooldownRemaining => cooldownRemaining;
-        public override float CooldownDuration => cooldown;
+        public override float CooldownDuration => ResolveCooldownDuration(cooldown);
 
         private void Awake()
         {
@@ -149,7 +149,8 @@ namespace Dagon.Gameplay
             damageImmunity?.Grant(dashDuration * 1.1f);
             ResolveBurst(transform.position, startBurstRadius, startBurstDamage);
             SpawnBurstVisual(transform.position, startBurstRadius, StartTint, 15);
-            cooldownRemaining = cooldown;
+            cooldownRemaining = CooldownDuration;
+            NotifyActivated();
             StartCoroutine(FinishDashBurst());
         }
 

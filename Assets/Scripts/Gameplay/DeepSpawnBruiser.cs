@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class DeepSpawnBruiser : MonoBehaviour
+    public sealed class DeepSpawnBruiser : MonoBehaviour, IAuraMoveSpeedTarget, IAuraCadenceTarget
     {
         [SerializeField] private Transform target;
         [SerializeField] private float driftSpeed = 1.1f;
@@ -16,6 +16,8 @@ namespace Dagon.Gameplay
         [SerializeField] private BodyBlocker bodyBlocker;
 
         private float stateTimer;
+        private float auraMoveSpeedMultiplier = 1f;
+        private float auraCadenceMultiplier = 1f;
         private State state;
 
         private enum State
@@ -52,7 +54,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            stateTimer -= Time.deltaTime;
+            stateTimer -= Time.deltaTime * auraCadenceMultiplier;
             var toTarget = target.position - transform.position;
             toTarget.y = 0f;
 
@@ -109,7 +111,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = driftSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = driftSpeed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             ApplyMovement(toTarget.normalized * (effectiveSpeed * Time.deltaTime));
         }
 
@@ -120,7 +122,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = chargeSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = chargeSpeed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             ApplyMovement(toTarget.normalized * (effectiveSpeed * Time.deltaTime));
         }
 
@@ -129,6 +131,16 @@ namespace Dagon.Gameplay
             transform.position += bodyBlocker != null
                 ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
                 : desiredDelta;
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraCadenceMultiplier(float multiplier)
+        {
+            auraCadenceMultiplier = Mathf.Max(1f, multiplier);
         }
     }
 }

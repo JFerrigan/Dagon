@@ -14,6 +14,9 @@ namespace Dagon.Gameplay
         private readonly List<PlayerWeaponRuntime> weapons = new();
         private readonly List<WeaponDefinition> weaponPool = new();
         private readonly List<ActiveAbilityRuntime> activeSlots = new();
+        private float globalAttackRateModifier;
+        private float globalProjectileDamageModifier;
+        private float globalActiveCooldownMultiplier = 1f;
 
         public IReadOnlyList<PlayerWeaponRuntime> Weapons => weapons;
         public IReadOnlyList<WeaponDefinition> WeaponPool => weaponPool;
@@ -111,6 +114,16 @@ namespace Dagon.Gameplay
 
             var runtime = CreateWeaponRuntime(definition);
             runtime.InitializeRuntime(definition, isBaseWeapon, worldCamera);
+            if (Mathf.Abs(globalAttackRateModifier) > 0.0001f)
+            {
+                runtime.ModifyAttackRate(globalAttackRateModifier);
+            }
+
+            if (Mathf.Abs(globalProjectileDamageModifier) > 0.0001f)
+            {
+                runtime.ModifyProjectileDamage(globalProjectileDamageModifier);
+            }
+
             weapons.Add(runtime);
             return runtime;
         }
@@ -122,6 +135,31 @@ namespace Dagon.Gameplay
             {
                 AddWeapon(startingLoadout.StartingBaseWeapon, true);
             }
+        }
+
+        public void ResetActivesToStartingLoadout()
+        {
+            ClearActives();
+            if (startingLoadout?.StartingActives == null)
+            {
+                return;
+            }
+
+            for (var slotIndex = 0; slotIndex < startingLoadout.StartingActives.Length; slotIndex++)
+            {
+                if (startingLoadout.StartingActives[slotIndex] == null)
+                {
+                    continue;
+                }
+
+                EquipActive(slotIndex, startingLoadout.StartingActives[slotIndex]);
+            }
+        }
+
+        public void ResetToStartingLoadout()
+        {
+            ResetWeaponsToStartingLoadout();
+            ResetActivesToStartingLoadout();
         }
 
         public void SetWeapons(IEnumerable<WeaponDefinition> definitions, string baseWeaponId = null)
@@ -180,6 +218,7 @@ namespace Dagon.Gameplay
 
         public void ModifyAllWeaponsAttackRate(float amount)
         {
+            globalAttackRateModifier += amount;
             foreach (var weapon in weapons)
             {
                 weapon.ModifyAttackRate(amount);
@@ -188,6 +227,7 @@ namespace Dagon.Gameplay
 
         public void ModifyAllWeaponsDamage(float amount)
         {
+            globalProjectileDamageModifier += amount;
             foreach (var weapon in weapons)
             {
                 weapon.ModifyProjectileDamage(amount);
@@ -259,6 +299,7 @@ namespace Dagon.Gameplay
 
             var runtime = CreateActiveRuntime(definition);
             runtime.InitializeRuntime(definition, slotIndex, worldCamera);
+            runtime.SetCooldownMultiplier(globalActiveCooldownMultiplier);
             activeSlots[slotIndex] = runtime;
             return runtime;
         }
@@ -286,6 +327,15 @@ namespace Dagon.Gameplay
             return runtime;
         }
 
+        public void SetAllActiveCooldownMultiplier(float multiplier)
+        {
+            globalActiveCooldownMultiplier = Mathf.Max(0.1f, multiplier);
+            for (var index = 0; index < activeSlots.Count; index++)
+            {
+                activeSlots[index]?.SetCooldownMultiplier(globalActiveCooldownMultiplier);
+            }
+        }
+
         private void ClearWeapons()
         {
             for (var index = weapons.Count - 1; index >= 0; index--)
@@ -297,6 +347,19 @@ namespace Dagon.Gameplay
             }
 
             weapons.Clear();
+        }
+
+        private void ClearActives()
+        {
+            for (var index = activeSlots.Count - 1; index >= 0; index--)
+            {
+                if (activeSlots[index] != null)
+                {
+                    Destroy(activeSlots[index]);
+                }
+            }
+
+            activeSlots.Clear();
         }
 
         private PlayerWeaponRuntime CreateWeaponRuntime(WeaponDefinition definition)

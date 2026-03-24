@@ -17,7 +17,7 @@ namespace Dagon.Gameplay
         private float activeRemaining;
 
         public override float CooldownRemaining => cooldownRemaining;
-        public override float CooldownDuration => cooldown;
+        public override float CooldownDuration => ResolveCooldownDuration(cooldown);
 
         private void Awake()
         {
@@ -124,7 +124,7 @@ namespace Dagon.Gameplay
 
             ApplyBuff();
             activeRemaining = duration;
-            cooldownRemaining = cooldown;
+            cooldownRemaining = CooldownDuration;
 
             PlaceholderWeaponVisual.Spawn(
                 "FrenzyBurst",
@@ -135,6 +135,7 @@ namespace Dagon.Gameplay
                 0.28f,
                 1.1f,
                 groundPlane: true);
+            NotifyActivated();
         }
 
         private void ApplyBuff()

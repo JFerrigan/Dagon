@@ -75,6 +75,15 @@ namespace Dagon.Gameplay
             Changed?.Invoke();
         }
 
+        public void ResetToStartingProgression()
+        {
+            queuedChoices.Clear();
+            Level = Mathf.Max(1, startingLevel);
+            CurrentXp = 0;
+            RequiredXp = GetRequiredXpForLevel(Level);
+            Changed?.Invoke();
+        }
+
         private int GetRequiredXpForLevel(int level)
         {
             return baseXpRequirement + ((level - 1) * xpRequirementGrowth);

@@ -6,11 +6,14 @@ namespace Dagon.Gameplay
     public abstract class ActiveAbilityRuntime : MonoBehaviour
     {
         protected ActiveAbilityDefinition definition;
+        private float cooldownMultiplier = 1f;
 
         public string AbilityId => definition != null ? definition.AbilityId : string.Empty;
         public string DisplayName => definition != null ? definition.DisplayName : name;
         public int SlotIndex { get; private set; }
         public int Rank { get; private set; } = 1;
+        public float CooldownMultiplier => cooldownMultiplier;
+        public event System.Action<ActiveAbilityRuntime> Activated;
 
         public void InitializeRuntime(ActiveAbilityDefinition runtimeDefinition, int slotIndex, Camera worldCamera)
         {
@@ -50,6 +53,11 @@ namespace Dagon.Gameplay
 
         public abstract float CooldownDuration { get; }
 
+        public virtual void SetCooldownMultiplier(float multiplier)
+        {
+            cooldownMultiplier = Mathf.Max(0.1f, multiplier);
+        }
+
         public abstract void ConfigureRuntime(Camera worldCamera);
 
         public abstract void ModifyRadius(float amount);
@@ -61,5 +69,15 @@ namespace Dagon.Gameplay
         protected abstract string GetUpgradeTitle(int nextRank);
 
         protected abstract string GetUpgradeDescription(int nextRank);
+
+        protected float ResolveCooldownDuration(float baseDuration)
+        {
+            return Mathf.Max(0.05f, baseDuration * cooldownMultiplier);
+        }
+
+        protected void NotifyActivated()
+        {
+            Activated?.Invoke(this);
+        }
     }
 }

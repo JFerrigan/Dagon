@@ -1,5 +1,6 @@
 using Dagon.Core;
 using Dagon.Bootstrap.Spawning;
+using Dagon.Gameplay;
 using Dagon.Rendering;
 using System.Collections.Generic;
 using UnityEngine;
@@ -11,12 +12,16 @@ namespace Dagon.Bootstrap
     {
         private sealed class SpawnedProp
         {
-            public SpawnedProp(GameObject root)
+            public SpawnedProp(GameObject root, Vector2Int coordinate, SpriteRenderer renderer)
             {
                 Root = root;
+                Coordinate = coordinate;
+                Renderer = renderer;
             }
 
             public GameObject Root { get; }
+            public Vector2Int Coordinate { get; }
+            public SpriteRenderer Renderer { get; }
         }
 
         private readonly struct PropDefinition
@@ -73,6 +78,7 @@ namespace Dagon.Bootstrap
         private Vector2Int currentCenterCell = new(int.MinValue, int.MinValue);
         private PropScatterPlanner planner;
         private RuntimeBiomeProfile currentBiomeProfile;
+        private WorldProgressionDirector progressionDirector;
 
         public void Configure(Camera cameraReference, Transform scatterCenterReference = null)
         {
@@ -83,6 +89,12 @@ namespace Dagon.Bootstrap
         public void ApplyBiomeProfile(RuntimeBiomeProfile profile)
         {
             currentBiomeProfile = profile;
+        }
+
+        public void ConfigureProgression(WorldProgressionDirector director)
+        {
+            progressionDirector = director;
+            RefreshProgressionPresentation();
         }
 
         private void Start()
@@ -112,6 +124,7 @@ namespace Dagon.Bootstrap
 
             planner ??= new PropScatterPlanner(visibleRadiusInCells, cellSize, propSpawnChance);
             RefreshProps(force: false);
+            RefreshProgressionPresentation();
         }
 
         private void RefreshProps(bool force)
@@ -158,6 +171,8 @@ namespace Dagon.Bootstrap
 
                 activeProps.Remove(cell);
             }
+
+            RefreshProgressionPresentation();
         }
 
         public void RefreshBiomeRadius(Vector3 worldCenter, float radius)
@@ -207,6 +222,22 @@ namespace Dagon.Bootstrap
 
                 TryCreateProp(cell);
             }
+
+            RefreshProgressionPresentation();
+        }
+
+        public void RefreshProgressionPresentation()
+        {
+            foreach (var entry in activeProps)
+            {
+                var prop = entry.Value;
+                if (prop == null || prop.Root == null || prop.Renderer == null)
+                {
+                    continue;
+                }
+
+                ApplyPropPresentation(prop);
+            }
         }
 
         private void TryCreateProp(Vector2Int cell)
@@ -231,12 +262,14 @@ namespace Dagon.Bootstrap
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = visual.Sprite;
             renderer.sortingOrder = visual.SortingOrder;
-            renderer.color = currentBiomeProfile != null ? currentBiomeProfile.PropTint : new Color(1f, 1f, 1f, 0.92f);
+            renderer.color = Color.white;
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
 
-            activeProps[cell] = new SpawnedProp(prop);
+            var spawnedProp = new SpawnedProp(prop, cell, renderer);
+            activeProps[cell] = spawnedProp;
+            ApplyPropPresentation(spawnedProp);
         }
 
         private static PropVisual[] LoadPropVisuals()
@@ -267,6 +300,31 @@ namespace Dagon.Bootstrap
             }
 
             return trimmedVisuals;
+        }
+
+        private RuntimeBiomeProfile ResolveBiomeProfile(Vector2Int cell)
+        {
+            if (progressionDirector == null)
+            {
+                return currentBiomeProfile;
+            }
+
+            var worldPosition = new Vector3(cell.x * cellSize, 0f, cell.y * cellSize);
+            return progressionDirector.ResolveBiomeAtPosition(worldPosition) ?? currentBiomeProfile;
+        }
+
+        private void ApplyPropPresentation(SpawnedProp prop)
+        {
+            var profile = ResolveBiomeProfile(prop.Coordinate);
+            var tint = profile != null ? profile.PropTint : new Color(1f, 1f, 1f, 0.92f);
+            var worldPosition = new Vector3(prop.Coordinate.x * cellSize, 0f, prop.Coordinate.y * cellSize);
+            var corrupted = progressionDirector != null && progressionDirector.IsPositionCorrupted(worldPosition);
+            prop.Renderer.color = corrupted ? ApplyCorruptionShadow(tint) : tint;
+        }
+
+        private static Color ApplyCorruptionShadow(Color source)
+        {
+            return new Color(source.r * 0.42f, source.g * 0.44f, source.b * 0.50f, source.a);
         }
     }
 }

@@ -25,7 +25,7 @@ namespace Dagon.Gameplay
         private float cooldownRemaining;
 
         public override float CooldownRemaining => cooldownRemaining;
-        public override float CooldownDuration => cooldown;
+        public override float CooldownDuration => ResolveCooldownDuration(cooldown);
 
         private void Awake()
         {
@@ -126,7 +126,8 @@ namespace Dagon.Gameplay
             ResolveHits();
             damageImmunity?.Grant(immunityDuration);
             SpawnVisuals();
-            cooldownRemaining = cooldown;
+            cooldownRemaining = CooldownDuration;
+            NotifyActivated();
         }
 
         private void ResolveHits()

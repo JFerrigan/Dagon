@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class DrownedAcolyteShooter : MonoBehaviour
+    public sealed class DrownedAcolyteShooter : MonoBehaviour, IAuraMoveSpeedTarget, IAuraCadenceTarget, IAuraProjectileTarget, ICorruptionVolleyAffixTarget
     {
         private enum State
         {
@@ -21,7 +21,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float recoveryDuration = 0.28f;
         [SerializeField] private float castMoveSpeedMultiplier = 0.42f;
         [SerializeField] private float projectileSpeed = 6.5f;
-        [SerializeField] private float projectileDamage = 0.75f;
+        [SerializeField] private float projectileDamage = 1f;
         [SerializeField] private int volleyCount = 3;
         [SerializeField] private float volleySpread = 24f;
         [SerializeField] private Camera worldCamera;
@@ -30,6 +30,11 @@ namespace Dagon.Gameplay
 
         private float fireTimer;
         private float stateTimer;
+        private float auraMoveSpeedMultiplier = 1f;
+        private float auraCadenceMultiplier = 1f;
+        private int auraProjectileMultiplier = 1;
+        private float corruptionCadenceMultiplier = 1f;
+        private int corruptionProjectileMultiplier = 1;
         private State state;
         private Vector3 queuedAimDirection = Vector3.forward;
 
@@ -59,8 +64,9 @@ namespace Dagon.Gameplay
             var toTarget = target.position - transform.position;
             toTarget.y = 0f;
             var distance = toTarget.magnitude;
-            fireTimer -= Time.deltaTime;
-            stateTimer -= Time.deltaTime;
+            var cadenceMultiplier = auraCadenceMultiplier * corruptionCadenceMultiplier;
+            fireTimer -= Time.deltaTime * cadenceMultiplier;
+            stateTimer -= Time.deltaTime * cadenceMultiplier;
 
             switch (state)
             {
@@ -134,7 +140,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = moveSpeed * moveMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = moveSpeed * moveMultiplier * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             if (distance > preferredRange + 0.75f)
             {
                 ApplyMovement(toTarget.normalized * (effectiveSpeed * Time.deltaTime));
@@ -181,7 +187,7 @@ namespace Dagon.Gameplay
 
         private void FireVolley()
         {
-            var count = Mathf.Max(1, volleyCount);
+            var count = Mathf.Max(1, volleyCount * auraProjectileMultiplier * corruptionProjectileMultiplier);
             var startAngle = count > 1 ? -volleySpread * 0.5f : 0f;
             var angleStep = count > 1 ? volleySpread / (count - 1) : 0f;
 
@@ -209,6 +215,27 @@ namespace Dagon.Gameplay
                 direction,
                 projectileSpeed,
                 projectileDamage);
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraCadenceMultiplier(float multiplier)
+        {
+            auraCadenceMultiplier = Mathf.Max(1f, multiplier);
+        }
+
+        public void SetAuraProjectileMultiplier(int multiplier)
+        {
+            auraProjectileMultiplier = Mathf.Max(1, multiplier);
+        }
+
+        public void SetCorruptionVolleyActive(bool active)
+        {
+            corruptionCadenceMultiplier = active ? 1.35f : 1f;
+            corruptionProjectileMultiplier = active ? 2 : 1;
         }
     }
 }

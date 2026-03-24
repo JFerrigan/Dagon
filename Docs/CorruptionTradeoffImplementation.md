@@ -6,6 +6,42 @@ This document records the current corruption tradeoff implementation, what shipp
 
 Use this as the corruption-specific source of truth before adding more corruption weapons, actives, events, or bosses.
 
+## Latest Update
+
+The corruption system now has threshold steps every `25` corruption through `250`.
+
+Current threshold map:
+
+- Stage 1: `25`
+- Stage 2: `50`
+- Stage 3: `75`
+- Stage 4: `100`
+- Stage 5: `125`
+- Stage 6: `150`
+- Stage 7: `175`
+- Stage 8: `200`
+- Stage 9: `225`
+- Stage 10: `250`
+
+Stages `1-9` are normal corruption milestones.
+Stage `10` is `drawback-only`.
+
+When the player first reaches `250`, the corruption popup shows a single catastrophe column instead of the normal boon-plus-burden layout.
+
+Current Stage 10 catastrophes:
+
+- `No Healing`
+  - blocks health pickups
+  - seals corruption fountains
+- `Bosses Become Common`
+  - enables an ambient boss lane outside the normal boss-wave flow
+- `Cast Down`
+  - resets the player to level `1`
+  - clears current XP
+  - resets weapons and active abilities to the starting loadout
+
+If corruption drops back below `250`, the Stage 10 drawback deactivates. If corruption rises above `250` again, the remembered Stage 10 drawback reactivates.
+
 ## Current Goal
 
 Corruption is no longer just a passive punishment meter.
@@ -20,12 +56,18 @@ The new direction is:
 
 ## Stage Structure
 
-Corruption now uses four stages:
+Corruption now uses ten stages:
 
 - Stage 1: `25`
 - Stage 2: `50`
 - Stage 3: `75`
 - Stage 4: `100`
+- Stage 5: `125`
+- Stage 6: `150`
+- Stage 7: `175`
+- Stage 8: `200`
+- Stage 9: `225`
+- Stage 10: `250`
 
 Key runtime:
 
@@ -42,10 +84,14 @@ Current support:
 
 Crossing a new stage threshold now pauses the run and opens a corruption popup.
 
-The player must choose:
+For Stages `1-9`, the player:
 
-- `1 boon`
-- `1 drawback`
+- chooses `1` boon from `3` options
+- sees `1` auto-rolled burden that is applied no matter what
+
+For Stage `10`, the player chooses:
+
+- `1` drawback only
 
 Those choices are remembered for the run.
 
@@ -65,55 +111,60 @@ Key runtime:
 
 ## Current Boon Pool
 
-### Stage 1
+Boon selection no longer uses fixed per-stage lists.
 
-- `+15% Fire Rate`
-- `+10% Damage`
-- `+15% Radius`
+Stages `1-9` now roll from weighted `Early / Mid / Late` boon bands. The current corruption stage changes the odds, but later-band boons can still rare-roll earlier for more run variability.
 
-### Stage 2
+Current band layout:
 
-- `+20% Fire Rate`
-- `+20% Damage`
-- `+1 Max Heart`
+### Early Band
 
-### Stage 3
+- `Blood in the Wake`
+- `Carrion Pull`
+- `Greedy Undertow`
 
-- `+25% Fire Rate`
-- `+25% Damage`
-- `+25% Radius`
+### Mid Band
 
-### Stage 4
+- `Brine Engine`
+- `Crashing Surge`
+- `Corruption Active`
+- `Tide Ascendant`
 
-- `+35% Fire Rate`
-- `+35% Damage`
-- `+2 Max Hearts`
+### Late Band
+
+- `Abyssal Pulse`
+- `Devour the Deep`
+- `Quickening Rot`
 
 ## Current Drawback Pool
 
-### Stage 1
+Stages `1-9` auto-roll a single burden from weighted drawback bands.
 
-- `-25% Healing`
-- `+20% Fodder Waves`
-- `+15% Corruption Gain`
+### Early Band
 
-### Stage 2
+- `Blighted Swarm`
+- `Tainted Swiftness`
+- `Ravenous Wounds`
 
-- `+1 Specialist Cap`
-- `+20% Specialist Waves`
-- `-40% Healing`
+### Mid Band
 
-### Stage 3
+- `Fleshwarp I`
+- `Drowned Hands`
+- `Tyrant Tide`
 
-- `Early Elite Waves`
-- `+25% Elite Waves`
-- `+15% Contact Damage`
+### Late Band
 
-### Stage 4
+- `The Deep Opens`
+- `Fleshwarp II`
+- `Warhost Rising`
+- `Black Omen`
+- `Mortal Ruin`
 
-- `+1 Elite Cap`
-- `Boss Pressure Up`
-- `+25% All Damage`
+### Stage 10
+
+- `No Healing`
+- `Bosses Become Common`
+- `Cast Down`
 
 ## Runtime Effect Hooks
 
@@ -182,9 +233,9 @@ Current changes:
 
 - corruption bar moved to top center
 - it sits under the XP bar
-- threshold markers show `25 / 50 / 75 / 100`
+- threshold markers show every `25` corruption marker through `250`
 - current corruption value remains visible
-- current tier is shown as `Corruption T1-T4`
+- current tier is shown as `Corruption T1-T10`
 
 Key runtime:
 
@@ -208,7 +259,7 @@ Key runtime:
 - gives corruption real upside instead of only punishment
 - makes corruption reversible and manageable
 - ties corruption into the enemy/world systems instead of leaving it as a side meter
-- creates clear milestone moments at the four thresholds
+- creates clear milestone moments at the corruption thresholds
 - gives the game a stronger identity hook
 
 ## Current Limitations

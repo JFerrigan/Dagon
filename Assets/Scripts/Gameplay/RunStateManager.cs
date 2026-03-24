@@ -140,7 +140,12 @@ namespace Dagon.Gameplay
         private bool bossTransitionArmed;
         private bool allowAmbientSpawningDuringBoss;
         private float bossAmbientSpawnIntervalMultiplier = 1f;
+        private float corruptionBossChanceMultiplier = 1f;
+        private float corruptionBossHealthMultiplier = 1f;
+        private float ambientBossLaneIntervalMultiplier = 1f;
+        private float ambientBossTimer;
         private int bossAmbientAliveCap = 0;
+        private int ambientBossAliveCap;
         private int bossesDefeatedCount;
         private string biomeBossDisplayName = "Mire Colossus";
         private Color biomeBossTint = Color.white;
@@ -244,7 +249,13 @@ namespace Dagon.Gameplay
             runTimer += Time.deltaTime;
             biomeTimer += Time.deltaTime;
             bossWaveBannerTimer = Mathf.Max(0f, bossWaveBannerTimer - Time.deltaTime);
+            TickAmbientBossLane(Time.deltaTime);
             if (bossWaveStarted || spawnDirector == null)
+            {
+                return;
+            }
+
+            if (activeBosses.Count > 0)
             {
                 return;
             }
@@ -308,6 +319,27 @@ namespace Dagon.Gameplay
             allowAmbientSpawningDuringBoss = allowAmbientSpawns;
             bossAmbientSpawnIntervalMultiplier = Mathf.Max(1f, intervalMultiplier);
             bossAmbientAliveCap = Mathf.Max(0, aliveCap);
+        }
+
+        public void ConfigureCorruptionBossModifiers(
+            float bossChanceMultiplier,
+            float corruptedBossHealthMultiplier,
+            bool ambientBossLaneEnabled,
+            float ambientBossIntervalMultiplier,
+            int ambientBossCap)
+        {
+            corruptionBossChanceMultiplier = Mathf.Max(1f, bossChanceMultiplier);
+            corruptionBossHealthMultiplier = Mathf.Max(1f, corruptedBossHealthMultiplier);
+            ambientBossAliveCap = ambientBossLaneEnabled ? Mathf.Max(1, ambientBossCap) : 0;
+            ambientBossLaneIntervalMultiplier = Mathf.Max(0.1f, ambientBossIntervalMultiplier);
+            if (!ambientBossLaneEnabled)
+            {
+                ambientBossTimer = 0f;
+            }
+            else if (ambientBossTimer <= 0f)
+            {
+                ResetAmbientBossTimer();
+            }
         }
 
         public bool SpawnSandboxBoss()
@@ -421,6 +453,7 @@ namespace Dagon.Gameplay
         {
             var isCorrupted = forceCorrupted || ShouldSpawnCorruptedBoss();
             var modifiers = isCorrupted ? CorruptionVariantRules.GetBossModifiers() : new CorruptionVariantRules.StatModifiers(1f, 1f, 1f, 1f);
+            var finalHealthMultiplier = isCorrupted ? corruptionBossHealthMultiplier : 1f;
             currentBossDisplayName = isCorrupted ? $"Corrupted {definition.DisplayName}" : definition.DisplayName;
             currentBossTint = definition.Tint;
 
@@ -456,7 +489,7 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
 
             var bossHealth = boss.AddComponent<Health>();
-            bossHealth.SetMaxHealth(definition.MaxHealth * modifiers.HealthMultiplier, true);
+            bossHealth.SetMaxHealth(definition.MaxHealth * modifiers.HealthMultiplier * finalHealthMultiplier, true);
             bossHealth.Died += HandleBossDied;
             activeBosses.Add(bossHealth);
             boss.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, bossHealth);
@@ -509,8 +542,11 @@ namespace Dagon.Gameplay
             var rewards = boss.AddComponent<EnemyDeathRewards>();
             rewards.Configure(definition.ExperienceReward, definition.CorruptionReward);
 
-            var healthBar = boss.AddComponent<EnemyHealthBar>();
-            healthBar.Configure(worldCamera, definition.HealthBarOffset, false);
+            if (definition.BossKind != BossKind.Monolith)
+            {
+                var healthBar = boss.AddComponent<EnemyHealthBar>();
+                healthBar.Configure(worldCamera, definition.HealthBarOffset, false);
+            }
 
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(boss.transform, false);
@@ -543,7 +579,36 @@ namespace Dagon.Gameplay
                 return false;
             }
 
-            return Random.value <= CorruptionVariantRules.GetBossCorruptionChance(corruptionMeter.CurrentCorruption);
+            var chance = CorruptionVariantRules.GetBossCorruptionChance(corruptionMeter.CurrentCorruption) * corruptionBossChanceMultiplier;
+            return Random.value <= Mathf.Clamp01(chance);
+        }
+
+        private void TickAmbientBossLane(float deltaTime)
+        {
+            if (bossWaveStarted || runEnded || ambientBossAliveCap <= 0)
+            {
+                return;
+            }
+
+            if (activeBosses.Count >= ambientBossAliveCap || player == null || worldCamera == null)
+            {
+                return;
+            }
+
+            ambientBossTimer -= deltaTime;
+            if (ambientBossTimer > 0f)
+            {
+                return;
+            }
+
+            var bossKind = SelectNextBossKind();
+            SpawnBoss(activeBosses.Count, Mathf.Max(1, ambientBossAliveCap), ResolveBossDefinition(bossKind, bossesDefeatedCount));
+            ResetAmbientBossTimer();
+        }
+
+        private void ResetAmbientBossTimer()
+        {
+            ambientBossTimer = Random.Range(18f, 26f) * ambientBossLaneIntervalMultiplier;
         }
 
         private BossRuntimeDefinition ResolveBossDefinition(BossKind bossKind, int defeatedBossCount)
@@ -712,6 +777,7 @@ namespace Dagon.Gameplay
 
             float totalCurrent = 0f;
             float totalMax = 0f;
+            var anyVisible = false;
             for (var i = 0; i < activeBosses.Count; i++)
             {
                 if (activeBosses[i] == null)
@@ -719,11 +785,26 @@ namespace Dagon.Gameplay
                     continue;
                 }
 
+                var overrideDisplay = activeBosses[i].GetComponent<IBossHealthDisplayOverride>();
+                if (overrideDisplay != null)
+                {
+                    if (!overrideDisplay.IsBossHealthVisible)
+                    {
+                        continue;
+                    }
+
+                    totalCurrent += overrideDisplay.DisplayedCurrentHealth;
+                    totalMax += overrideDisplay.DisplayedMaxHealth;
+                    anyVisible = true;
+                    continue;
+                }
+
                 totalCurrent += activeBosses[i].CurrentHealth;
                 totalMax += activeBosses[i].MaxHealth;
+                anyVisible = true;
             }
 
-            if (totalMax <= 0f)
+            if (!anyVisible || totalMax <= 0f)
             {
                 return;
             }

@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class MireWanderer : MonoBehaviour
+    public sealed class MireWanderer : MonoBehaviour, IAuraMoveSpeedTarget
     {
         [SerializeField] private Transform target;
         [SerializeField] private float wanderRadius = 8f;
@@ -17,6 +17,7 @@ namespace Dagon.Gameplay
         private Vector3 origin;
         private Vector3 roamTarget;
         private float retargetTimer;
+        private float auraMoveSpeedMultiplier = 1f;
 
         private void Awake()
         {
@@ -56,7 +57,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveSpeed = moveSpeed * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
+            var effectiveSpeed = moveSpeed * auraMoveSpeedMultiplier * (slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f);
             var desiredDelta = offset.normalized * (effectiveSpeed * Time.deltaTime);
             transform.position += bodyBlocker != null
                 ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
@@ -87,6 +88,11 @@ namespace Dagon.Gameplay
             var circle = Random.insideUnitCircle * wanderRadius;
             roamTarget = origin + new Vector3(circle.x, 0f, circle.y);
             retargetTimer = Random.Range(retargetIntervalMin, retargetIntervalMax);
+        }
+
+        public void SetAuraMoveSpeedMultiplier(float multiplier)
+        {
+            auraMoveSpeedMultiplier = Mathf.Max(1f, multiplier);
         }
     }
 }
