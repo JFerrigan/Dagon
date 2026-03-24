@@ -32,6 +32,7 @@ namespace Dagon.Gameplay
         private static readonly Color BulwarkAuraColor = new(1f, 0.28f, 0.28f, 1f);
         private static readonly Color MendAuraColor = new(0.28f, 0.95f, 0.42f, 1f);
         private static readonly Color VolleyAuraColor = new(1f, 0.88f, 0.22f, 1f);
+        private static readonly Color DeadHuskColor = new(0.42f, 0.42f, 0.42f, 1f);
 
         private enum AuraType
         {
@@ -47,7 +48,7 @@ namespace Dagon.Gameplay
             Transitioning,
             RelocatedPressure,
             PhaseTwo,
-            Dead
+            DeadHusk
         }
 
         [SerializeField] private Transform target;
@@ -84,6 +85,7 @@ namespace Dagon.Gameplay
         private EnemyDeathRewards deathRewards;
         private KnockbackReceiver knockbackReceiver;
         private WorldProgressionDirector worldProgressionDirector;
+        private RunStateManager runStateManager;
         private Transform visualsRoot;
         private SpriteRenderer primaryRenderer;
         private SpriteRenderer glowRenderer;
@@ -134,7 +136,7 @@ namespace Dagon.Gameplay
             CleanupDestroyedLeeches(activeWideLeeches);
             CleanupDestroyedLeeches(activeTallLeeches);
 
-            if (phaseState == PhaseState.Dead)
+            if (phaseState == PhaseState.DeadHusk)
             {
                 return;
             }
@@ -236,7 +238,7 @@ namespace Dagon.Gameplay
 
         public void ApplyDamage(float amount, GameObject source)
         {
-            if (phaseState == PhaseState.Dead || phaseState == PhaseState.Transitioning || phaseState == PhaseState.RelocatedPressure || amount <= 0f)
+            if (phaseState == PhaseState.DeadHusk || phaseState == PhaseState.Transitioning || phaseState == PhaseState.RelocatedPressure || amount <= 0f)
             {
                 return;
             }
@@ -258,10 +260,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            phaseState = PhaseState.Dead;
-            ClearAllBuffs();
-            hurtbox?.SetDamageableOverride(null);
-            bossHealth.ApplyDamage(bossHealth.CurrentHealth, source != null ? source : gameObject);
+            EnterDeadHuskState(source);
         }
 
         private void ResolveReferences()
@@ -288,6 +287,8 @@ namespace Dagon.Gameplay
             bodyBlocker ??= GetComponent<BodyBlocker>();
             deathRewards ??= GetComponent<EnemyDeathRewards>();
             knockbackReceiver ??= GetComponent<KnockbackReceiver>();
+            runStateManager ??= FindFirstObjectByType<RunStateManager>();
+            knockbackReceiver?.SetSuppressed(true);
         }
 
         private void ResolveVisuals()
@@ -455,7 +456,12 @@ namespace Dagon.Gameplay
         {
             foreach (var receiver in trackedEnemies)
             {
-                receiver?.ClearAura();
+                if (receiver == null)
+                {
+                    continue;
+                }
+
+                receiver.ClearAura();
             }
 
             buffedEnemies.Clear();
@@ -463,6 +469,68 @@ namespace Dagon.Gameplay
             if (primaryRenderer != null)
             {
                 primaryRenderer.color = baseTint;
+            }
+        }
+
+        private void EnterDeadHuskState(GameObject source)
+        {
+            if (phaseState == PhaseState.DeadHusk)
+            {
+                return;
+            }
+
+            phaseState = PhaseState.DeadHusk;
+            phaseCurrentHealth = 0f;
+            ClearAllBuffs();
+            if (transitionRoutine != null)
+            {
+                StopCoroutine(transitionRoutine);
+                transitionRoutine = null;
+            }
+
+            if (hurtbox != null)
+            {
+                hurtbox.SetDamageableOverride(null);
+                hurtbox.enabled = false;
+            }
+
+            if (bossCollider != null)
+            {
+                bossCollider.enabled = false;
+            }
+
+            if (bodyBlocker != null)
+            {
+                bodyBlocker.SetSuppressed(false);
+            }
+
+            knockbackReceiver?.SetSuppressed(true);
+            ApplyDeadHuskVisuals();
+
+            if (bossHealth != null)
+            {
+                bossHealth.SetDestroyOnDeath(false);
+                bossHealth.ApplyDamage(bossHealth.CurrentHealth, source != null ? source : gameObject);
+                runStateManager?.NotifyBossDefeated(bossHealth, source != null ? source : gameObject);
+            }
+        }
+
+        private void ApplyDeadHuskVisuals()
+        {
+            if (visualsRoot != null)
+            {
+                visualsRoot.localPosition = baseVisualLocalPosition;
+            }
+
+            if (primaryRenderer != null)
+            {
+                primaryRenderer.enabled = true;
+                primaryRenderer.color = Color.Lerp(baseTint, DeadHuskColor, 0.92f);
+            }
+
+            if (glowRenderer != null)
+            {
+                glowRenderer.enabled = false;
             }
         }
 
@@ -545,7 +613,7 @@ namespace Dagon.Gameplay
 
             if (glowRenderer != null)
             {
-                glowRenderer.enabled = active;
+                glowRenderer.enabled = active && phaseState != PhaseState.DeadHusk;
             }
 
             if (bossCollider != null)
@@ -584,6 +652,11 @@ namespace Dagon.Gameplay
 
         private void TriggerAuraPulse()
         {
+            if (phaseState == PhaseState.DeadHusk)
+            {
+                return;
+            }
+
             RotLanternRadiusVisual.Spawn(
                 transform.position,
                 auraRadius,

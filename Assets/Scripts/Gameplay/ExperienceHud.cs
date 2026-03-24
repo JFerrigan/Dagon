@@ -494,7 +494,6 @@ namespace Dagon.Gameplay
             GUI.color = Color.white;
             GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 7f, optionRect.width - 24f, 18f), option.Title, centeredBodyStyle);
             GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 28f, optionRect.width - 24f, 32f), option.Description, corruptionColumnStyle);
-            GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 64f, optionRect.width - 24f, 18f), "Applied automatically.", centeredBodyStyle);
         }
 
         private void DrawUpgradeButton(Rect rect)

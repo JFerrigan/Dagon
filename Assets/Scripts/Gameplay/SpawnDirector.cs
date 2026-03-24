@@ -27,6 +27,7 @@ namespace Dagon.Gameplay
             DrownedAcolyte,
             Mermaid,
             WatcherEye,
+            Slime,
             Parasite,
             DeepSpawn
         }
@@ -49,6 +50,8 @@ namespace Dagon.Gameplay
 
         private const string DeepSpawnPrefabResourcePath = "Prefabs/Enemies/DeepSpawn";
         private const float ParasiteUnlockTime = 60f;
+        private const float SlimePackSpacing = 1.4f;
+        private const float SlimeSplitSpacing = 0.95f;
         private const float SpecialistHealthPickupDropChance = 0.2f;
         private const float EliteHealthPickupDropChance = 0.5f;
         private const float HealthPickupHealAmount = 2f;
@@ -97,6 +100,7 @@ namespace Dagon.Gameplay
             DrownedAcolyte,
             Mermaid,
             WatcherEye,
+            Slime,
             Parasite,
             DeepSpawn
         }
@@ -122,6 +126,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Sprite acolyteSprite;
         [SerializeField] private Sprite mermaidSprite;
         [SerializeField] private Sprite watcherEyeSprite;
+        [SerializeField] private Sprite slimeSprite;
         [SerializeField] private Sprite parasiteSprite;
         [SerializeField] private Sprite deepSpawnSprite;
         [SerializeField] private GameObject deepSpawnPrefab;
@@ -244,6 +249,9 @@ namespace Dagon.Gameplay
                 case "watcher_eye":
                     spec = new EnemyVisualSpec("Sprites/Enemies/watcher_eye", 64f, new Vector3(1.2f, 1.2f, 1f), new Vector3(0f, 0.22f, 0f));
                     return true;
+                case "slime":
+                    spec = new EnemyVisualSpec("Sprites/Enemies/slime", 64f, new Vector3(0.22f, 0.22f, 1f), new Vector3(0f, 0.01f, 0f));
+                    return true;
                 case "parasite":
                     spec = new EnemyVisualSpec("Sprites/Enemies/parasite", 64f, new Vector3(1.25f, 1.25f, 1f), new Vector3(0f, 0.12f, 0f));
                     return true;
@@ -309,6 +317,7 @@ namespace Dagon.Gameplay
             acolyteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/drowned_acolyte", 256f);
             mermaidSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/mermaid", 64f);
             watcherEyeSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/watcher_eye", 64f);
+            slimeSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/slime", 64f);
             parasiteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/parasite", 64f);
             deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 64f);
             deepSpawnPrefab = Resources.Load<GameObject>(DeepSpawnPrefabResourcePath);
@@ -395,6 +404,7 @@ namespace Dagon.Gameplay
                 CorruptionWaveEnemyKind.DrownedAcolyte => EnemyKind.DrownedAcolyte,
                 CorruptionWaveEnemyKind.Mermaid => EnemyKind.Mermaid,
                 CorruptionWaveEnemyKind.WatcherEye => EnemyKind.WatcherEye,
+                CorruptionWaveEnemyKind.Slime => EnemyKind.Slime,
                 CorruptionWaveEnemyKind.Parasite => EnemyKind.Parasite,
                 CorruptionWaveEnemyKind.DeepSpawn => EnemyKind.DeepSpawn,
                 _ => ChooseWaveFodderKind(GetElapsedRunTime())
@@ -505,6 +515,11 @@ namespace Dagon.Gameplay
             return SpawnSandboxWatcherEye(false);
         }
 
+        public bool SpawnSandboxSlime()
+        {
+            return SpawnSandboxSlime(false);
+        }
+
         public bool SpawnSandboxParasite()
         {
             return SpawnSandboxParasite(false);
@@ -535,6 +550,11 @@ namespace Dagon.Gameplay
             return TrySpawnSpecificEnemy(EnemyKind.WatcherEye, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
         }
 
+        public bool SpawnSandboxSlime(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.Slime, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
         public bool SpawnSandboxParasite(bool forceCorrupted)
         {
             return TrySpawnSpecificEnemy(EnemyKind.Parasite, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
@@ -552,6 +572,7 @@ namespace Dagon.Gameplay
             acolyteSprite = LoadBiomeSprite(profile != null ? profile.DrownedAcolyteSpritePath : null, "Sprites/Enemies/drowned_acolyte", acolyteSprite);
             mermaidSprite = LoadBiomeSprite(profile != null ? profile.MermaidSpritePath : null, "Sprites/Enemies/mermaid", mermaidSprite, 64f);
             watcherEyeSprite = LoadBiomeSprite(profile != null ? profile.WatcherEyeSpritePath : null, "Sprites/Enemies/watcher_eye", watcherEyeSprite, 64f);
+            slimeSprite = LoadBiomeSprite(profile != null ? profile.SlimeSpritePath : null, "Sprites/Enemies/slime", slimeSprite, 64f);
             parasiteSprite = LoadBiomeSprite(profile != null ? profile.ParasiteSpritePath : null, "Sprites/Enemies/parasite", parasiteSprite, 64f);
             deepSpawnSprite = LoadBiomeSprite(profile != null ? profile.DeepSpawnSpritePath : null, "Sprites/Enemies/deep_spawn", deepSpawnSprite, 64f);
         }
@@ -637,9 +658,12 @@ namespace Dagon.Gameplay
             }
 
             var nextEnemyKind = ChooseNextEnemyKind();
-            var spawnedAny = nextEnemyKind == EnemyKind.Parasite
-                ? TrySpawnParasitePack()
-                : TrySpawnSpecificEnemy(nextEnemyKind, BuildSpawnPosition());
+            var spawnedAny = nextEnemyKind switch
+            {
+                EnemyKind.Parasite => TrySpawnParasitePack(),
+                EnemyKind.Slime => TrySpawnSlimePack(),
+                _ => TrySpawnSpecificEnemy(nextEnemyKind, BuildSpawnPosition())
+            };
             if (SpawnQuotaMet)
             {
                 NotifyQuotaCompletedIfNeeded();
@@ -661,6 +685,11 @@ namespace Dagon.Gameplay
             }
 
             var isCorrupted = forceCorrupted || ShouldSpawnCorruptedEnemy(enemyKind);
+            if (enemyKind == EnemyKind.Slime)
+            {
+                return TrySpawnSlime(position, isCorrupted, ignoreAliveCap, isSmallVariant: false, countsTowardQuota: true);
+            }
+
             if (enemyKind == EnemyKind.DeepSpawn && TrySpawnDeepSpawn(position, isCorrupted))
             {
                 return true;
@@ -816,7 +845,135 @@ namespace Dagon.Gameplay
             return spawnedAny;
         }
 
-        private void ConfigureVisuals(Transform enemyRoot, EnemyKind enemyKind, bool isCorrupted)
+        public void SpawnSlimeSplitChildren(Vector3 position, bool forceCorrupted)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            var lateral = ResolvePlanarLateral(position);
+            var leftPosition = position + (lateral * -SlimeSplitSpacing);
+            var rightPosition = position + (lateral * SlimeSplitSpacing);
+            leftPosition.y = player.position.y + spawnHeightOffset;
+            rightPosition.y = player.position.y + spawnHeightOffset;
+            TrySpawnSlime(leftPosition, forceCorrupted, ignoreAliveCap: true, isSmallVariant: true, countsTowardQuota: false);
+            TrySpawnSlime(rightPosition, forceCorrupted, ignoreAliveCap: true, isSmallVariant: true, countsTowardQuota: false);
+        }
+
+        private bool TrySpawnSlimePack()
+        {
+            if (player == null)
+            {
+                return false;
+            }
+
+            var availableSlots = Mathf.Min(
+                regularSpawnQuota - totalSpawned,
+                GetCurrentMaxAliveEnemies() - activeEnemies.Count);
+            var maxPackSize = Mathf.Clamp(availableSlots, 1, 3);
+            var packSize = maxPackSize <= 1 ? 1 : Random.Range(2, maxPackSize + 1);
+            var anchor = BuildSpawnPosition();
+            var lateral = ResolvePlanarLateral(anchor);
+            var halfWidth = (packSize - 1) * 0.5f;
+            var spawnedAny = false;
+
+            for (var index = 0; index < packSize; index++)
+            {
+                var lateralOffset = (index - halfWidth) * SlimePackSpacing;
+                var position = anchor + (lateral * lateralOffset);
+                position.y = player.position.y + spawnHeightOffset;
+                if (TrySpawnSpecificEnemy(EnemyKind.Slime, position))
+                {
+                    spawnedAny = true;
+                }
+            }
+
+            return spawnedAny;
+        }
+
+        private bool TrySpawnSlime(Vector3 position, bool isCorrupted, bool ignoreAliveCap, bool isSmallVariant, bool countsTowardQuota)
+        {
+            if (player == null || slimeSprite == null)
+            {
+                return false;
+            }
+
+            if (countsTowardQuota && (SpawnQuotaMet || totalSpawned >= regularSpawnQuota))
+            {
+                return false;
+            }
+
+            if (!ignoreAliveCap && activeEnemies.Count >= GetCurrentMaxAliveEnemies())
+            {
+                return false;
+            }
+
+            var slime = new GameObject($"{(isCorrupted ? "Corrupted" : string.Empty)}{(isSmallVariant ? "Small" : string.Empty)}Slime_{activeEnemies.Count + 1}");
+            slime.transform.SetParent(transform);
+            slime.transform.position = position;
+            if (isCorrupted)
+            {
+                slime.AddComponent<CorruptedVariantMarker>();
+            }
+
+            var corruptionHealthMultiplier = GetCorruptionEnemyHealthMultiplier() * corruptionEnemyHealthMultiplier;
+            var modifiers = isCorrupted
+                ? CorruptionVariantRules.GetEnemyModifiers(CorruptionVariantRules.EnemyArchetype.Fodder)
+                : new CorruptionVariantRules.StatModifiers(1f, 1f, 1f, 1f);
+
+            var collider = slime.AddComponent<CapsuleCollider>();
+            collider.isTrigger = true;
+            ConfigureCollider(collider, EnemyKind.Slime, isSmallVariant);
+            ConfigureBodyBlocker(slime, EnemyKind.Slime, collider, isSmallVariant);
+
+            var rigidbody = slime.AddComponent<Rigidbody>();
+            rigidbody.isKinematic = true;
+            rigidbody.useGravity = false;
+
+            var health = slime.AddComponent<Health>();
+            health.SetMaxHealth(GetMaxHealth(EnemyKind.Slime, isSmallVariant) * corruptionHealthMultiplier * modifiers.HealthMultiplier, true);
+            health.Died += HandleEnemyDied;
+            slime.AddComponent<Hurtbox>().Configure(CombatTeam.Enemy, health);
+
+            var knockbackReceiver = slime.AddComponent<KnockbackReceiver>();
+            knockbackReceiver.Configure(isSmallVariant ? 1.1f : 0.85f, 16f, isSmallVariant ? 4.6f : 4f);
+
+            var contactDamage = slime.AddComponent<ContactDamage>();
+            contactDamage.Configure(2f * modifiers.DamageMultiplier);
+
+            var chaser = slime.AddComponent<SimpleEnemyChaser>();
+            chaser.Configure(
+                Random.Range(isSmallVariant ? 2.8f : 2.1f, isSmallVariant ? 3.2f : 2.5f) * corruptionEnemyMoveSpeedMultiplier * modifiers.SpeedMultiplier,
+                isSmallVariant ? 0.18f : 0.24f);
+
+            var splitDefinition = slime.AddComponent<SlimeSplitDefinition>();
+            splitDefinition.Configure(
+                spawnChildrenOnDeath: !isSmallVariant,
+                countsTowardDefeatProgress: countsTowardQuota,
+                forceCorruptedChildren: isCorrupted,
+                isSmallVariant: isSmallVariant);
+
+            var rewards = slime.AddComponent<EnemyDeathRewards>();
+            rewards.Configure(countsTowardQuota ? 1 : 0, 0f);
+
+            ConfigureVisuals(slime.transform, EnemyKind.Slime, isCorrupted, isSmallVariant);
+            if (isCorrupted)
+            {
+                AttachCorruptionAffix(slime, EnemyKind.Slime);
+            }
+
+            ConfigureHealthBar(slime.transform, health, EnemyKind.Slime, isSmallVariant);
+            RegisterEnemy(slime);
+            if (countsTowardQuota)
+            {
+                totalSpawned += 1;
+            }
+
+            return true;
+        }
+
+        private void ConfigureVisuals(Transform enemyRoot, EnemyKind enemyKind, bool isCorrupted, bool isSmallSlimeVariant = false)
         {
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(enemyRoot, false);
@@ -824,7 +981,7 @@ namespace Dagon.Gameplay
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = GetSprite(enemyKind);
-            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite ? 5 : 6;
+            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite || enemyKind == EnemyKind.Slime ? 5 : 6;
             var baseColor = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
             renderer.color = baseColor;
 
@@ -844,6 +1001,11 @@ namespace Dagon.Gameplay
             {
                 visuals.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
                 visuals.transform.localPosition = new Vector3(0f, 0.22f, 0f);
+            }
+            else if (enemyKind == EnemyKind.Slime && slimeSprite != null)
+            {
+                visuals.transform.localScale = isSmallSlimeVariant ? new Vector3(0.12f, 0.12f, 1f) : new Vector3(0.22f, 0.22f, 1f);
+                visuals.transform.localPosition = new Vector3(0f, isSmallSlimeVariant ? 0f : 0.01f, 0f);
             }
             else if (enemyKind == EnemyKind.Parasite && parasiteSprite != null)
             {
@@ -1010,7 +1172,7 @@ namespace Dagon.Gameplay
             return pool[Random.Range(0, pool.Length)];
         }
 
-        private void ConfigureHealthBar(Transform enemyRoot, Health health, EnemyKind enemyKind)
+        private void ConfigureHealthBar(Transform enemyRoot, Health health, EnemyKind enemyKind, bool isSmallSlimeVariant = false)
         {
             if (enemyRoot == null || health == null)
             {
@@ -1024,13 +1186,14 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => new Vector3(0f, 1.4f, 0f),
                 EnemyKind.Mermaid => new Vector3(0f, 2.6f, 0f),
                 EnemyKind.WatcherEye => new Vector3(0f, 1.7f, 0f),
+                EnemyKind.Slime => new Vector3(0f, isSmallSlimeVariant ? 0.85f : 1.35f, 0f),
                 EnemyKind.Parasite => new Vector3(0f, 1.1f, 0f),
                 _ => new Vector3(0f, 1.8f, 0f)
             };
             bar.Configure(worldCamera, offset, !enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
         }
 
-        private static void ConfigureCollider(CapsuleCollider collider, EnemyKind enemyKind)
+        private static void ConfigureCollider(CapsuleCollider collider, EnemyKind enemyKind, bool isSmallSlimeVariant = false)
         {
             if (collider == null)
             {
@@ -1053,6 +1216,11 @@ namespace Dagon.Gameplay
                     collider.center = new Vector3(0f, 0.72f, 0f);
                     collider.height = 1.45f;
                     collider.radius = 0.42f;
+                    break;
+                case EnemyKind.Slime:
+                    collider.center = new Vector3(0f, isSmallSlimeVariant ? 0.34f : 0.48f, 0f);
+                    collider.height = isSmallSlimeVariant ? 0.68f : 0.96f;
+                    collider.radius = isSmallSlimeVariant ? 0.34f : 0.58f;
                     break;
                 case EnemyKind.Parasite:
                     collider.center = new Vector3(0f, 0.45f, 0f);
@@ -1083,7 +1251,7 @@ namespace Dagon.Gameplay
             collider.center += new Vector3(0f, extraHeight * 0.5f, 0f);
         }
 
-        private static void ConfigureBodyBlocker(GameObject enemyRoot, EnemyKind enemyKind, CapsuleCollider collider)
+        private static void ConfigureBodyBlocker(GameObject enemyRoot, EnemyKind enemyKind, CapsuleCollider collider, bool isSmallSlimeVariant = false)
         {
             if (enemyRoot == null || collider == null)
             {
@@ -1097,6 +1265,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => 0.42f,
                 EnemyKind.Mermaid => 0.58f,
                 EnemyKind.WatcherEye => 0.38f,
+                EnemyKind.Slime => isSmallSlimeVariant ? 0.26f : 0.46f,
                 EnemyKind.Parasite => 0.28f,
                 EnemyKind.DeepSpawn => 0.62f,
                 _ => Mathf.Max(0.2f, collider.radius * 0.85f)
@@ -1105,6 +1274,7 @@ namespace Dagon.Gameplay
             {
                 EnemyKind.Parasite => 0.7f,
                 EnemyKind.WatcherEye => 0.85f,
+                EnemyKind.Slime => isSmallSlimeVariant ? 0.6f : 1.2f,
                 EnemyKind.DeepSpawn => 1.8f,
                 EnemyKind.Mermaid => 1.15f,
                 _ => 1f
@@ -1115,6 +1285,7 @@ namespace Dagon.Gameplay
         private void HandleEnemyDied(Health health, GameObject source)
         {
             health.Died -= HandleEnemyDied;
+            var slimeDefinition = health != null ? health.GetComponent<SlimeSplitDefinition>() : null;
             if (corruptionRuntimeEffects == null && player != null)
             {
                 corruptionRuntimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
@@ -1122,7 +1293,15 @@ namespace Dagon.Gameplay
 
             corruptionRuntimeEffects?.NotifyEnemyKilled(health != null ? health.gameObject : null, source);
             UnregisterEnemy(health != null ? health.gameObject : null);
-            defeatedEnemies = Mathf.Min(regularSpawnQuota, defeatedEnemies + 1);
+            if (slimeDefinition != null && slimeDefinition.SpawnChildrenOnDeath)
+            {
+                SpawnSlimeSplitChildren(health.transform.position, slimeDefinition.ForceCorruptedChildren);
+            }
+
+            if (slimeDefinition == null || slimeDefinition.CountsTowardDefeatProgress)
+            {
+                defeatedEnemies = Mathf.Min(regularSpawnQuota, defeatedEnemies + 1);
+            }
             if (IsBattlefieldClear)
             {
                 BattlefieldCleared?.Invoke();
@@ -1469,20 +1648,22 @@ namespace Dagon.Gameplay
             var watcherAvailable = watcherEyeSprite != null &&
                                    watcherEyeProjectilePrefab != null &&
                                    elapsed >= GetCurrentWatcherUnlockTime();
+            var slimeAvailable = slimeSprite != null;
             var parasiteAvailable = parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime();
-            if (!watcherAvailable && !parasiteAvailable)
+            if (!watcherAvailable && !parasiteAvailable && !slimeAvailable)
             {
                 return EnemyKind.MireWretch;
             }
 
             var mireWeight = 1f;
+            var slimeWeight = slimeAvailable ? 0.8f + (distanceThreatTier * 0.04f) : 0f;
             var watcherWeight = watcherAvailable
                 ? Mathf.Lerp(0.2f, 0.45f + (distanceThreatTier * 0.08f), Mathf.Clamp01((elapsed - GetCurrentWatcherUnlockTime()) / 90f))
                 : 0f;
             var parasiteWeight = parasiteAvailable
                 ? Mathf.Lerp(0.3f + (distanceThreatTier * 0.06f), 0.75f + (distanceThreatTier * 0.10f), Mathf.Clamp01((elapsed - GetCurrentParasiteUnlockTime()) / 90f))
                 : 0f;
-            var totalWeight = mireWeight + watcherWeight + parasiteWeight;
+            var totalWeight = mireWeight + slimeWeight + watcherWeight + parasiteWeight;
             if (totalWeight <= 0f)
             {
                 return EnemyKind.MireWretch;
@@ -1495,6 +1676,12 @@ namespace Dagon.Gameplay
             }
 
             roll -= mireWeight;
+            if (roll < slimeWeight)
+            {
+                return EnemyKind.Slime;
+            }
+
+            roll -= slimeWeight;
             if (roll < watcherWeight)
             {
                 return EnemyKind.WatcherEye;
@@ -1542,7 +1729,20 @@ namespace Dagon.Gameplay
             return position;
         }
 
-        private static float GetMaxHealth(EnemyKind enemyKind)
+        private Vector3 ResolvePlanarLateral(Vector3 anchor)
+        {
+            if (player == null)
+            {
+                return Vector3.right;
+            }
+
+            var toPlayer = player.position - anchor;
+            toPlayer.y = 0f;
+            var forward = toPlayer.sqrMagnitude > 0.001f ? toPlayer.normalized : Vector3.forward;
+            return new Vector3(-forward.z, 0f, forward.x);
+        }
+
+        private static float GetMaxHealth(EnemyKind enemyKind, bool isSmallSlimeVariant = false)
         {
             return enemyKind switch
             {
@@ -1550,6 +1750,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => 5f,
                 EnemyKind.Mermaid => 6f,
                 EnemyKind.WatcherEye => 3f,
+                EnemyKind.Slime => isSmallSlimeVariant ? 2f : 6f,
                 EnemyKind.Parasite => 1f,
                 EnemyKind.DeepSpawn => 24f,
                 _ => 3f
@@ -1563,6 +1764,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte when acolyteSprite != null => acolyteSprite,
                 EnemyKind.Mermaid when mermaidSprite != null => mermaidSprite,
                 EnemyKind.WatcherEye when watcherEyeSprite != null => watcherEyeSprite,
+                EnemyKind.Slime when slimeSprite != null => slimeSprite,
                 EnemyKind.Parasite when parasiteSprite != null => parasiteSprite,
                 EnemyKind.DeepSpawn when deepSpawnSprite != null => deepSpawnSprite,
                 _ => mireSprite
@@ -1837,6 +2039,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => acolyteSprite != null && acolyteProjectilePrefab != null,
                 EnemyKind.Mermaid => mermaidSprite != null && elapsed >= GetCurrentMermaidUnlockTime(),
                 EnemyKind.WatcherEye => watcherEyeSprite != null && watcherEyeProjectilePrefab != null && elapsed >= GetCurrentWatcherUnlockTime(),
+                EnemyKind.Slime => slimeSprite != null,
                 EnemyKind.Parasite => parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime(),
                 EnemyKind.DeepSpawn => HasAvailableElite(),
                 _ => mireSprite != null
@@ -1886,11 +2089,13 @@ namespace Dagon.Gameplay
             var watcherAvailable = watcherEyeSprite != null &&
                                    watcherEyeProjectilePrefab != null &&
                                    elapsed >= GetCurrentWatcherUnlockTime();
+            var slimeAvailable = slimeSprite != null;
             var parasiteAvailable = parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime();
             var mireWeight = 1f;
+            var slimeWeight = slimeAvailable ? 1.15f + (distanceThreatTier * 0.1f) : 0f;
             var watcherWeight = watcherAvailable ? 0.7f + (distanceThreatTier * 0.12f) : 0f;
             var parasiteWeight = parasiteAvailable ? 0.9f + (distanceThreatTier * 0.14f) : 0f;
-            var totalWeight = mireWeight + watcherWeight + parasiteWeight;
+            var totalWeight = mireWeight + slimeWeight + watcherWeight + parasiteWeight;
 
             var roll = Random.value * totalWeight;
             if (roll < mireWeight)
@@ -1899,6 +2104,12 @@ namespace Dagon.Gameplay
             }
 
             roll -= mireWeight;
+            if (roll < slimeWeight)
+            {
+                return EnemyKind.Slime;
+            }
+
+            roll -= slimeWeight;
             if (roll < watcherWeight)
             {
                 return EnemyKind.WatcherEye;
@@ -1933,6 +2144,7 @@ namespace Dagon.Gameplay
                     : Random.value < 0.5f
                         ? WavePattern.SurroundLanes
                         : WavePattern.DoubleSidePincer,
+                EnemyKind.Slime => Random.value < 0.5f ? WavePattern.SurroundLanes : WavePattern.SurroundRing,
                 EnemyKind.WatcherEye => WavePattern.SingleSideLine,
                 EnemyKind.Parasite => Random.value < 0.5f ? WavePattern.SingleSideLine : WavePattern.DoubleSidePincer,
                 EnemyKind.DrownedAcolyte => Random.value < 0.6f ? WavePattern.SingleSideLine : WavePattern.DoubleSidePincer,
@@ -1949,6 +2161,9 @@ namespace Dagon.Gameplay
                 EnemyKind.MireWretch when pattern == WavePattern.SurroundRing => 16,
                 EnemyKind.MireWretch when pattern == WavePattern.SurroundLanes => 16,
                 EnemyKind.MireWretch => 14,
+                EnemyKind.Slime when pattern == WavePattern.SurroundRing => 22,
+                EnemyKind.Slime when pattern == WavePattern.SurroundLanes => 20,
+                EnemyKind.Slime => 18,
                 EnemyKind.WatcherEye => 10,
                 EnemyKind.Parasite => pattern == WavePattern.DoubleSidePincer ? 12 : 10,
                 EnemyKind.DrownedAcolyte => pattern == WavePattern.DoubleSidePincer ? 8 : 6,

@@ -195,6 +195,7 @@ namespace Dagon.Bootstrap
             AddEnemyEntry(entries, "Drowned Acolyte", "drowned_acolyte");
             AddEnemyEntry(entries, "Mermaid", "mermaid");
             AddEnemyEntry(entries, "Deep Spawn", "deep_spawn");
+            AddEnemyEntry(entries, "Slime", "slime");
             AddEnemyEntry(entries, "Parasite", "parasite");
             AddEnemyEntry(entries, "Watcher Eye", "watcher_eye");
             AddEnemyEntry(entries, "Tall Leech", "tall_leech");
@@ -268,6 +269,7 @@ namespace Dagon.Bootstrap
         private static void AddPickupEntries(List<ShowcaseEntry> entries)
         {
             entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Barnacle Shard", "Sprites/Pickups/barnacle_shard", Vector3.one * 0.24f, 256f));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Corruption Orb", "Sprites/Enemies/watcher_eye", Vector3.one * 0.42f, 64f));
             entries.Add(new ShowcaseEntry(ShowcaseCategory.Pickups, "Health Pickup", "Sprites/UI/heart", Vector3.one * 2.7f, 256f));
         }
 

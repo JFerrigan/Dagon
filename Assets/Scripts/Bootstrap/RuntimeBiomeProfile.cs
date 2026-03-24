@@ -16,6 +16,7 @@ namespace Dagon.Bootstrap
             string drownedAcolyteSpritePath,
             string mermaidSpritePath,
             string watcherEyeSpritePath,
+            string slimeSpritePath,
             string parasiteSpritePath,
             string deepSpawnSpritePath,
             string bossSpritePath,
@@ -43,6 +44,7 @@ namespace Dagon.Bootstrap
             DrownedAcolyteSpritePath = drownedAcolyteSpritePath;
             MermaidSpritePath = mermaidSpritePath;
             WatcherEyeSpritePath = watcherEyeSpritePath;
+            SlimeSpritePath = slimeSpritePath;
             ParasiteSpritePath = parasiteSpritePath;
             DeepSpawnSpritePath = deepSpawnSpritePath;
             BossSpritePath = bossSpritePath;
@@ -71,6 +73,7 @@ namespace Dagon.Bootstrap
         public string DrownedAcolyteSpritePath { get; }
         public string MermaidSpritePath { get; }
         public string WatcherEyeSpritePath { get; }
+        public string SlimeSpritePath { get; }
         public string ParasiteSpritePath { get; }
         public string DeepSpawnSpritePath { get; }
         public string BossSpritePath { get; }
@@ -124,6 +127,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/slime",
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
@@ -151,6 +155,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/slime",
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
@@ -178,6 +183,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/slime",
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
@@ -205,6 +211,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/drowned_acolyte",
                     "Sprites/Enemies/mermaid",
                     "Sprites/Enemies/watcher_eye",
+                    "Sprites/Enemies/slime",
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",

@@ -126,10 +126,13 @@ namespace Dagon.Gameplay
         private readonly List<Health> activeBosses = new();
         private readonly List<BossKind> remainingBossKinds = new();
         private Health playerHealth;
+        private PlayerCombatLoadout playerCombatLoadout;
+        private CorruptionRuntimeEffects corruptionRuntimeEffects;
         private Texture2D whiteTexture;
         private GUIStyle endTitleStyle;
         private GUIStyle endBodyStyle;
         private GUIStyle endButtonStyle;
+        private GUIStyle pauseStatStyle;
         private float runTimer;
         private float biomeTimer;
         private bool bossWaveStarted;
@@ -192,7 +195,9 @@ namespace Dagon.Gameplay
             if (player != null)
             {
                 playerHealth = player.GetComponent<Health>();
+                playerCombatLoadout = player.GetComponent<PlayerCombatLoadout>();
                 corruptionMeter = player.GetComponent<CorruptionMeter>();
+                corruptionRuntimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
                 if (playerHealth != null)
                 {
                     playerHealth.Died += HandlePlayerDied;
@@ -541,6 +546,10 @@ namespace Dagon.Gameplay
 
             var rewards = boss.AddComponent<EnemyDeathRewards>();
             rewards.Configure(definition.ExperienceReward, definition.CorruptionReward);
+            if (definition.BossKind == BossKind.Monolith)
+            {
+                rewards.ConfigureDropAtColliderEdge(true, definition.ColliderRadius + 0.35f);
+            }
 
             if (definition.BossKind != BossKind.Monolith)
             {
@@ -702,7 +711,26 @@ namespace Dagon.Gameplay
 
         private void HandleBossDied(Health health, GameObject source)
         {
-            health.Died -= HandleBossDied;
+            CompleteBossDefeat(health, source, unsubscribeHealthEvent: true);
+        }
+
+        public void NotifyBossDefeated(Health health, GameObject source)
+        {
+            CompleteBossDefeat(health, source, unsubscribeHealthEvent: false);
+        }
+
+        private void CompleteBossDefeat(Health health, GameObject source, bool unsubscribeHealthEvent)
+        {
+            if (health == null || !activeBosses.Contains(health))
+            {
+                return;
+            }
+
+            if (unsubscribeHealthEvent)
+            {
+                health.Died -= HandleBossDied;
+            }
+
             activeBosses.Remove(health);
             bossesDefeatedCount += 1;
             if (bossWaveStarted && activeBosses.Count == 0)
@@ -927,8 +955,8 @@ namespace Dagon.Gameplay
             var previousBackground = GUI.backgroundColor;
 
             var scale = Mathf.Max(1.05f, Mathf.Min(Screen.width / 1600f, Screen.height / 900f) * 1.1f);
-            var width = 520f;
-            var height = 340f;
+            var width = 900f;
+            var height = 520f;
             var scaledWidth = Screen.width / scale;
             var scaledHeight = Screen.height / scale;
             var box = new Rect((scaledWidth - width) * 0.5f, (scaledHeight - height) * 0.5f, width, height);
@@ -940,23 +968,27 @@ namespace Dagon.Gameplay
             DrawPanel(box);
 
             GUI.Label(new Rect(box.x + 36f, box.y + 28f, box.width - 72f, 34f), "Paused", endTitleStyle);
-            GUI.Label(new Rect(box.x + 48f, box.y + 74f, box.width - 96f, 42f), "The run is on hold. Resume, restart, or return to the menu.", endBodyStyle);
+            GUI.Label(new Rect(box.x + 48f, box.y + 74f, box.width - 96f, 30f), "The run is on hold. Current effective stats are shown below.", endBodyStyle);
+
+            var statsRect = new Rect(box.x + 36f, box.y + 118f, 472f, 348f);
+            var actionsRect = new Rect(box.x + 552f, box.y + 118f, 312f, 348f);
+            DrawPauseStats(statsRect);
 
             GUI.backgroundColor = new Color(0.16f, 0.28f, 0.22f, 0.92f);
-            if (GUI.Button(new Rect(box.x + 76f, box.y + 138f, box.width - 152f, 50f), "Resume", endButtonStyle))
+            if (GUI.Button(new Rect(actionsRect.x + 20f, actionsRect.y + 18f, actionsRect.width - 40f, 56f), "Resume", endButtonStyle))
             {
                 ClosePauseMenu();
             }
 
             GUI.backgroundColor = new Color(0.18f, 0.24f, 0.20f, 0.92f);
-            if (GUI.Button(new Rect(box.x + 76f, box.y + 200f, box.width - 152f, 50f), "Restart", endButtonStyle))
+            if (GUI.Button(new Rect(actionsRect.x + 20f, actionsRect.y + 96f, actionsRect.width - 40f, 56f), "Restart", endButtonStyle))
             {
                 pauseMenuOpen = false;
                 RetryCurrentCharacter();
             }
 
             GUI.backgroundColor = new Color(0.14f, 0.22f, 0.20f, 0.9f);
-            if (GUI.Button(new Rect(box.x + 76f, box.y + 262f, box.width - 152f, 50f), "Main Menu", endButtonStyle))
+            if (GUI.Button(new Rect(actionsRect.x + 20f, actionsRect.y + 174f, actionsRect.width - 40f, 56f), "Main Menu", endButtonStyle))
             {
                 pauseMenuOpen = false;
                 LoadScene(menuSceneName);
@@ -1052,6 +1084,71 @@ namespace Dagon.Gameplay
             endButtonStyle.normal.textColor = new Color(0.93f, 0.98f, 0.92f, 1f);
             endButtonStyle.hover.textColor = Color.white;
             endButtonStyle.active.textColor = Color.white;
+
+            pauseStatStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.UpperLeft,
+                fontSize = 16,
+                wordWrap = false
+            };
+            pauseStatStyle.normal.textColor = new Color(0.82f, 0.90f, 0.82f, 1f);
+        }
+
+        private void DrawPauseStats(Rect rect)
+        {
+            GUI.color = new Color(0.08f, 0.13f, 0.12f, 0.92f);
+            GUI.DrawTexture(rect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = Color.white;
+
+            var lineY = rect.y + 16f;
+            var lineHeight = 22f;
+            var left = rect.x + 16f;
+            var width = rect.width - 32f;
+
+            var snapshot = corruptionRuntimeEffects != null
+                ? corruptionRuntimeEffects.GetStatSnapshot()
+                : default;
+
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Level: {experienceController?.Level ?? 0}");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"XP: {experienceController?.CurrentXp ?? 0}/{experienceController?.RequiredXp ?? 0}");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Corruption: {snapshot.CurrentCorruption:0.0}");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Corruption Stage: {snapshot.CurrentStage}");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"XP Multiplier: {snapshot.ExperiencePickupValueMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Pickup Pull: {snapshot.PickupAttractRadiusMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Fire Rate Bonus: {snapshot.TotalAttackRateBonus:+0.00;-0.00;0.00}");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Active Cooldown Mult: {snapshot.ActiveCooldownMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Healing Multiplier: {snapshot.HealingMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Incoming Damage Mult: {snapshot.IncomingDamageMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Enemy Health Mult: {snapshot.EnemyHealthMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Enemy Speed Mult: {snapshot.EnemyMoveSpeedMultiplier:0.00}x");
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"World Healing: {(snapshot.BlocksWorldHealing ? "Blocked" : "Enabled")}");
+
+            var active = playerCombatLoadout != null ? playerCombatLoadout.GetPrimaryActive() : null;
+            var activeLabel = active != null
+                ? $"{active.DisplayName} ({active.CooldownRemaining:0.0}/{active.CooldownDuration:0.0}s)"
+                : "None";
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, $"Active: {activeLabel}");
+
+            DrawPauseStatLine(left, ref lineY, width, lineHeight, "Weapons:");
+            if (playerCombatLoadout != null)
+            {
+                for (var i = 0; i < playerCombatLoadout.Weapons.Count && i < 5; i++)
+                {
+                    var weapon = playerCombatLoadout.Weapons[i];
+                    if (weapon == null)
+                    {
+                        continue;
+                    }
+
+                    DrawPauseStatLine(left + 12f, ref lineY, width - 12f, lineHeight, $"{weapon.DisplayName} R{weapon.Rank}");
+                }
+            }
+        }
+
+        private void DrawPauseStatLine(float x, ref float y, float width, float height, string text)
+        {
+            GUI.Label(new Rect(x, y, width, height), text, pauseStatStyle);
+            y += height;
         }
 
         private void DrawPanel(Rect rect)

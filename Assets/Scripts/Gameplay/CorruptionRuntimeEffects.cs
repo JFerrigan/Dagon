@@ -54,6 +54,51 @@ namespace Dagon.Gameplay
             public bool RequiresBoonSelection { get; }
         }
 
+        public readonly struct CorruptionStatSnapshot
+        {
+            public CorruptionStatSnapshot(
+                float currentCorruption,
+                int currentStage,
+                float pickupAttractRadiusMultiplier,
+                float experiencePickupValueMultiplier,
+                float persistentAttackRateBonus,
+                float transientAttackRateBonus,
+                float activeCooldownMultiplier,
+                float healingMultiplier,
+                float incomingDamageMultiplier,
+                float enemyHealthMultiplier,
+                float enemyMoveSpeedMultiplier,
+                bool blocksWorldHealing)
+            {
+                CurrentCorruption = currentCorruption;
+                CurrentStage = currentStage;
+                PickupAttractRadiusMultiplier = pickupAttractRadiusMultiplier;
+                ExperiencePickupValueMultiplier = experiencePickupValueMultiplier;
+                PersistentAttackRateBonus = persistentAttackRateBonus;
+                TransientAttackRateBonus = transientAttackRateBonus;
+                ActiveCooldownMultiplier = activeCooldownMultiplier;
+                HealingMultiplier = healingMultiplier;
+                IncomingDamageMultiplier = incomingDamageMultiplier;
+                EnemyHealthMultiplier = enemyHealthMultiplier;
+                EnemyMoveSpeedMultiplier = enemyMoveSpeedMultiplier;
+                BlocksWorldHealing = blocksWorldHealing;
+            }
+
+            public float CurrentCorruption { get; }
+            public int CurrentStage { get; }
+            public float PickupAttractRadiusMultiplier { get; }
+            public float ExperiencePickupValueMultiplier { get; }
+            public float PersistentAttackRateBonus { get; }
+            public float TransientAttackRateBonus { get; }
+            public float TotalAttackRateBonus => PersistentAttackRateBonus + TransientAttackRateBonus;
+            public float ActiveCooldownMultiplier { get; }
+            public float HealingMultiplier { get; }
+            public float IncomingDamageMultiplier { get; }
+            public float EnemyHealthMultiplier { get; }
+            public float EnemyMoveSpeedMultiplier { get; }
+            public bool BlocksWorldHealing { get; }
+        }
+
         private enum EffectKind
         {
             AttackRateBonus,
@@ -265,6 +310,24 @@ namespace Dagon.Gameplay
         public bool BlocksWorldHealing => blocksWorldHealing;
         public float PickupAttractRadiusMultiplier => pickupAttractRadiusMultiplier;
         public float ExperiencePickupValueMultiplier => experiencePickupValueMultiplier;
+
+        public CorruptionStatSnapshot GetStatSnapshot()
+        {
+            var aggregate = BuildAggregate();
+            return new CorruptionStatSnapshot(
+                corruptionMeter != null ? corruptionMeter.CurrentCorruption : 0f,
+                corruptionMeter != null ? corruptionMeter.CurrentStageIndex + 1 : 0,
+                pickupAttractRadiusMultiplier,
+                experiencePickupValueMultiplier,
+                aggregate.AttackRateBonus,
+                appliedTransientAttackRateBonus,
+                aggregate.ActiveCooldownMultiplier,
+                aggregate.HealingMultiplier,
+                aggregate.IncomingDamageMultiplier,
+                aggregate.EnemyHealthMultiplier,
+                aggregate.EnemyMoveSpeedMultiplier,
+                blocksWorldHealing);
+        }
 
         private void Awake()
         {
@@ -784,12 +847,12 @@ namespace Dagon.Gameplay
 
         private void BuildWeightedBoonCatalog(List<WeightedBoonDefinition> catalog)
         {
-            AddWeightedBoon(catalog, BoonBand.Early, "Blood in the Wake", "Kills build short stacks of fire rate.", new CorruptionEffect(EffectKind.BloodInTheWake, 1f));
-            AddWeightedBoon(catalog, BoonBand.Early, "Carrion Pull", "Nearby pickups pull in from much farther away.", new CorruptionEffect(EffectKind.CarrionPull, 2f));
-            AddWeightedBoon(catalog, BoonBand.Early, "Greedy Undertow", "XP pickups are worth more.", new CorruptionEffect(EffectKind.ExperiencePickupValueMultiplier, 1.35f));
+            AddWeightedBoon(catalog, BoonBand.Early, "Blood in the Wake", $"+{BloodInTheWakeBonusPerStack:0.00} fire rate per kill, {BloodInTheWakeMaxStacks} stacks, {BloodInTheWakeDuration:0.0}s.", new CorruptionEffect(EffectKind.BloodInTheWake, 1f));
+            AddWeightedBoon(catalog, BoonBand.Early, "Carrion Pull", "Pickup attract radius 2.0x.", new CorruptionEffect(EffectKind.CarrionPull, 2f));
+            AddWeightedBoon(catalog, BoonBand.Early, "Greedy Undertow", "XP pickup value 2.0x.", new CorruptionEffect(EffectKind.ExperiencePickupValueMultiplier, 2f));
 
-            AddWeightedBoon(catalog, BoonBand.Mid, "Brine Engine", "Keep moving to build weapon tempo.", new CorruptionEffect(EffectKind.BrineEngine, 1f));
-            AddWeightedBoon(catalog, BoonBand.Mid, "Crashing Surge", "Dashing or using your active grants a short fire-rate spike.", new CorruptionEffect(EffectKind.CrashingSurge, 1f));
+            AddWeightedBoon(catalog, BoonBand.Mid, "Brine Engine", $"Moving builds up to +{BrineEngineMaxBonus:0.00} fire rate over {BrineEngineBuildTime:0.0}s.", new CorruptionEffect(EffectKind.BrineEngine, 1f));
+            AddWeightedBoon(catalog, BoonBand.Mid, "Crashing Surge", $"Dash or active use grants +{CrashingSurgeBonus:0.00} fire rate for {CrashingSurgeDuration:0.0}s.", new CorruptionEffect(EffectKind.CrashingSurge, 1f));
 
             var activeDefinition = DrawCorruptionActiveDefinition();
             if (activeDefinition != null)
@@ -803,39 +866,14 @@ namespace Dagon.Gameplay
 
             AddWeightedBoon(catalog, BoonBand.Mid, "Tide Ascendant", "Upgrade every owned weapon once.", new CorruptionEffect(EffectKind.UpgradeAllWeaponsOnce, 1f));
 
-            AddWeightedBoon(catalog, BoonBand.Late, "Abyssal Pulse", "Every few kills unleash a corruption pulse.", new CorruptionEffect(EffectKind.AbyssalPulse, 1f));
-            AddWeightedBoon(catalog, BoonBand.Late, "Devour the Deep", "Killing corrupted enemies reduces corruption.", new CorruptionEffect(EffectKind.DevourTheDeep, 1f));
-            AddWeightedBoon(catalog, BoonBand.Late, "Quickening Rot", "All weapons fire faster.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.25f));
+            AddWeightedBoon(catalog, BoonBand.Late, "Abyssal Pulse", $"Every {AbyssalPulseKillsPerTrigger} kills: {AbyssalPulseDamage:0.0} damage in {AbyssalPulseRadius:0.0}m.", new CorruptionEffect(EffectKind.AbyssalPulse, 1f));
+            AddWeightedBoon(catalog, BoonBand.Late, "Devour the Deep", $"Corrupted-enemy kills reduce corruption by {DevourTheDeepCorruptionReduction:0.0}.", new CorruptionEffect(EffectKind.DevourTheDeep, 1f));
+            AddWeightedBoon(catalog, BoonBand.Late, "Quickening Rot", "All weapons gain +0.25 fire rate.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.25f));
         }
 
         private void AddWeightedBoon(List<WeightedBoonDefinition> catalog, BoonBand band, string title, string description, params CorruptionEffect[] effects)
         {
-            if (HasSelectedBoonTitle(title))
-            {
-                return;
-            }
-
             catalog.Add(new WeightedBoonDefinition(band, title, description, effects));
-        }
-
-        private bool HasSelectedBoonTitle(string title)
-        {
-            foreach (var pair in rememberedSelections)
-            {
-                var stageBoonsForSelection = GetResolvedStageBoons(pair.Key);
-                var boonIndex = pair.Value.BoonIndex;
-                if (boonIndex < 0 || boonIndex >= stageBoonsForSelection.Length)
-                {
-                    continue;
-                }
-
-                if (stageBoonsForSelection[boonIndex].Title == title)
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         private static BoonBand RollBandForStage(int stageIndex, List<WeightedBoonDefinition> candidates)
@@ -928,7 +966,7 @@ namespace Dagon.Gameplay
             {
                 return new[]
                 {
-                    new StageOptionDefinition("No Healing", "Health pickups and fountains no longer help you.", new CorruptionEffect(EffectKind.DisableWorldHealing, 1f)),
+                    new StageOptionDefinition("No Healing", "Health pickups and fountains are disabled.", new CorruptionEffect(EffectKind.DisableWorldHealing, 1f)),
                     new StageOptionDefinition("Bosses Become Common", "Ambient bosses start appearing like elite threats.", new CorruptionEffect(EffectKind.AmbientBossLaneEnable, 1f)),
                     new StageOptionDefinition("Cast Down", "Reset to level 1 with your starting weapons and abilities.", new CorruptionEffect(EffectKind.ResetProgression, 1f))
                 };
@@ -976,24 +1014,24 @@ namespace Dagon.Gameplay
 
         private static void BuildWeightedDrawbackCatalog(List<WeightedDrawbackDefinition> catalog)
         {
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Blighted Swarm", "Ambient swarms arrive faster.", new CorruptionEffect(EffectKind.AmbientSpawnIntervalMultiplier, 0.82f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Tainted Swiftness", "Enemies move faster.", new CorruptionEffect(EffectKind.EnemyMoveSpeedMultiplier, 1.14f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Ravenous Wounds", "Healing restores far less.", new CorruptionEffect(EffectKind.HealingMultiplier, 0.60f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Blighted Swarm", "Ambient spawn interval 0.82x.", new CorruptionEffect(EffectKind.AmbientSpawnIntervalMultiplier, 0.82f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Tainted Swiftness", "Enemy move speed 1.14x.", new CorruptionEffect(EffectKind.EnemyMoveSpeedMultiplier, 1.14f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Early, "Ravenous Wounds", "Healing multiplier 0.60x.", new CorruptionEffect(EffectKind.HealingMultiplier, 0.60f)));
 
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Fleshwarp I", "Enemy health swells further with corruption.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.20f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Drowned Hands", "Active abilities recover more slowly.", new CorruptionEffect(EffectKind.ActiveCooldownMultiplier, 1.45f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Tyrant Tide", "Boss ambient pressure worsens.", new CorruptionEffect(EffectKind.BossAmbientIntervalMultiplier, 0.78f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Fleshwarp I", "Enemy health multiplier 1.20x.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.20f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Drowned Hands", "Active cooldown multiplier 1.45x.", new CorruptionEffect(EffectKind.ActiveCooldownMultiplier, 1.45f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Tyrant Tide", "Boss ambient interval 0.78x.", new CorruptionEffect(EffectKind.BossAmbientIntervalMultiplier, 0.78f)));
 
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "The Deep Opens", "Elite waves unlock immediately.", new CorruptionEffect(EffectKind.EliteWaveEarlyUnlock, 1f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Fleshwarp II", "Enemy health swells again.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.30f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Warhost Rising", "Elite waves grow larger.", new CorruptionEffect(EffectKind.EliteWaveSizeMultiplier, 1.25f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Fleshwarp II", "Enemy health multiplier 1.30x.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.30f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Warhost Rising", "Elite wave size multiplier 1.25x.", new CorruptionEffect(EffectKind.EliteWaveSizeMultiplier, 1.25f)));
             catalog.Add(new WeightedDrawbackDefinition(
                 DrawbackBand.Late,
                 "Black Omen",
-                "Corrupted bosses become far more likely and tougher.",
+                "Boss corruption chance 1.85x, corrupted boss health 1.35x.",
                 new CorruptionEffect(EffectKind.BossCorruptionChanceMultiplier, 1.85f),
                 new CorruptionEffect(EffectKind.CorruptedBossHealthMultiplier, 1.35f)));
-            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Mortal Ruin", "All enemy damage is doubled.", new CorruptionEffect(EffectKind.IncomingDamageMultiplier, 2f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Mortal Ruin", "Incoming enemy damage 2.0x.", new CorruptionEffect(EffectKind.IncomingDamageMultiplier, 2f)));
         }
 
         private static DrawbackBand RollDrawbackBandForStage(int stageIndex, List<WeightedDrawbackDefinition> candidates)

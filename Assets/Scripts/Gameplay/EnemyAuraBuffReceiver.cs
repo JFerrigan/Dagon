@@ -137,6 +137,11 @@ namespace Dagon.Gameplay
 
         public void ClearAura()
         {
+            if (!this)
+            {
+                return;
+            }
+
             ClearAuraEffects();
             activeAura = AuraKind.None;
             healPerTick = 0f;
@@ -176,6 +181,11 @@ namespace Dagon.Gameplay
 
         private void UpdateGlow()
         {
+            if (!this)
+            {
+                return;
+            }
+
             ResolveReferences();
             if (primaryRenderer == null)
             {
@@ -243,6 +253,11 @@ namespace Dagon.Gameplay
 
         private void ResolveReferences()
         {
+            if (!this)
+            {
+                return;
+            }
+
             health ??= GetComponent<Health>();
             hurtbox ??= GetComponent<Hurtbox>();
             contactDamage ??= GetComponent<ContactDamage>();

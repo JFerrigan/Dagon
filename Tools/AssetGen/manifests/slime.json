@@ -1,0 +1,12 @@
+{
+  "asset_id": "slime",
+  "asset_type": "enemy_sprite",
+  "prompt": "Mire slime fodder enemy, swollen tar-green sludge mound with bones and hooks embedded in it, heavy low silhouette, sticky rotting marsh horror, readable isolated gameplay sprite, transparent background, 16-bit inspired painterly readability.",
+  "output_path": "Assets/Resources/Sprites/Enemies/slime.png",
+  "source_image": "Tools/AssetGen/inbox/slime.png",
+  "size": [128, 128],
+  "palette_notes": "acid swamp green, tar black, bone ivory, algae moss highlights, wet rot shine",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Tanky splitting fodder slime. Preserve a broad low profile with clear readable silhouette and enough bottom mass to feel grounded in billboarded runtime presentation."
+}

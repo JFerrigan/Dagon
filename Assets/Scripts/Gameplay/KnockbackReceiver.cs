@@ -11,9 +11,16 @@ namespace Dagon.Gameplay
 
         private Vector3 velocity;
         private float externalStrengthMultiplier = 1f;
+        private bool suppressed;
 
         private void Update()
         {
+            if (suppressed)
+            {
+                velocity = Vector3.zero;
+                return;
+            }
+
             if (velocity.sqrMagnitude <= 0.0001f)
             {
                 velocity = Vector3.zero;
@@ -36,8 +43,22 @@ namespace Dagon.Gameplay
             externalStrengthMultiplier = Mathf.Max(0f, multiplier);
         }
 
+        public void SetSuppressed(bool value)
+        {
+            suppressed = value;
+            if (suppressed)
+            {
+                velocity = Vector3.zero;
+            }
+        }
+
         public void ApplyKnockback(Vector3 direction, float strength)
         {
+            if (suppressed)
+            {
+                return;
+            }
+
             var resolvedStrengthMultiplier = strengthMultiplier * externalStrengthMultiplier;
             if (resolvedStrengthMultiplier <= 0f || strength <= 0f)
             {

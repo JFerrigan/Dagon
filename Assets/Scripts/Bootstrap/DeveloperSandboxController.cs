@@ -210,22 +210,27 @@ namespace Dagon.Bootstrap
                 SpawnEnemy(SpawnEnemyKind.WatcherEye);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 320f, 152f, 24f), "Spawn Parasite"))
+            if (GUI.Button(new Rect(160f, controlsTop + 320f, 152f, 24f), "Spawn Slime"))
+            {
+                SpawnEnemy(SpawnEnemyKind.Slime);
+            }
+
+            if (GUI.Button(new Rect(0f, controlsTop + 348f, 152f, 24f), "Spawn Parasite"))
             {
                 SpawnEnemy(SpawnEnemyKind.Parasite);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 348f, 152f, 24f), "Spawn Mire Boss"))
+            if (GUI.Button(new Rect(160f, controlsTop + 348f, 152f, 24f), "Spawn Mire Boss"))
             {
                 SpawnBoss();
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 348f, 152f, 24f), "Spawn Monolith"))
+            if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Spawn Monolith"))
             {
                 SpawnMonolithBoss();
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 376f, contentRect.width, 24f), "Spawn Admiral"))
+            if (GUI.Button(new Rect(160f, controlsTop + 376f, 152f, 24f), "Spawn Admiral"))
             {
                 SpawnAdmiralBoss();
             }
@@ -678,6 +683,7 @@ namespace Dagon.Bootstrap
                 SpawnEnemyKind.DrownedAcolyte => spawnDirector.SpawnSandboxDrownedAcolyte(corruptManualSpawns),
                 SpawnEnemyKind.Mermaid => spawnDirector.SpawnSandboxMermaid(corruptManualSpawns),
                 SpawnEnemyKind.WatcherEye => spawnDirector.SpawnSandboxWatcherEye(corruptManualSpawns),
+                SpawnEnemyKind.Slime => spawnDirector.SpawnSandboxSlime(corruptManualSpawns),
                 SpawnEnemyKind.Parasite => spawnDirector.SpawnSandboxParasite(corruptManualSpawns),
                 SpawnEnemyKind.DeepSpawn => spawnDirector.SpawnSandboxDeepSpawn(corruptManualSpawns),
                 _ => false
@@ -784,6 +790,7 @@ namespace Dagon.Bootstrap
             DrownedAcolyte,
             Mermaid,
             WatcherEye,
+            Slime,
             Parasite,
             DeepSpawn
         }

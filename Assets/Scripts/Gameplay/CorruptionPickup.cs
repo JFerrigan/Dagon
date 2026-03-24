@@ -4,24 +4,23 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class ExperiencePickup : MonoBehaviour
+    public sealed class CorruptionPickup : MonoBehaviour
     {
-        private const string PickupSpriteResourcePath = "Sprites/Pickups/barnacle_shard";
         private const float DefaultLifetime = 20f;
 
-        [SerializeField] private int experienceValue = 1;
+        [SerializeField] private float corruptionValue = 2f;
         [SerializeField] private float attractDistance = 3f;
         [SerializeField] private float moveSpeed = 5f;
         [SerializeField] private float lifetime = DefaultLifetime;
 
-        private ExperienceController experienceController;
+        private CorruptionMeter corruptionMeter;
         private CorruptionRuntimeEffects corruptionEffects;
         private Transform player;
         private Vector3 basePosition;
 
-        public static ExperiencePickup Create(Vector3 position, int xpValue, Camera camera)
+        public static CorruptionPickup Create(Vector3 position, float corruptionAmount, Camera camera)
         {
-            var pickup = new GameObject("ExperiencePickup");
+            var pickup = new GameObject("CorruptionPickup");
             pickup.transform.position = position + Vector3.up * 0.2f;
 
             var sphere = pickup.AddComponent<SphereCollider>();
@@ -32,15 +31,16 @@ namespace Dagon.Gameplay
             rigidbody.useGravity = false;
             rigidbody.isKinematic = true;
 
-            var component = pickup.AddComponent<ExperiencePickup>();
-            component.experienceValue = xpValue;
+            var component = pickup.AddComponent<CorruptionPickup>();
+            component.corruptionValue = corruptionAmount;
 
-            WorldPickupVisualFactory.Create(
+            WorldPickupVisualFactory.CreateOrb(
                 pickup.transform,
                 camera,
-                PickupSpriteResourcePath,
-                Color.white,
-                new Vector3(0.24f, 0.24f, 1f),
+                new Color(0.10f, 0.06f, 0.14f, 1f),
+                new Color(0.34f, 0.18f, 0.46f, 1f),
+                new Color(0.66f, 0.48f, 0.86f, 0.95f),
+                new Vector3(0.42f, 0.42f, 1f),
                 Vector3.zero);
 
             return component;
@@ -49,9 +49,9 @@ namespace Dagon.Gameplay
         private void Awake()
         {
             basePosition = transform.position;
-            experienceController = FindObjectOfType<ExperienceController>();
             var playerObject = FindObjectOfType<PlayerMover>();
             player = playerObject != null ? playerObject.transform : null;
+            corruptionMeter = playerObject != null ? playerObject.GetComponent<CorruptionMeter>() : null;
             corruptionEffects = playerObject != null ? playerObject.GetComponent<CorruptionRuntimeEffects>() : null;
         }
 
@@ -64,7 +64,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var bob = Mathf.Sin(Time.time * 4f) * 0.08f;
+            var bob = Mathf.Sin(Time.time * 4.6f) * 0.08f;
             transform.position = new Vector3(transform.position.x, basePosition.y + bob, transform.position.z);
 
             if (player == null)
@@ -90,8 +90,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var effectiveExperience = Mathf.Max(1, Mathf.RoundToInt(experienceValue * (corruptionEffects != null ? corruptionEffects.ExperiencePickupValueMultiplier : 1f)));
-            experienceController?.AddExperience(effectiveExperience);
+            corruptionMeter?.AddCorruption(corruptionValue);
             Destroy(gameObject);
         }
     }

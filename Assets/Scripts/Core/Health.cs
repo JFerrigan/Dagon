@@ -171,6 +171,11 @@ namespace Dagon.Core
             incomingContactDamageMultiplier = Mathf.Max(0f, multiplier);
         }
 
+        public void SetDestroyOnDeath(bool value)
+        {
+            destroyOnDeath = value;
+        }
+
         private bool IsPlayerHealth()
         {
             var hurtbox = GetComponent<Hurtbox>();
