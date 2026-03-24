@@ -6,6 +6,8 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class EnemyDeathRewards : MonoBehaviour
     {
+        private const float DualDropSeparation = 0.55f;
+
         [SerializeField] private int experienceReward = 1;
         [SerializeField] private float corruptionReward = 1.5f;
         [SerializeField] [Range(0f, 1f)] private float healthPickupDropChance;
@@ -63,14 +65,23 @@ namespace Dagon.Gameplay
         private void HandleDeath(Health _, GameObject source)
         {
             var dropPosition = ResolveDropPosition(source);
+            var dropLateral = ResolveDropLateral(source);
+            var experienceDropPosition = dropPosition;
+            var corruptionDropPosition = dropPosition;
+            if (experienceReward > 0 && corruptionReward > 0f)
+            {
+                experienceDropPosition += dropLateral * -DualDropSeparation;
+                corruptionDropPosition += dropLateral * DualDropSeparation;
+            }
+
             if (experienceReward > 0)
             {
-                ExperiencePickup.Create(dropPosition, experienceReward, worldCamera);
+                ExperiencePickup.Create(experienceDropPosition, experienceReward, worldCamera);
             }
 
             if (corruptionReward > 0f)
             {
-                CorruptionPickup.Create(dropPosition, corruptionReward, worldCamera);
+                CorruptionPickup.Create(corruptionDropPosition, corruptionReward, worldCamera);
             }
 
             if (healthPickupDropChance > 0f && Random.value <= healthPickupDropChance)
@@ -110,6 +121,34 @@ namespace Dagon.Gameplay
 
             var edgeDistance = ResolveDropEdgeDistance();
             return anchor + (direction.normalized * edgeDistance);
+        }
+
+        private Vector3 ResolveDropLateral(GameObject source)
+        {
+            var anchor = transform.position;
+            Vector3 targetPosition;
+            if (source != null)
+            {
+                targetPosition = source.transform.position;
+            }
+            else if (player != null)
+            {
+                targetPosition = player.position;
+            }
+            else
+            {
+                targetPosition = anchor + Vector3.forward;
+            }
+
+            var forward = targetPosition - anchor;
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.001f)
+            {
+                forward = Vector3.forward;
+            }
+
+            forward.Normalize();
+            return new Vector3(-forward.z, 0f, forward.x);
         }
 
         private float ResolveDropEdgeDistance()

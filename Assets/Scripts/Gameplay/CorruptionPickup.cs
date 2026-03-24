@@ -37,11 +37,12 @@ namespace Dagon.Gameplay
             WorldPickupVisualFactory.CreateOrb(
                 pickup.transform,
                 camera,
-                new Color(0.10f, 0.06f, 0.14f, 1f),
-                new Color(0.34f, 0.18f, 0.46f, 1f),
-                new Color(0.66f, 0.48f, 0.86f, 0.95f),
-                new Vector3(0.42f, 0.42f, 1f),
-                Vector3.zero);
+                new Color(0.04f, 0.03f, 0.08f, 1f),
+                new Color(0.28f, 0.14f, 0.42f, 1f),
+                new Color(0.74f, 0.56f, 0.92f, 0.98f),
+                new Vector3(0.68f, 0.68f, 1f),
+                Vector3.zero,
+                sortingOrder: 16);
 
             return component;
         }
