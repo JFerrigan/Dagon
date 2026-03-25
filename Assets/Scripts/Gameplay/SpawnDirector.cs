@@ -79,6 +79,9 @@ namespace Dagon.Gameplay
         private const float ThreatTierMermaidUnlockReduction = 12f;
         private const float ThreatTierWatcherUnlockReduction = 8f;
         private const float ThreatTierParasiteUnlockReduction = 10f;
+        private const float ProgressionThreatTimeWindowSeconds = 120f;
+        private const int ProgressionThreatMaxTimeBonus = 3;
+        private const int ProgressionThreatMaxTier = 6;
         private const float WaveBaseInterval = 60f;
         private const float WaveIntervalJitter = 10f;
         private const float WaveSpawnRadiusMultiplier = 1.45f;
@@ -603,10 +606,9 @@ namespace Dagon.Gameplay
 
         public void ConfigureDistanceThreat(RuntimeBiomeProfile profile, int threatTier)
         {
-            distanceThreatTier = Mathf.Max(0, threatTier);
-            distanceThreatIntervalReduction = profile != null ? Mathf.Max(0f, profile.SpawnIntervalReductionBonus) : 0f;
-            distanceThreatAliveCapBonus = profile != null ? Mathf.Max(0, profile.AdditionalAliveCap) : 0;
-            spawnTimer = Mathf.Min(spawnTimer, GetCurrentMinSpawnInterval());
+            distanceThreatTier = 0;
+            distanceThreatIntervalReduction = 0f;
+            distanceThreatAliveCapBonus = 0;
         }
 
         private bool TryInitializeRuntime(string contextLabel, bool emitWarnings = false)
@@ -798,7 +800,7 @@ namespace Dagon.Gameplay
                     {
                         watcherEye.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
                     }
-                    rewards.Configure(1, 2f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
+                    rewards.Configure(1, 0f, SpecialistHealthPickupDropChance, HealthPickupHealAmount);
                     break;
                 }
                 case EnemyKind.Parasite:
@@ -1053,6 +1055,8 @@ namespace Dagon.Gameplay
             {
                 visuals.AddComponent<CorruptedVariantVisual>().Apply(renderer, baseColor);
             }
+
+            CombatVolumeAlignment.TryAlignCapsuleToSpriteCenter(enemyRoot, enemyRoot.GetComponent<CapsuleCollider>());
         }
 
         private bool TrySpawnDeepSpawn(Vector3 position, bool isCorrupted)
@@ -1278,11 +1282,7 @@ namespace Dagon.Gameplay
 
         private static void ApplyVerticalHurtboxLeniency(CapsuleCollider collider)
         {
-            var originalHeight = Mathf.Max(collider.radius * 2f, collider.height);
-            var expandedHeight = Mathf.Max(originalHeight, originalHeight * EnemyHurtboxHeightLeniencyMultiplier);
-            var extraHeight = expandedHeight - originalHeight;
-            collider.height = expandedHeight;
-            collider.center += new Vector3(0f, extraHeight * 0.5f, 0f);
+            CombatVolumeAlignment.ApplySymmetricCapsuleLeniency(collider, EnemyHurtboxHeightLeniencyMultiplier);
         }
 
         private static void ConfigureBodyBlocker(GameObject enemyRoot, EnemyKind enemyKind, CapsuleCollider collider, bool isSmallSlimeVariant = false)
@@ -1369,6 +1369,7 @@ namespace Dagon.Gameplay
             eliteCooldownRemaining = Mathf.Max(0f, eliteCooldownRemaining - deltaTime);
 
             var elapsed = GetElapsedRunTime();
+            UpdateDynamicThreatProgression(elapsed);
             if (elapsed >= GetCurrentSpecialistUnlockTime())
             {
                 specialistBudget = Mathf.Min(
@@ -1382,6 +1383,15 @@ namespace Dagon.Gameplay
                     EliteBudgetCap,
                     eliteBudget + (EliteBudgetGainPerSecond * deltaTime));
             }
+        }
+
+        private void UpdateDynamicThreatProgression(float elapsed)
+        {
+            var bossBonus = runStateManager != null ? Mathf.Max(0, runStateManager.BossesDefeatedCount) : 0;
+            var timeBonus = Mathf.Clamp(Mathf.FloorToInt(Mathf.Max(0f, elapsed) / ProgressionThreatTimeWindowSeconds), 0, ProgressionThreatMaxTimeBonus);
+            distanceThreatTier = Mathf.Clamp(timeBonus + bossBonus, 0, ProgressionThreatMaxTier);
+            distanceThreatIntervalReduction = 0f;
+            distanceThreatAliveCapBonus = 0;
         }
 
         private void TickWave(float deltaTime)

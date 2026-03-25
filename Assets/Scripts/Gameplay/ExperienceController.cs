@@ -146,7 +146,7 @@ namespace Dagon.Gameplay
                     }
                     break;
                 case CombatRewardKind.CorruptionPulse:
-                    corruptionMeter?.AddCorruption(25f);
+                    corruptionMeter?.AddRawCorruption(25f);
                     break;
             }
         }

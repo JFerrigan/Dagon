@@ -130,6 +130,28 @@ namespace Dagon.Gameplay
 
         protected abstract void ApplyPathUpgrade(WeaponUpgradePath path, int nextStep);
 
+        protected Vector3 GetProjectileLaunchOrigin(float verticalOffset = 0f)
+        {
+            var capsule = GetComponent<CapsuleCollider>();
+            if (capsule != null)
+            {
+                return transform.TransformPoint(capsule.center + new Vector3(0f, verticalOffset, 0f));
+            }
+
+            return transform.position + Vector3.up * verticalOffset;
+        }
+
+        protected Vector3 GetProjectileLaunchOrigin(Vector3 forwardDirection, float forwardOffset, float verticalOffset = 0f)
+        {
+            var origin = GetProjectileLaunchOrigin(verticalOffset);
+            if (forwardDirection.sqrMagnitude <= 0.001f || Mathf.Abs(forwardOffset) <= Mathf.Epsilon)
+            {
+                return origin;
+            }
+
+            return origin + (forwardDirection.normalized * forwardOffset);
+        }
+
         protected static string FlatDamageDelta(float damageDelta)
         {
             return $"+{Mathf.RoundToInt(damageDelta * 10f)} DMG";

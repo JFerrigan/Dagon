@@ -88,6 +88,7 @@ namespace Dagon.Bootstrap
             renderer.sortingOrder = 10;
             visuals.transform.localScale = Vector3.one * Mathf.Max(0.05f, selectedCharacter.RuntimeScale);
             visuals.AddComponent<BillboardSprite>();
+            CombatVolumeAlignment.TryAlignCapsuleToSpriteCenter(player.transform, collider);
 
             var damageFeedback = player.AddComponent<PlayerDamageFeedback>();
             damageFeedback.Configure(
@@ -95,7 +96,35 @@ namespace Dagon.Bootstrap
                 player.GetComponent<Health>(),
                 player.GetComponent<TemporaryDamageImmunity>());
 
+            ApplyCharacterTraits(player, selectedCharacter);
+
             return player;
+        }
+
+        private static void ApplyCharacterTraits(GameObject player, CharacterProfileDefinition selectedCharacter)
+        {
+            if (player == null || selectedCharacter == null)
+            {
+                return;
+            }
+
+            var health = player.GetComponent<Health>();
+            if (health != null && !Mathf.Approximately(selectedCharacter.MaxHealthMultiplier, 1f))
+            {
+                health.SetMaxHealth(health.MaxHealth * selectedCharacter.MaxHealthMultiplier, true);
+            }
+
+            var mover = player.GetComponent<PlayerMover>();
+            if (mover != null)
+            {
+                mover.SetExternalMoveSpeedMultiplier(selectedCharacter.MoveSpeedMultiplier);
+            }
+
+            var meter = player.GetComponent<CorruptionMeter>();
+            if (meter != null)
+            {
+                meter.SetCharacterCorruptionGainMultiplier(selectedCharacter.CorruptionGainMultiplier);
+            }
         }
 
         private static void ConfigurePlayerCombat(GameObject player, Camera camera, CharacterProfileDefinition selectedCharacter)

@@ -11,6 +11,8 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class RunStateManager : MonoBehaviour
     {
+        private const float AdditionalBossDelaySeconds = 60f;
+
         public readonly struct BossVisualSpec
         {
             public BossVisualSpec(string resourcePath, float pixelsPerUnit, Vector3 scale, Vector3 localPosition)
@@ -309,7 +311,7 @@ namespace Dagon.Gameplay
         public void ConfigureBossTransition(bool useTimedTransition, float timedTransitionDelaySeconds, bool showSpawnProgress)
         {
             useTimedBossTransition = useTimedTransition;
-            bossTransitionDelaySeconds = Mathf.Max(1f, timedTransitionDelaySeconds);
+            bossTransitionDelaySeconds = Mathf.Max(1f, timedTransitionDelaySeconds + AdditionalBossDelaySeconds);
             showSpawnProgressUi = showSpawnProgress;
             bossTransitionArmed = false;
         }
@@ -399,7 +401,7 @@ namespace Dagon.Gameplay
             currentBiomeDisplayName = string.IsNullOrWhiteSpace(profile.DisplayName) ? currentBiomeDisplayName : profile.DisplayName;
             biomeBossTint = profile.BossTint;
             biomeBossSpritePath = string.IsNullOrWhiteSpace(profile.BossSpritePath) ? biomeBossSpritePath : profile.BossSpritePath;
-            bossTransitionDelaySeconds = Mathf.Max(1f, profile.BossTransitionDelaySeconds);
+            bossTransitionDelaySeconds = Mathf.Max(1f, profile.BossTransitionDelaySeconds + AdditionalBossDelaySeconds);
         }
 
         public void ResumeAmbientRun(float nextBossDelaySeconds)
@@ -408,7 +410,7 @@ namespace Dagon.Gameplay
             bossTransitionArmed = false;
             bossWaveBannerTimer = 0f;
             biomeTimer = 0f;
-            bossTransitionDelaySeconds = Mathf.Max(1f, nextBossDelaySeconds);
+            bossTransitionDelaySeconds = Mathf.Max(1f, nextBossDelaySeconds + AdditionalBossDelaySeconds);
         }
 
         private void HandleBattlefieldCleared()
@@ -574,6 +576,7 @@ namespace Dagon.Gameplay
 
             var billboard = visuals.AddComponent<Dagon.Rendering.BillboardSprite>();
             billboard.Configure(worldCamera, Dagon.Rendering.BillboardSprite.BillboardMode.YAxisOnly);
+            CombatVolumeAlignment.TryAlignCapsuleToSpriteCenter(boss.transform, collider);
         }
 
         private bool ShouldSpawnCorruptedBoss()
@@ -650,10 +653,10 @@ namespace Dagon.Gameplay
                     "Monolith of the Mire",
                     "Sprites/Bosses/monolith",
                     new Color(0.88f, 0.96f, 0.88f, 1f),
-                    150f * healthMultiplier,
+                    100f * healthMultiplier,
                     new Vector3(0f, 6.2f, 0f),
-                    12.4f,
-                    3.9f,
+                    10f,
+                    3f,
                     new Vector3(0f, 7.6f, 0f),
                     new Vector3(7.75f, 7.75f, 1f),
                     new Vector3(0f, -3.2f, 0f),

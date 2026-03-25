@@ -295,6 +295,10 @@ namespace Dagon.Bootstrap
                     "Sprites/Characters/sailor_idle_front",
                     new Color(0.72f, 0.86f, 0.78f, 1f),
                     1f,
+                    1f,
+                    1f,
+                    1.5f,
+                    "Trait: 1.5x Corruption",
                     harpoonWeapon,
                     brineSurgeAbility),
                 CharacterProfileDefinition.CreateRuntime(
@@ -305,6 +309,10 @@ namespace Dagon.Bootstrap
                     "Sprites/Characters/deckhand",
                     new Color(0.79f, 0.87f, 0.73f, 1f),
                     0.105f,
+                    1f,
+                    1.25f,
+                    1f,
+                    "Trait: 1.25x Move Speed",
                     anchorChainWeapon,
                     dashAbility),
                 CharacterProfileDefinition.CreateRuntime(
@@ -315,6 +323,10 @@ namespace Dagon.Bootstrap
                     "Sprites/Characters/captain",
                     new Color(0.92f, 0.83f, 0.67f, 1f),
                     0.11f,
+                    1.5f,
+                    1f,
+                    1f,
+                    "Trait: 1.5x Max Health",
                     rotLanternWeapon,
                     frenzyAbility)
             };

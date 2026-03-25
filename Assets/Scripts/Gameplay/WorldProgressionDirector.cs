@@ -8,6 +8,33 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class WorldProgressionDirector : MonoBehaviour
     {
+        public readonly struct BiomeSample
+        {
+            public BiomeSample(
+                RuntimeBiomeProfile primaryProfile,
+                int primaryIndex,
+                RuntimeBiomeProfile secondaryProfile,
+                int secondaryIndex,
+                float secondaryBlend)
+            {
+                PrimaryProfile = primaryProfile;
+                PrimaryIndex = primaryIndex;
+                SecondaryProfile = secondaryProfile;
+                SecondaryIndex = secondaryIndex;
+                SecondaryBlend = Mathf.Clamp01(secondaryBlend);
+            }
+
+            public RuntimeBiomeProfile PrimaryProfile { get; }
+            public int PrimaryIndex { get; }
+            public RuntimeBiomeProfile SecondaryProfile { get; }
+            public int SecondaryIndex { get; }
+            public float SecondaryBlend { get; }
+            public bool HasSecondaryProfile =>
+                SecondaryProfile != null &&
+                SecondaryIndex != PrimaryIndex &&
+                SecondaryBlend > 0.001f;
+        }
+
         private const float CorruptionOriginMinDistance = 180f;
         private const float CorruptionOriginMaxDistance = 300f;
         private const float StartingSafeRadius = 500f;
@@ -17,8 +44,9 @@ namespace Dagon.Gameplay
         [SerializeField] private SpawnDirector spawnDirector;
         [SerializeField] private MireGroundTiler groundTiler;
         [SerializeField] private MirePropScatterer propScatterer;
-        [SerializeField] private float sanctuaryRadius = 24f;
-        [SerializeField] private float ringWidth = 48f;
+        [SerializeField] private float biomeRegionCellSize = 112f;
+        [SerializeField, Range(0f, 0.48f)] private float biomeRegionJitter = 0.38f;
+        [SerializeField] private float biomeBlendDistance = 32f;
         [SerializeField] private float corruptionMoveSlowAmount = 0.4f;
         [SerializeField] private float corruptionAttackRatePenalty = 0.55f;
         [SerializeField] private float corruptionGainPerSecond = 1.2f;
@@ -30,6 +58,8 @@ namespace Dagon.Gameplay
         private CorruptionMeter corruptionMeter;
         private Vector3 worldOrigin;
         private Vector3 corruptionOrigin;
+        private Vector2 biomeFieldSeedOffset;
+        private int biomeFieldSeedSalt;
         private float currentCorruptionRadius;
         private int currentBiomeIndex = -1;
         private bool corruptionPenaltyActive;
@@ -67,6 +97,7 @@ namespace Dagon.Gameplay
             corruptionMeter = player != null ? player.GetComponent<CorruptionMeter>() : null;
             worldOrigin = player != null ? Flatten(player.position) : Vector3.zero;
             corruptionOrigin = ResolveCorruptionOrigin(worldOrigin);
+            InitializeBiomeFieldSeed();
             currentBiomeIndex = -1;
             currentCorruptionRadius = StartingSafeRadius;
 
@@ -102,6 +133,11 @@ namespace Dagon.Gameplay
             if (corruptionOrigin == Vector3.zero && player != null)
             {
                 corruptionOrigin = ResolveCorruptionOrigin(worldOrigin);
+            }
+
+            if (biomeFieldSeedSalt == 0)
+            {
+                InitializeBiomeFieldSeed();
             }
 
             groundTiler?.ConfigureProgression(this);
@@ -142,13 +178,7 @@ namespace Dagon.Gameplay
 
         public RuntimeBiomeProfile ResolveBiomeAtPosition(Vector3 worldPosition)
         {
-            if (biomeSequence == null || biomeSequence.Length == 0)
-            {
-                return null;
-            }
-
-            var index = ResolveBiomeIndexAtPosition(worldPosition);
-            return biomeSequence[Mathf.Clamp(index, 0, biomeSequence.Length - 1)];
+            return SampleBiomeAtPosition(worldPosition).PrimaryProfile;
         }
 
         public int ResolveBiomeIndexAtPosition(Vector3 worldPosition)
@@ -158,19 +188,67 @@ namespace Dagon.Gameplay
                 return 0;
             }
 
-            var planarDistance = Vector3.Distance(Flatten(worldPosition), worldOrigin);
-            if (planarDistance <= sanctuaryRadius)
+            return Mathf.Clamp(SampleBiomeAtPosition(worldPosition).PrimaryIndex, 0, biomeSequence.Length - 1);
+        }
+
+        public BiomeSample SampleBiomeAtPosition(Vector3 worldPosition)
+        {
+            if (biomeSequence == null || biomeSequence.Length == 0)
             {
-                return 0;
+                return new BiomeSample(null, 0, null, 0, 0f);
             }
 
-            if (ringWidth <= 0.01f)
+            var planar = Flatten(worldPosition);
+            var seededPosition = new Vector2(planar.x + biomeFieldSeedOffset.x, planar.z + biomeFieldSeedOffset.y);
+            var cellSize = Mathf.Max(8f, biomeRegionCellSize);
+            var sourceCell = new Vector2Int(
+                Mathf.FloorToInt(seededPosition.x / cellSize),
+                Mathf.FloorToInt(seededPosition.y / cellSize));
+
+            var primaryIndex = 0;
+            var secondaryIndex = 0;
+            var primaryDistanceSquared = float.MaxValue;
+            var secondaryDistanceSquared = float.MaxValue;
+
+            for (var z = -2; z <= 2; z++)
             {
-                return biomeSequence.Length - 1;
+                for (var x = -2; x <= 2; x++)
+                {
+                    var cell = new Vector2Int(sourceCell.x + x, sourceCell.y + z);
+                    var sitePosition = ResolveBiomeSitePosition(cell, cellSize);
+                    var distanceSquared = (sitePosition - seededPosition).sqrMagnitude;
+                    var biomeIndex = ResolveBiomeIndexForCell(cell);
+
+                    if (distanceSquared < primaryDistanceSquared)
+                    {
+                        secondaryDistanceSquared = primaryDistanceSquared;
+                        secondaryIndex = primaryIndex;
+                        primaryDistanceSquared = distanceSquared;
+                        primaryIndex = biomeIndex;
+                        continue;
+                    }
+
+                    if (distanceSquared < secondaryDistanceSquared)
+                    {
+                        secondaryDistanceSquared = distanceSquared;
+                        secondaryIndex = biomeIndex;
+                    }
+                }
             }
 
-            var bandIndex = 1 + Mathf.FloorToInt((planarDistance - sanctuaryRadius) / ringWidth);
-            return Mathf.Clamp(bandIndex, 0, biomeSequence.Length - 1);
+            var primaryProfile = biomeSequence[Mathf.Clamp(primaryIndex, 0, biomeSequence.Length - 1)];
+            var secondaryProfile =
+                secondaryDistanceSquared < float.MaxValue && secondaryIndex != primaryIndex
+                    ? biomeSequence[Mathf.Clamp(secondaryIndex, 0, biomeSequence.Length - 1)]
+                    : null;
+            var secondaryBlend = 0f;
+            if (secondaryProfile != null)
+            {
+                var borderDelta = Mathf.Sqrt(secondaryDistanceSquared) - Mathf.Sqrt(primaryDistanceSquared);
+                secondaryBlend = 1f - Mathf.Clamp01(borderDelta / Mathf.Max(0.01f, biomeBlendDistance));
+            }
+
+            return new BiomeSample(primaryProfile, primaryIndex, secondaryProfile, secondaryIndex, secondaryBlend);
         }
 
         public bool IsPositionCorrupted(Vector3 worldPosition)
@@ -193,7 +271,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var nextBiomeIndex = ResolveBiomeIndexAtPosition(player.position);
+            var biomeSample = SampleBiomeAtPosition(player.position);
+            var nextBiomeIndex = biomeSample.PrimaryIndex;
             if (!force && nextBiomeIndex == currentBiomeIndex)
             {
                 return;
@@ -202,13 +281,12 @@ namespace Dagon.Gameplay
             currentBiomeIndex = nextBiomeIndex;
             var profile = biomeSequence[currentBiomeIndex];
             spawnDirector?.ConfigureBiome(profile);
-            spawnDirector?.ConfigureDistanceThreat(profile, currentBiomeIndex);
             runStateManager?.ConfigureBiome(profile);
             groundTiler?.RefreshProgressionPresentation();
             propScatterer?.RefreshProgressionPresentation();
 
             Debug.Log(
-                $"WorldProgressionDirector set active ring '{profile.DisplayName}' (index {currentBiomeIndex}) at distance {Vector3.Distance(Flatten(player.position), worldOrigin):0.0}.",
+                $"WorldProgressionDirector set active biome patch '{profile.DisplayName}' (index {currentBiomeIndex}) near {Flatten(player.position)}.",
                 this);
         }
 
@@ -306,6 +384,43 @@ namespace Dagon.Gameplay
         private static Vector3 Flatten(Vector3 position)
         {
             return new Vector3(position.x, 0f, position.z);
+        }
+
+        private void InitializeBiomeFieldSeed()
+        {
+            biomeFieldSeedOffset = new Vector2(Random.Range(-10000f, 10000f), Random.Range(-10000f, 10000f));
+            biomeFieldSeedSalt = Random.Range(int.MinValue / 2, int.MaxValue / 2);
+            if (biomeFieldSeedSalt == 0)
+            {
+                biomeFieldSeedSalt = 1;
+            }
+        }
+
+        private int ResolveBiomeIndexForCell(Vector2Int cell)
+        {
+            return Mathf.Clamp(
+                Mathf.FloorToInt(Hash01(cell.x, cell.y, biomeFieldSeedSalt) * biomeSequence.Length),
+                0,
+                biomeSequence.Length - 1);
+        }
+
+        private Vector2 ResolveBiomeSitePosition(Vector2Int cell, float cellSize)
+        {
+            var jitterRange = Mathf.Clamp01(biomeRegionJitter) * cellSize;
+            var offsetX = Mathf.Lerp(-jitterRange, jitterRange, Hash01(cell.x, cell.y, biomeFieldSeedSalt + 17));
+            var offsetY = Mathf.Lerp(-jitterRange, jitterRange, Hash01(cell.x, cell.y, biomeFieldSeedSalt + 53));
+            return new Vector2((cell.x * cellSize) + offsetX, (cell.y * cellSize) + offsetY);
+        }
+
+        private static float Hash01(int x, int y, int salt)
+        {
+            unchecked
+            {
+                var hash = (uint)(x * 374761393) ^ (uint)(y * 668265263) ^ (uint)(salt * 1442695041);
+                hash = (hash ^ (hash >> 13)) * 1274126177u;
+                hash ^= hash >> 16;
+                return (hash & 0x00FFFFFFu) / 16777215f;
+            }
         }
 
         private static Vector3 ResolveCorruptionOrigin(Vector3 playerOrigin)

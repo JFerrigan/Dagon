@@ -12,6 +12,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Camera worldCamera;
         [SerializeField] private Transform movementReference;
         [SerializeField] private float moveSpeed = 6f;
+        [SerializeField] private float externalMoveSpeedMultiplier = 1f;
         [SerializeField] private PlayerSlowReceiver slowReceiver;
         [SerializeField] private BodyBlocker bodyBlocker;
 
@@ -64,7 +65,7 @@ namespace Dagon.Gameplay
             if (MoveDirection.sqrMagnitude > 0f)
             {
                 var speedMultiplier = slowReceiver != null ? slowReceiver.SpeedMultiplier : 1f;
-                var desiredDelta = MoveDirection * (moveSpeed * speedMultiplier * Time.deltaTime);
+                var desiredDelta = MoveDirection * (moveSpeed * externalMoveSpeedMultiplier * speedMultiplier * Time.deltaTime);
                 transform.position += bodyBlocker != null
                     ? BodyBlockerResolver.ResolvePlanarMovement(bodyBlocker, desiredDelta)
                     : desiredDelta;
@@ -175,6 +176,11 @@ namespace Dagon.Gameplay
             worldCamera = cameraReference;
             movementReference = movementFrame;
             bodyBlocker ??= GetComponent<BodyBlocker>();
+        }
+
+        public void SetExternalMoveSpeedMultiplier(float multiplier)
+        {
+            externalMoveSpeedMultiplier = Mathf.Max(0f, multiplier);
         }
 
         public bool StartDash(Vector3 direction, float distance, float duration)

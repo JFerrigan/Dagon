@@ -111,7 +111,7 @@ namespace Dagon.Gameplay
             baseDirection = baseDirection.normalized;
             var origin = spawnPoint != null
                 ? spawnPoint.position
-                : transform.position + (baseDirection * 0.6f) + (Vector3.up * 0.35f);
+                : GetProjectileLaunchOrigin(baseDirection, 0.6f);
 
             var count = Mathf.Max(1, projectilesPerVolley);
             var startAngle = -spreadAngle * 0.5f * (count - 1);

@@ -16,6 +16,12 @@ namespace Dagon.Data
         [SerializeField] private Color accentColor = Color.white;
         [SerializeField] private float runtimeScale = 1f;
 
+        [Header("Traits")]
+        [SerializeField] private float maxHealthMultiplier = 1f;
+        [SerializeField] private float moveSpeedMultiplier = 1f;
+        [SerializeField] private float corruptionGainMultiplier = 1f;
+        [SerializeField] private string traitSummary = string.Empty;
+
         [Header("Starting Kit")]
         [SerializeField] private WeaponDefinition startingBaseWeapon;
         [SerializeField] private ActiveAbilityDefinition startingActive;
@@ -27,6 +33,10 @@ namespace Dagon.Data
         public string RuntimeSpritePath => runtimeSpritePath;
         public Color AccentColor => accentColor;
         public float RuntimeScale => runtimeScale;
+        public float MaxHealthMultiplier => maxHealthMultiplier;
+        public float MoveSpeedMultiplier => moveSpeedMultiplier;
+        public float CorruptionGainMultiplier => corruptionGainMultiplier;
+        public string TraitSummary => traitSummary;
         public WeaponDefinition StartingBaseWeapon => startingBaseWeapon;
         public ActiveAbilityDefinition StartingActive => startingActive;
 
@@ -38,6 +48,10 @@ namespace Dagon.Data
             string runtimePath,
             Color accent,
             float scale,
+            float healthMultiplier,
+            float speedMultiplier,
+            float corruptionMultiplier,
+            string traits,
             WeaponDefinition baseWeapon,
             ActiveAbilityDefinition active)
         {
@@ -49,6 +63,10 @@ namespace Dagon.Data
             profile.runtimeSpritePath = runtimePath;
             profile.accentColor = accent;
             profile.runtimeScale = Mathf.Max(0.05f, scale);
+            profile.maxHealthMultiplier = Mathf.Max(0.1f, healthMultiplier);
+            profile.moveSpeedMultiplier = Mathf.Max(0.1f, speedMultiplier);
+            profile.corruptionGainMultiplier = Mathf.Max(0f, corruptionMultiplier);
+            profile.traitSummary = traits ?? string.Empty;
             profile.startingBaseWeapon = baseWeapon;
             profile.startingActive = active;
             return profile;

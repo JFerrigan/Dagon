@@ -313,7 +313,7 @@ namespace Dagon.Gameplay
             glowRenderer.color = AvailableGlowTint;
 
             var billboard = visuals.AddComponent<Dagon.Rendering.BillboardSprite>();
-            billboard.Configure(worldCamera != null ? worldCamera : Camera.main, Dagon.Rendering.BillboardMode.YAxisOnly);
+            billboard.Configure(worldCamera != null ? worldCamera : Camera.main, Dagon.Rendering.BillboardSprite.BillboardMode.YAxisOnly);
         }
     }
 }

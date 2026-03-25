@@ -128,6 +128,7 @@ namespace Dagon.Gameplay
             spriteRenderer.sprite = RuntimeSpriteLibrary.LoadSprite(spriteResourcePath, spritePixelsPerUnit);
             spriteRenderer.sortingOrder = sortingOrder;
             spriteRenderer.color = Color.white;
+            CombatVolumeAlignment.TryAlignCapsuleToSpriteCenter(transform, capsuleCollider);
 
             billboard = GetOrAddComponent(billboard, visualsRoot.gameObject);
         }
@@ -150,11 +151,7 @@ namespace Dagon.Gameplay
 
         private static void ApplyVerticalHurtboxLeniency(CapsuleCollider collider)
         {
-            var originalHeight = Mathf.Max(collider.radius * 2f, collider.height);
-            var expandedHeight = Mathf.Max(originalHeight, originalHeight * HurtboxHeightLeniencyMultiplier);
-            var extraHeight = expandedHeight - originalHeight;
-            collider.height = expandedHeight;
-            collider.center += new Vector3(0f, extraHeight * 0.5f, 0f);
+            CombatVolumeAlignment.ApplySymmetricCapsuleLeniency(collider, HurtboxHeightLeniencyMultiplier);
         }
     }
 }

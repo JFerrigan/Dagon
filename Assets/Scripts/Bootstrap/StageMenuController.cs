@@ -84,7 +84,7 @@ namespace Dagon.Bootstrap
         private Texture2D menuLogo;
         private Texture2D whiteTexture;
         private CharacterProfileDefinition[] characterProfiles;
-        private Texture2D[] characterPortraits;
+        private Sprite[] characterPortraits;
 
         private GUIStyle titleStyle;
         private GUIStyle panelStyle;
@@ -443,7 +443,7 @@ namespace Dagon.Bootstrap
             GUI.Label(footerRect, "Enter: Confirm    Esc: Back", settingsValueStyle);
         }
 
-        private void DrawCharacterCard(Rect rect, CharacterProfileDefinition profile, Texture2D portrait, bool highlighted)
+        private void DrawCharacterCard(Rect rect, CharacterProfileDefinition profile, Sprite portrait, bool highlighted)
         {
             var accent = profile != null ? profile.AccentColor : Color.white;
             GUI.color = highlighted
@@ -458,16 +458,43 @@ namespace Dagon.Bootstrap
             GUI.DrawTexture(new Rect(rect.x, rect.yMax - 2f, rect.width, 2f), whiteTexture, ScaleMode.StretchToFill, false);
             GUI.color = Color.white;
 
-            var portraitRect = new Rect(rect.x + 18f, rect.y + 18f, rect.width - 36f, rect.height * 0.48f);
-            if (portrait != null)
-            {
-                GUI.DrawTexture(GetNativeImageRect(portraitRect, portrait), portrait, ScaleMode.ScaleToFit, true);
-            }
+            var portraitRect = new Rect(rect.x + 18f, rect.y + 18f, rect.width - 36f, rect.height * 0.42f);
+            DrawCharacterPortrait(portraitRect, portrait, accent, highlighted);
 
             GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 8f, rect.width - 32f, 26f), profile.DisplayName, characterNameStyle);
-            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 36f, rect.width - 32f, 18f), profile.StartingBaseWeapon.DisplayName, settingsValueStyle);
-            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 58f, rect.width - 32f, 18f), profile.StartingActive.DisplayName, settingsValueStyle);
-            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 86f, rect.width - 32f, rect.height - (portraitRect.height + 120f)), profile.Description, characterBodyStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 32f, rect.width - 32f, 18f), profile.StartingBaseWeapon.DisplayName, settingsValueStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 52f, rect.width - 32f, 18f), profile.StartingActive.DisplayName, settingsValueStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 72f, rect.width - 32f, 18f), profile.TraitSummary, settingsValueStyle);
+            GUI.Label(new Rect(rect.x + 16f, portraitRect.yMax + 96f, rect.width - 32f, rect.height - (portraitRect.height + 126f)), profile.Description, characterBodyStyle);
+        }
+
+        private void DrawCharacterPortrait(Rect portraitRect, Sprite portrait, Color accent, bool highlighted)
+        {
+            GUI.color = new Color(0.02f, 0.02f, 0.03f, 0.98f);
+            GUI.DrawTexture(portraitRect, whiteTexture, ScaleMode.StretchToFill, false);
+
+            var borderColor = highlighted
+                ? new Color(accent.r, accent.g, accent.b, 0.95f)
+                : new Color(0.24f, 0.32f, 0.30f, 0.95f);
+            GUI.color = borderColor;
+            GUI.DrawTexture(new Rect(portraitRect.x, portraitRect.y, portraitRect.width, 2f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.DrawTexture(new Rect(portraitRect.x, portraitRect.yMax - 2f, portraitRect.width, 2f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.DrawTexture(new Rect(portraitRect.x, portraitRect.y, 2f, portraitRect.height), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.DrawTexture(new Rect(portraitRect.xMax - 2f, portraitRect.y, 2f, portraitRect.height), whiteTexture, ScaleMode.StretchToFill, false);
+
+            var innerRect = new Rect(portraitRect.x + 8f, portraitRect.y + 8f, portraitRect.width - 16f, portraitRect.height - 16f);
+            GUI.color = Color.white;
+            GUI.BeginGroup(innerRect);
+            if (portrait == null || portrait.texture == null || portrait.rect.width <= 0f || portrait.rect.height <= 0f)
+            {
+                GUI.Label(new Rect(0f, 0f, innerRect.width, innerRect.height), "PORTRAIT", centeredBodyStyle);
+                GUI.EndGroup();
+                return;
+            }
+
+            var drawRect = GetTopHalfPortraitRect(new Rect(0f, 0f, innerRect.width, innerRect.height), portrait);
+            GUI.DrawTextureWithTexCoords(drawRect, portrait.texture, GetSpriteTexCoords(portrait), true);
+            GUI.EndGroup();
         }
 
         private void DrawMasterVolumeRow(Rect rect, AlterationsSelection selection)
@@ -1177,6 +1204,36 @@ namespace Dagon.Bootstrap
             return new Rect(frameRect.x, y, frameRect.width, clampedHeight);
         }
 
+        private static Rect GetTopHalfPortraitRect(Rect frameRect, Sprite sprite)
+        {
+            if (sprite == null || sprite.rect.width <= 0 || sprite.rect.height <= 0)
+            {
+                return frameRect;
+            }
+
+            var spriteAspect = sprite.rect.width / sprite.rect.height;
+            var targetHeight = frameRect.height * 2f;
+            var targetWidth = targetHeight * spriteAspect;
+            var x = frameRect.x + ((frameRect.width - targetWidth) * 0.5f);
+            return new Rect(x, 0f, targetWidth, targetHeight);
+        }
+
+        private static Rect GetSpriteTexCoords(Sprite sprite)
+        {
+            if (sprite == null || sprite.texture == null)
+            {
+                return new Rect(0f, 0f, 1f, 1f);
+            }
+
+            var texture = sprite.texture;
+            var rect = sprite.textureRect;
+            var x = rect.x / texture.width;
+            var y = rect.y / texture.height;
+            var width = rect.width / texture.width;
+            var height = rect.height / texture.height;
+            return new Rect(x, y, width, height);
+        }
+
         private void MoveCharacterSelection(int direction)
         {
             if (characterProfiles == null || characterProfiles.Length == 0)
@@ -1227,14 +1284,14 @@ namespace Dagon.Bootstrap
             return 0;
         }
 
-        private static Texture2D[] LoadCharacterPortraits(CharacterProfileDefinition[] profiles)
+        private static Sprite[] LoadCharacterPortraits(CharacterProfileDefinition[] profiles)
         {
             if (profiles == null || profiles.Length == 0)
             {
-                return System.Array.Empty<Texture2D>();
+                return System.Array.Empty<Sprite>();
             }
 
-            var textures = new Texture2D[profiles.Length];
+            var textures = new Sprite[profiles.Length];
             for (var i = 0; i < profiles.Length; i++)
             {
                 if (profiles[i] == null || string.IsNullOrWhiteSpace(profiles[i].PortraitSpritePath))
@@ -1244,7 +1301,7 @@ namespace Dagon.Bootstrap
                 }
 
                 var sprite = Resources.Load<Sprite>(profiles[i].PortraitSpritePath);
-                textures[i] = sprite != null ? sprite.texture : null;
+                textures[i] = sprite;
             }
 
             return textures;

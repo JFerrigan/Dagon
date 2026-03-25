@@ -5,6 +5,9 @@ namespace Dagon.Gameplay
 {
     public sealed class TideburstWeapon : PlayerWeaponRuntime
     {
+        private static readonly Color TideburstProjectileTint = new(0.32f, 0.68f, 0.98f, 1f);
+        private static readonly Color TideburstOverlayTint = new(0.70f, 0.90f, 1f, 0.42f);
+
         [SerializeField] private HarpoonProjectile projectilePrefab;
         [SerializeField] private float attacksPerSecond = 0.7f;
         [SerializeField] private float projectileSpeed = 5f;
@@ -41,7 +44,7 @@ namespace Dagon.Gameplay
 
         public override void ConfigureRuntime(Camera worldCameraReference)
         {
-            projectilePrefab = RuntimeOrbProjectileFactory.Create(worldCameraReference);
+            projectilePrefab = CreateTideburstProjectile(worldCameraReference);
         }
 
         public override void ModifyAttackRate(float amount)
@@ -155,7 +158,7 @@ namespace Dagon.Gameplay
 
         private void FireBurst()
         {
-            var origin = transform.position + (Vector3.up * spawnHeight);
+            var origin = GetProjectileLaunchOrigin(spawnHeight);
             var count = Mathf.Max(4, projectileCount);
             var angleStep = 360f / count;
 
@@ -167,6 +170,44 @@ namespace Dagon.Gameplay
                 projectile.gameObject.SetActive(true);
                 projectile.Initialize(gameObject, direction, projectileSpeed, projectileDamage, hitKnockbackEnabled, hitKnockbackStrength);
             }
+        }
+
+        private static HarpoonProjectile CreateTideburstProjectile(Camera worldCameraReference)
+        {
+            var projectile = RuntimeOrbProjectileFactory.Create(
+                worldCameraReference,
+                "Sprites/Enemies/mire_wretch",
+                TideburstProjectileTint,
+                new Vector3(0.88f, 0.88f, 1f),
+                256f);
+            if (projectile == null)
+            {
+                return null;
+            }
+
+            var visuals = projectile.transform.Find("Visuals");
+            if (visuals == null)
+            {
+                return projectile;
+            }
+
+            var baseRenderer = visuals.GetComponent<SpriteRenderer>();
+            if (baseRenderer == null || baseRenderer.sprite == null)
+            {
+                return projectile;
+            }
+
+            var overlay = new GameObject("TideburstOverlay");
+            overlay.transform.SetParent(visuals, false);
+            overlay.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+            overlay.transform.localScale = Vector3.one * 1.12f;
+
+            var overlayRenderer = overlay.AddComponent<SpriteRenderer>();
+            overlayRenderer.sprite = baseRenderer.sprite;
+            overlayRenderer.color = TideburstOverlayTint;
+            overlayRenderer.sortingOrder = baseRenderer.sortingOrder + 1;
+
+            return projectile;
         }
     }
 }

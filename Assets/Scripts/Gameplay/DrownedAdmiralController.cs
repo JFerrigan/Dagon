@@ -327,11 +327,12 @@ namespace Dagon.Gameplay
             }
 
             var packSize = Mathf.Clamp(2 + Mathf.FloorToInt(difficultyTier * 0.25f), 2, 4);
+            var summonOrigin = transform.position;
             for (var i = 0; i < packSize; i++)
             {
                 var angle = i * (360f / packSize);
                 var offset = Quaternion.Euler(0f, angle, 0f) * Vector3.forward * 2.2f;
-                var spawnPosition = target != null ? target.position + new Vector3(offset.x, 0f, offset.z) : transform.position + offset;
+                var spawnPosition = summonOrigin + new Vector3(offset.x, 0f, offset.z);
                 CreateParasite(spawnPosition);
             }
         }

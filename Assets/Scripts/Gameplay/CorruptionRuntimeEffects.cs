@@ -237,7 +237,7 @@ namespace Dagon.Gameplay
 
         private sealed class StageAggregate
         {
-            private const float BaseCorruptionGainMultiplier = 0.6f;
+            private const float BaseCorruptionGainMultiplier = 1f;
 
             public float AttackRateBonus;
             public float HealingMultiplier = 1f;

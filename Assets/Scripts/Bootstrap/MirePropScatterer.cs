@@ -302,21 +302,21 @@ namespace Dagon.Bootstrap
             return trimmedVisuals;
         }
 
-        private RuntimeBiomeProfile ResolveBiomeProfile(Vector2Int cell)
+        private WorldProgressionDirector.BiomeSample ResolveBiomeSample(Vector2Int cell)
         {
             if (progressionDirector == null)
             {
-                return currentBiomeProfile;
+                return new WorldProgressionDirector.BiomeSample(currentBiomeProfile, 0, null, 0, 0f);
             }
 
             var worldPosition = new Vector3(cell.x * cellSize, 0f, cell.y * cellSize);
-            return progressionDirector.ResolveBiomeAtPosition(worldPosition) ?? currentBiomeProfile;
+            return progressionDirector.SampleBiomeAtPosition(worldPosition);
         }
 
         private void ApplyPropPresentation(SpawnedProp prop)
         {
-            var profile = ResolveBiomeProfile(prop.Coordinate);
-            var tint = profile != null ? profile.PropTint : new Color(1f, 1f, 1f, 0.92f);
+            var sample = ResolveBiomeSample(prop.Coordinate);
+            var tint = ResolvePropTint(sample, prop.Coordinate);
             var worldPosition = new Vector3(prop.Coordinate.x * cellSize, 0f, prop.Coordinate.y * cellSize);
             var corrupted = progressionDirector != null && progressionDirector.IsPositionCorrupted(worldPosition);
             prop.Renderer.color = corrupted ? ApplyCorruptionShadow(tint) : tint;
@@ -325,6 +325,24 @@ namespace Dagon.Bootstrap
         private static Color ApplyCorruptionShadow(Color source)
         {
             return new Color(source.r * 0.42f, source.g * 0.44f, source.b * 0.50f, source.a);
+        }
+
+        private static Color ResolvePropTint(WorldProgressionDirector.BiomeSample sample, Vector2Int coordinate)
+        {
+            var primary = sample.PrimaryProfile != null ? sample.PrimaryProfile.PropTint : new Color(1f, 1f, 1f, 0.92f);
+            var blended = primary;
+            if (sample.HasSecondaryProfile)
+            {
+                blended = Color.Lerp(primary, sample.SecondaryProfile.PropTint, sample.SecondaryBlend);
+            }
+
+            var shade = Mathf.PerlinNoise((coordinate.x * 0.11f) + 91.3f, (coordinate.y * 0.11f) + 47.2f);
+            var brightness = Mathf.Lerp(0.94f, 1.06f, shade);
+            return new Color(
+                Mathf.Clamp01(blended.r * brightness),
+                Mathf.Clamp01(blended.g * brightness),
+                Mathf.Clamp01(blended.b * brightness),
+                blended.a);
         }
     }
 }

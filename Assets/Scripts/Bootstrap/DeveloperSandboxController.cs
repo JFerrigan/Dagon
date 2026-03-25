@@ -19,6 +19,7 @@ namespace Dagon.Bootstrap
         [SerializeField] private RunStateManager runStateManager;
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private KeyCode togglePanelKey = KeyCode.F1;
+        [SerializeField] private CombatVolumeDebugOverlay combatVolumeOverlay;
 
         private readonly List<WeaponDefinition> availableWeapons = new();
         private readonly HashSet<string> selectedWeaponIds = new();
@@ -27,6 +28,7 @@ namespace Dagon.Bootstrap
         private Vector2 scrollPosition;
         private bool panelVisible = true;
         private bool playerInvincible;
+        private bool showCombatVolumes;
         private bool corruptManualSpawns;
         private int spawnBoostCount;
         private int manualSpawnCount;
@@ -63,6 +65,8 @@ namespace Dagon.Bootstrap
                 corruptionMeter = FindObjectOfType<CorruptionMeter>();
             }
 
+            EnsureCombatVolumeOverlay();
+
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
             availableCharacterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
@@ -97,6 +101,7 @@ namespace Dagon.Bootstrap
             var characterRows = Mathf.Max(1, Mathf.CeilToInt(availableCharacterProfiles.Length / 2f));
             var abilityRows = Mathf.Max(1, Mathf.CeilToInt(availableActiveDefinitions.Length / 2f));
             var contentHeight = 892f
+                + rowHeight
                 + (characterRows * rowHeight)
                 + (abilityRows * rowHeight)
                 + (availableWeapons.Count * rowHeight);
@@ -155,119 +160,124 @@ namespace Dagon.Bootstrap
                 TogglePlayerInvincibility();
             }
 
-            GUI.Label(new Rect(0f, controlsTop + 64f, contentRect.width, 36f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
-            if (GUI.Button(new Rect(0f, controlsTop + 100f, contentRect.width, 24f), $"Increase Spawn Pressure ({spawnBoostCount})"))
+            if (GUI.Button(new Rect(0f, controlsTop + 60f, contentRect.width, 24f), GetCombatVolumeToggleLabel()))
+            {
+                ToggleCombatVolumes();
+            }
+
+            GUI.Label(new Rect(0f, controlsTop + 92f, contentRect.width, 36f), $"Active: {string.Join(", ", combatLoadout.Weapons.Select(weapon => weapon.DisplayName))}");
+            if (GUI.Button(new Rect(0f, controlsTop + 128f, contentRect.width, 24f), $"Increase Spawn Pressure ({spawnBoostCount})"))
             {
                 IncreaseSpawnPressure();
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 130f, contentRect.width, 24f), GetAutoSpawnToggleLabel()))
+            if (GUI.Button(new Rect(0f, controlsTop + 158f, contentRect.width, 24f), GetAutoSpawnToggleLabel()))
             {
                 ToggleAutoSpawning();
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 160f, contentRect.width, 24f), GetCorruptManualSpawnsLabel()))
+            if (GUI.Button(new Rect(0f, controlsTop + 188f, contentRect.width, 24f), GetCorruptManualSpawnsLabel()))
             {
                 corruptManualSpawns = !corruptManualSpawns;
             }
 
-            GUI.Label(new Rect(0f, controlsTop + 190f, contentRect.width, 18f), $"Corruption: {currentCorruption:0}");
+            GUI.Label(new Rect(0f, controlsTop + 218f, contentRect.width, 18f), $"Corruption: {currentCorruption:0}");
 
-            if (GUI.Button(new Rect(0f, controlsTop + 212f, 152f, 24f), "+25 Corruption"))
+            if (GUI.Button(new Rect(0f, controlsTop + 240f, 152f, 24f), "+25 Corruption"))
             {
                 AdjustCorruption(25f);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 212f, 152f, 24f), "-25 Corruption"))
+            if (GUI.Button(new Rect(160f, controlsTop + 240f, 152f, 24f), "-25 Corruption"))
             {
                 AdjustCorruption(-25f);
             }
 
-            GUI.Label(new Rect(0f, controlsTop + 242f, contentRect.width, 18f), $"Manual enemy spawns: {manualSpawnCount}");
+            GUI.Label(new Rect(0f, controlsTop + 270f, contentRect.width, 18f), $"Manual enemy spawns: {manualSpawnCount}");
 
-            if (GUI.Button(new Rect(0f, controlsTop + 264f, 152f, 24f), "Spawn Wretch"))
+            if (GUI.Button(new Rect(0f, controlsTop + 292f, 152f, 24f), "Spawn Wretch"))
             {
                 SpawnEnemy(SpawnEnemyKind.MireWretch);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 264f, 152f, 24f), "Spawn Acolyte"))
+            if (GUI.Button(new Rect(160f, controlsTop + 292f, 152f, 24f), "Spawn Acolyte"))
             {
                 SpawnEnemy(SpawnEnemyKind.DrownedAcolyte);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 292f, 152f, 24f), "Spawn Mermaid"))
+            if (GUI.Button(new Rect(0f, controlsTop + 320f, 152f, 24f), "Spawn Mermaid"))
             {
                 SpawnEnemy(SpawnEnemyKind.Mermaid);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 292f, 152f, 24f), "Spawn Deep Spawn"))
+            if (GUI.Button(new Rect(160f, controlsTop + 320f, 152f, 24f), "Spawn Deep Spawn"))
             {
                 SpawnEnemy(SpawnEnemyKind.DeepSpawn);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 320f, 152f, 24f), "Spawn Eye"))
+            if (GUI.Button(new Rect(0f, controlsTop + 348f, 152f, 24f), "Spawn Eye"))
             {
                 SpawnEnemy(SpawnEnemyKind.WatcherEye);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 320f, 152f, 24f), "Spawn Slime"))
+            if (GUI.Button(new Rect(160f, controlsTop + 348f, 152f, 24f), "Spawn Slime"))
             {
                 SpawnEnemy(SpawnEnemyKind.Slime);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 348f, 152f, 24f), "Spawn Parasite"))
+            if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Spawn Parasite"))
             {
                 SpawnEnemy(SpawnEnemyKind.Parasite);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 348f, 152f, 24f), "Spawn Mire Boss"))
+            if (GUI.Button(new Rect(160f, controlsTop + 376f, 152f, 24f), "Spawn Mire Boss"))
             {
                 SpawnBoss();
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Spawn Monolith"))
+            if (GUI.Button(new Rect(0f, controlsTop + 404f, 152f, 24f), "Spawn Monolith"))
             {
                 SpawnMonolithBoss();
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 376f, 152f, 24f), "Spawn Admiral"))
+            if (GUI.Button(new Rect(160f, controlsTop + 404f, 152f, 24f), "Spawn Admiral"))
             {
                 SpawnAdmiralBoss();
             }
 
-            GUI.Label(new Rect(0f, controlsTop + 408f, contentRect.width, 18f), "Corruption Events");
+            GUI.Label(new Rect(0f, controlsTop + 436f, contentRect.width, 18f), "Corruption Events");
 
-            if (GUI.Button(new Rect(0f, controlsTop + 430f, 152f, 24f), "Trigger Fodder"))
+            if (GUI.Button(new Rect(0f, controlsTop + 458f, 152f, 24f), "Trigger Fodder"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Fodder);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 430f, 152f, 24f), "Trigger Specialist"))
+            if (GUI.Button(new Rect(160f, controlsTop + 458f, 152f, 24f), "Trigger Specialist"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Specialist);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 458f, 152f, 24f), "Trigger Elite"))
+            if (GUI.Button(new Rect(0f, controlsTop + 486f, 152f, 24f), "Trigger Elite"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Elite);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 458f, 152f, 24f), "Trigger Front"))
+            if (GUI.Button(new Rect(160f, controlsTop + 486f, 152f, 24f), "Trigger Front"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Front);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 490f, 152f, 24f), "Spawn Fountain"))
+            if (GUI.Button(new Rect(0f, controlsTop + 518f, 152f, 24f), "Spawn Fountain"))
             {
                 SpawnSandboxFountain();
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 490f, 152f, 24f), "Spawn Reliquary"))
+            if (GUI.Button(new Rect(160f, controlsTop + 518f, 152f, 24f), "Spawn Reliquary"))
             {
                 SpawnSandboxReliquary();
             }
 
-            var weaponListTop = controlsTop + 526f;
+            var weaponListTop = controlsTop + 554f;
 
             for (var index = 0; index < availableWeapons.Count; index++)
             {
@@ -300,6 +310,7 @@ namespace Dagon.Bootstrap
             {
                 corruptionMeter = FindObjectOfType<CorruptionMeter>();
             }
+            EnsureCombatVolumeOverlay();
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
             availableCharacterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
@@ -309,6 +320,11 @@ namespace Dagon.Bootstrap
         private string GetInvincibilityToggleLabel()
         {
             return playerInvincible ? "Invincibility: ON" : "Invincibility: OFF";
+        }
+
+        private string GetCombatVolumeToggleLabel()
+        {
+            return showCombatVolumes ? "Combat Volumes: ON" : "Combat Volumes: OFF";
         }
 
         private string GetCorruptManualSpawnsLabel()
@@ -354,6 +370,28 @@ namespace Dagon.Bootstrap
             {
                 corruptionMeter.ReduceCorruption(-delta);
             }
+        }
+
+        private void EnsureCombatVolumeOverlay()
+        {
+            if (combatVolumeOverlay == null)
+            {
+                combatVolumeOverlay = FindObjectOfType<CombatVolumeDebugOverlay>();
+            }
+
+            if (combatVolumeOverlay == null)
+            {
+                combatVolumeOverlay = gameObject.AddComponent<CombatVolumeDebugOverlay>();
+            }
+
+            combatVolumeOverlay.SetVisible(showCombatVolumes);
+        }
+
+        private void ToggleCombatVolumes()
+        {
+            EnsureCombatVolumeOverlay();
+            showCombatVolumes = !showCombatVolumes;
+            combatVolumeOverlay?.SetVisible(showCombatVolumes);
         }
 
         private static bool WasToggleKeyPressed(KeyCode keyCode)
@@ -814,6 +852,7 @@ namespace Dagon.Bootstrap
             var fountain = CorruptionFountain.Create(
                 position,
                 25f,
+                0f,
                 cameraReference,
                 meter,
                 new Vector2Int(int.MinValue + manualSpawnCount, int.MinValue),

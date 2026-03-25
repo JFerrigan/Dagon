@@ -243,8 +243,9 @@ namespace Dagon.Bootstrap
 
         private void CreateTile(Vector2Int coordinate)
         {
-            var profile = ResolveBiomeProfile(coordinate);
-            var sprite = LoadTileSprite(ChooseTilePath(coordinate.x, coordinate.y, profile));
+            var biomeSample = ResolveBiomeSample(coordinate);
+            var spriteProfile = ResolveSpriteProfile(coordinate, biomeSample);
+            var sprite = LoadTileSprite(ChooseTilePath(coordinate.x, coordinate.y, spriteProfile));
             if (sprite == null)
             {
                 return;
@@ -264,7 +265,7 @@ namespace Dagon.Bootstrap
             renderer.sortingOrder = -100;
             renderer.color = Color.white;
 
-            var overlayRenderer = CreateOverlayTile(tile.transform, coordinate, profile);
+            var overlayRenderer = CreateOverlayTile(tile.transform, coordinate, spriteProfile);
 
             var activeTile = new ActiveTile(tile, coordinate, renderer, overlayRenderer);
             activeTiles[coordinate] = activeTile;
@@ -422,15 +423,27 @@ namespace Dagon.Bootstrap
             return primaryPaths != null && primaryPaths.Length > 0 ? primaryPaths : fallbackPaths;
         }
 
-        private RuntimeBiomeProfile ResolveBiomeProfile(Vector2Int coordinate)
+        private WorldProgressionDirector.BiomeSample ResolveBiomeSample(Vector2Int coordinate)
         {
             if (progressionDirector == null)
             {
-                return currentBiomeProfile;
+                return new WorldProgressionDirector.BiomeSample(currentBiomeProfile, 0, null, 0, 0f);
             }
 
             var worldPosition = new Vector3(coordinate.x * tileSize, 0f, coordinate.y * tileSize);
-            return progressionDirector.ResolveBiomeAtPosition(worldPosition) ?? currentBiomeProfile;
+            return progressionDirector.SampleBiomeAtPosition(worldPosition);
+        }
+
+        private RuntimeBiomeProfile ResolveSpriteProfile(Vector2Int coordinate, WorldProgressionDirector.BiomeSample sample)
+        {
+            if (!sample.HasSecondaryProfile)
+            {
+                return sample.PrimaryProfile ?? currentBiomeProfile;
+            }
+
+            var blendNoise = SampleNoise(coordinate.x, coordinate.y, 0.16f, 0.16f, 212.4f, 73.8f);
+            var secondaryChance = Mathf.Clamp01(sample.SecondaryBlend * 0.5f);
+            return blendNoise < secondaryChance ? sample.SecondaryProfile : sample.PrimaryProfile;
         }
 
         private void ApplyTilePresentation(ActiveTile tile)
@@ -440,10 +453,10 @@ namespace Dagon.Bootstrap
                 return;
             }
 
-            var profile = ResolveBiomeProfile(tile.Coordinate);
+            var sample = ResolveBiomeSample(tile.Coordinate);
             var worldPosition = new Vector3(tile.Coordinate.x * tileSize, 0f, tile.Coordinate.y * tileSize);
-            var baseTint = profile != null ? profile.GroundTint : Color.white;
-            var overlayTint = profile != null ? profile.OverlayTint : new Color(1f, 1f, 1f, 0.92f);
+            var baseTint = ResolveBlendedTint(sample, sample.PrimaryProfile != null ? sample.PrimaryProfile.GroundTint : Color.white, overlay: false, tile.Coordinate);
+            var overlayTint = ResolveBlendedTint(sample, sample.PrimaryProfile != null ? sample.PrimaryProfile.OverlayTint : new Color(1f, 1f, 1f, 0.92f), overlay: true, tile.Coordinate);
             var corrupted = progressionDirector != null && progressionDirector.IsPositionCorrupted(worldPosition);
 
             tile.BaseRenderer.color = corrupted ? ApplyCorruptionShadow(baseTint) : baseTint;
@@ -456,6 +469,40 @@ namespace Dagon.Bootstrap
         private static Color ApplyCorruptionShadow(Color source)
         {
             return new Color(source.r * 0.48f, source.g * 0.46f, source.b * 0.52f, source.a);
+        }
+
+        private Color ResolveBlendedTint(
+            WorldProgressionDirector.BiomeSample sample,
+            Color fallback,
+            bool overlay,
+            Vector2Int coordinate)
+        {
+            var primaryColor = fallback;
+            if (sample.PrimaryProfile != null)
+            {
+                primaryColor = overlay ? sample.PrimaryProfile.OverlayTint : sample.PrimaryProfile.GroundTint;
+            }
+
+            var blended = primaryColor;
+            if (sample.HasSecondaryProfile)
+            {
+                var secondaryColor = overlay ? sample.SecondaryProfile.OverlayTint : sample.SecondaryProfile.GroundTint;
+                blended = Color.Lerp(primaryColor, secondaryColor, sample.SecondaryBlend);
+            }
+
+            var shadeNoise = SampleNoise(
+                coordinate.x,
+                coordinate.y,
+                overlay ? 0.12f : 0.08f,
+                overlay ? 0.12f : 0.08f,
+                overlay ? 145.2f : 96.4f,
+                overlay ? 31.7f : 208.1f);
+            var brightness = Mathf.Lerp(0.9f, 1.08f, shadeNoise);
+            return new Color(
+                Mathf.Clamp01(blended.r * brightness),
+                Mathf.Clamp01(blended.g * brightness),
+                Mathf.Clamp01(blended.b * brightness),
+                blended.a);
         }
     }
 }

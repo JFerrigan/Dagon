@@ -12,7 +12,7 @@ namespace Dagon.Core
     [DisallowMultipleComponent]
     public sealed class CorruptionMeter : MonoBehaviour
     {
-        private const float BaseCorruptionGainMultiplier = 0.6f;
+        private const float BaseCorruptionGainMultiplier = 1f;
 
         [SerializeField] private float maxCorruption = 250f;
         [SerializeField] private float[] thresholdValues = { 25f, 50f, 75f, 100f, 125f, 150f, 175f, 200f, 225f, 250f };
@@ -20,6 +20,7 @@ namespace Dagon.Core
 
         private float currentCorruption;
         private int highestThresholdIndex = -1;
+        private float characterCorruptionGainMultiplier = BaseCorruptionGainMultiplier;
         private float corruptionGainMultiplier = BaseCorruptionGainMultiplier;
 
         public event Action<int> ThresholdReached;
@@ -28,7 +29,7 @@ namespace Dagon.Core
         public float CurrentCorruption => currentCorruption;
         public float MaxCorruption => maxCorruption;
         public float NormalizedCorruption => maxCorruption <= 0f ? 0f : currentCorruption / maxCorruption;
-        public float CorruptionGainMultiplier => corruptionGainMultiplier;
+        public float CorruptionGainMultiplier => characterCorruptionGainMultiplier * corruptionGainMultiplier;
         public int CurrentStageIndex => GetStageIndexForValue(currentCorruption);
         public float[] ThresholdValues => thresholdValues;
 
@@ -39,7 +40,17 @@ namespace Dagon.Core
                 return;
             }
 
-            SetCorruptionInternal(currentCorruption + (amount * corruptionGainMultiplier));
+            SetCorruptionInternal(currentCorruption + (amount * CorruptionGainMultiplier));
+        }
+
+        public void AddRawCorruption(float amount)
+        {
+            if (amount <= 0f || maxCorruption <= 0f)
+            {
+                return;
+            }
+
+            SetCorruptionInternal(currentCorruption + amount);
         }
 
         public void ReduceCorruption(float amount)
@@ -62,6 +73,7 @@ namespace Dagon.Core
             var previousStageIndex = CurrentStageIndex;
             currentCorruption = 0f;
             highestThresholdIndex = -1;
+            characterCorruptionGainMultiplier = BaseCorruptionGainMultiplier;
             corruptionGainMultiplier = BaseCorruptionGainMultiplier;
             if (previousStageIndex != -1)
             {
@@ -72,6 +84,11 @@ namespace Dagon.Core
         public void SetCorruptionGainMultiplier(float multiplier)
         {
             corruptionGainMultiplier = Mathf.Max(0f, multiplier);
+        }
+
+        public void SetCharacterCorruptionGainMultiplier(float multiplier)
+        {
+            characterCorruptionGainMultiplier = Mathf.Max(0f, multiplier);
         }
 
         public float GetThresholdValue(int thresholdIndex)

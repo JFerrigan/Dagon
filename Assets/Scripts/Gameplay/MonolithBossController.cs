@@ -12,7 +12,7 @@ namespace Dagon.Gameplay
     {
         private const string WideLeechSpritePath = "Sprites/Enemies/wide_leech";
         private const string TallLeechSpritePath = "Sprites/Enemies/tall_leech";
-        private const float PhaseOneHealthRatio = 2f / 3f;
+        private const float PhaseOneHealthRatio = 0.5f;
         private const float RelocationDistance = 30f;
         private const float RelocationDistanceJitter = 3.5f;
         private const float MinimumRelocationDistance = 20f;
@@ -113,12 +113,17 @@ namespace Dagon.Gameplay
         public float DisplayedMaxHealth => phaseState switch
         {
             PhaseState.PhaseOne => Mathf.Max(0.01f, phaseOneMaxHealth),
+            PhaseState.Transitioning => Mathf.Max(0.01f, phaseTwoMaxHealth),
             PhaseState.RelocatedPressure => Mathf.Max(0.01f, phaseTwoMaxHealth),
             PhaseState.PhaseTwo => Mathf.Max(0.01f, phaseTwoMaxHealth),
             _ => Mathf.Max(0.01f, phaseTwoMaxHealth)
         };
 
-        public bool IsBossHealthVisible => phaseState == PhaseState.PhaseOne || phaseState == PhaseState.PhaseTwo;
+        public bool IsBossHealthVisible =>
+            phaseState == PhaseState.PhaseOne ||
+            phaseState == PhaseState.Transitioning ||
+            phaseState == PhaseState.RelocatedPressure ||
+            phaseState == PhaseState.PhaseTwo;
 
         private void Awake()
         {
@@ -554,6 +559,9 @@ namespace Dagon.Gameplay
 
         private IEnumerator HandlePhaseTransition()
         {
+            var refillDuration = SinkDuration + HiddenDuration + RiseDuration;
+            var refillElapsed = 0f;
+
             if (bossCollider != null)
             {
                 bossCollider.enabled = false;
@@ -564,10 +572,37 @@ namespace Dagon.Gameplay
                 bodyBlocker.SetSuppressed(true);
             }
 
-            yield return AnimateSinkAndRise(baseVisualLocalPosition, baseVisualLocalPosition + Vector3.down * SinkDepth, SinkDuration);
+            var sinkElapsed = 0f;
+            while (sinkElapsed < SinkDuration)
+            {
+                var delta = Time.deltaTime;
+                sinkElapsed += delta;
+                refillElapsed += delta;
+                if (visualsRoot != null)
+                {
+                    var sinkProgress = SinkDuration > 0f ? Mathf.Clamp01(sinkElapsed / SinkDuration) : 1f;
+                    visualsRoot.localPosition = Vector3.Lerp(baseVisualLocalPosition, baseVisualLocalPosition + Vector3.down * SinkDepth, sinkProgress);
+                }
+
+                phaseCurrentHealth = Mathf.Lerp(0f, phaseTwoMaxHealth, Mathf.Clamp01(refillElapsed / refillDuration));
+                yield return null;
+            }
+
+            if (visualsRoot != null)
+            {
+                visualsRoot.localPosition = baseVisualLocalPosition + Vector3.down * SinkDepth;
+            }
 
             SetMonolithPresentationActive(false);
-            yield return new WaitForSeconds(HiddenDuration);
+            var hiddenElapsed = 0f;
+            while (hiddenElapsed < HiddenDuration)
+            {
+                var delta = Time.deltaTime;
+                hiddenElapsed += delta;
+                refillElapsed += Time.deltaTime;
+                phaseCurrentHealth = Mathf.Lerp(0f, phaseTwoMaxHealth, Mathf.Clamp01(refillElapsed / refillDuration));
+                yield return null;
+            }
 
             transform.position = BuildRelocationPosition();
             if (visualsRoot != null)
@@ -581,7 +616,26 @@ namespace Dagon.Gameplay
             wideSummonTimer = 0.08f;
             tallSummonTimer = 0.18f;
             SetMonolithPresentationActive(true);
-            yield return AnimateSinkAndRise(baseVisualLocalPosition + Vector3.down * SinkDepth, baseVisualLocalPosition, RiseDuration);
+            var riseElapsed = 0f;
+            while (riseElapsed < RiseDuration)
+            {
+                var delta = Time.deltaTime;
+                riseElapsed += delta;
+                refillElapsed += delta;
+                if (visualsRoot != null)
+                {
+                    var riseProgress = RiseDuration > 0f ? Mathf.Clamp01(riseElapsed / RiseDuration) : 1f;
+                    visualsRoot.localPosition = Vector3.Lerp(baseVisualLocalPosition + Vector3.down * SinkDepth, baseVisualLocalPosition, riseProgress);
+                }
+
+                phaseCurrentHealth = Mathf.Lerp(0f, phaseTwoMaxHealth, Mathf.Clamp01(refillElapsed / refillDuration));
+                yield return null;
+            }
+            if (visualsRoot != null)
+            {
+                visualsRoot.localPosition = baseVisualLocalPosition;
+            }
+            phaseCurrentHealth = phaseTwoMaxHealth;
             transitionRoutine = null;
         }
 
@@ -893,6 +947,7 @@ namespace Dagon.Gameplay
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(worldCamera, BillboardSprite.BillboardMode.YAxisOnly);
+            CombatVolumeAlignment.TryAlignCapsuleToSpriteCenter(summon.transform, collider);
 
             return summon;
         }

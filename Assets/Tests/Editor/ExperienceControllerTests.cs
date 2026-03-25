@@ -1,3 +1,4 @@
+using Dagon.Core;
 using Dagon.Gameplay;
 using NUnit.Framework;
 using UnityEngine;
