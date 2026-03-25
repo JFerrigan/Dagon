@@ -21,9 +21,9 @@ namespace Dagon.Gameplay
         [SerializeField] private float corruptionReward = 4f;
 
         [Header("Collision")]
-        [SerializeField] private Vector3 colliderCenter = new(0f, 0.8f, 0f);
-        [SerializeField] private float colliderHeight = 1.6f;
-        [SerializeField] private float colliderRadius = 0.5f;
+        [SerializeField] private Vector3 colliderCenter = new(0f, 2.2f, 0f);
+        [SerializeField] private float colliderHeight = 4.4f;
+        [SerializeField] private float colliderRadius = 1.45f;
 
         [Header("Visuals")]
         [SerializeField] private string spriteResourcePath = "Sprites/Enemies/deep_spawn";

@@ -1,0 +1,13 @@
+{
+  "asset_id": "drowned_reliquary",
+  "asset_type": "background_prop_sprite",
+  "prompt": "Sacrificial altar called the Drowned Reliquary for the Black Mire, low stone nautical occult altar fused with barnacles, ribs, rusted ritual metal, and corruption seepage, readable as a one-use world interactable.",
+  "output_path": "Assets/Resources/Sprites/Props/drowned_reliquary.png",
+  "source_image": "Tools/AssetGen/generated/drowned_reliquary.png",
+  "processed_image": "Tools/AssetGen/processed/drowned_reliquary.png",
+  "size": [256, 256],
+  "palette_notes": "dead gray stone, salt white, oxidized bronze, mire black-green growth, muted blood-red staining",
+  "orientation": "isometric_ground_prop",
+  "provider": "chat_attachment_inbox",
+  "notes": "Static sacrificial altar landmark prop. Preserve a bold readable silhouette and strong offering basin center. Runtime handles available and depleted states with tint and glow."
+}

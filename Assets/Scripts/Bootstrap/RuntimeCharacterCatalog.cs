@@ -12,6 +12,7 @@ namespace Dagon.Bootstrap
         private static WeaponDefinition rotBeaconBombWeapon;
         private static WeaponDefinition floodlineWeapon;
         private static WeaponDefinition tideburstWeapon;
+        private static WeaponDefinition eldritchBlastWeapon;
         private static ActiveAbilityDefinition brineSurgeAbility;
         private static ActiveAbilityDefinition dashAbility;
         private static ActiveAbilityDefinition frenzyAbility;
@@ -38,6 +39,22 @@ namespace Dagon.Bootstrap
         {
             EnsureBuilt();
             return sandboxActivePool;
+        }
+
+        public static WeaponDefinition GetCorruptionWeapon(string weaponId)
+        {
+            EnsureBuilt();
+            if (string.IsNullOrWhiteSpace(weaponId))
+            {
+                return null;
+            }
+
+            if (eldritchBlastWeapon != null && eldritchBlastWeapon.WeaponId == weaponId)
+            {
+                return eldritchBlastWeapon;
+            }
+
+            return null;
         }
 
         public static CharacterProfileDefinition GetDefaultProfile()
@@ -173,6 +190,20 @@ namespace Dagon.Bootstrap
                 0f,
                 0f,
                 0.35f);
+            eldritchBlastWeapon = WeaponDefinition.CreateRuntime(
+                "weapon.eldritch_blast",
+                "Eldritch Blast",
+                "Release a slow, piercing corruption beam that tears through every enemy in its lane.",
+                WeaponRuntimeKind.EldritchBlast,
+                WeaponProjectileVisualKind.Orb,
+                0.1f,
+                0f,
+                7f,
+                1,
+                0f,
+                0.7f,
+                12f,
+                0f);
 
             brineSurgeAbility = ActiveAbilityDefinition.CreateRuntime(
                 "ability.brine_surge",

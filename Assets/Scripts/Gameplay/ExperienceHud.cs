@@ -29,6 +29,7 @@ namespace Dagon.Gameplay
         private int selectedCorruptionBoonIndex = -1;
         private int selectedCorruptionDrawbackIndex = -1;
         private int activeCorruptionChoiceStage = -1;
+        private int selectedReliquaryWeaponIndex = -1;
 
         private void Awake()
         {
@@ -81,6 +82,13 @@ namespace Dagon.Gameplay
             DrawCooldownPanel();
             DrawCorruptionBar();
             DrawWeaponStrip();
+
+            if (DrownedReliquary.HasActiveInteraction)
+            {
+                Time.timeScale = 0f;
+                DrawReliquaryOverlay(DrownedReliquary.GetInteractionView());
+                return;
+            }
 
             if (corruptionEffects != null && corruptionEffects.HasPendingChoice)
             {
@@ -505,6 +513,109 @@ namespace Dagon.Gameplay
             GUI.DrawTexture(new Rect(rect.x, rect.y, 8f, rect.height), whiteTexture, ScaleMode.StretchToFill, false);
             GUI.color = new Color(1f, 1f, 1f, 0.06f);
             GUI.DrawTexture(new Rect(rect.x + 8f, rect.y + 8f, rect.width - 16f, rect.height - 16f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = previousColor;
+        }
+
+        private void DrawReliquaryOverlay(DrownedReliquary.InteractionView view)
+        {
+            if (whiteTexture == null)
+            {
+                return;
+            }
+
+            if (selectedReliquaryWeaponIndex >= view.RemovableWeapons.Length)
+            {
+                selectedReliquaryWeaponIndex = view.RemovableWeapons.Length > 0 ? 0 : -1;
+            }
+
+            var previousColor = GUI.color;
+            GUI.color = new Color(0.01f, 0.03f, 0.03f, 0.70f);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), whiteTexture, ScaleMode.StretchToFill, false);
+
+            var scale = Mathf.Max(1.05f, Mathf.Min(Screen.width / 1420f, Screen.height / 900f) * 1.2f);
+            var panelWidth = 860f;
+            var panelHeight = 470f;
+            var scaledWidth = Screen.width / scale;
+            var scaledHeight = Screen.height / scale;
+            var panelX = (scaledWidth - panelWidth) * 0.5f;
+            var panelY = (scaledHeight - panelHeight) * 0.5f;
+
+            var previousMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
+
+            var panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
+            GUI.color = new Color(0.10f, 0.09f, 0.10f, 0.95f);
+            GUI.DrawTexture(panelRect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = new Color(0.46f, 0.14f, 0.14f, 0.92f);
+            GUI.DrawTexture(new Rect(panelRect.x + 4f, panelRect.y + 4f, panelRect.width - 8f, 6f), whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = previousColor;
+
+            GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 28f, panelRect.width - 80f, 34f), view.Title, centeredTitleStyle);
+            GUI.Label(new Rect(panelRect.x + 60f, panelRect.y + 68f, panelRect.width - 120f, 30f), view.Subtitle, centeredBodyStyle);
+
+            var listRect = new Rect(panelRect.x + 36f, panelRect.y + 118f, panelRect.width - 72f, 178f);
+            GUI.color = new Color(0.16f, 0.14f, 0.15f, 0.96f);
+            GUI.DrawTexture(listRect, whiteTexture, ScaleMode.StretchToFill, false);
+            GUI.color = Color.white;
+
+            if (view.RemovableWeapons.Length <= 0)
+            {
+                GUI.Label(new Rect(listRect.x + 20f, listRect.y + 68f, listRect.width - 40f, 32f), "No non-base weapon can be sacrificed.", centeredBodyStyle);
+            }
+            else
+            {
+                for (var i = 0; i < view.RemovableWeapons.Length; i++)
+                {
+                    var option = view.RemovableWeapons[i];
+                    var rowRect = new Rect(listRect.x + 16f, listRect.y + 14f + (i * 50f), listRect.width - 32f, 42f);
+                    var selected = selectedReliquaryWeaponIndex == i || (selectedReliquaryWeaponIndex < 0 && i == 0);
+                    GUI.color = selected ? new Color(0.40f, 0.16f, 0.16f, 0.98f) : new Color(1f, 1f, 1f, 0.06f);
+                    GUI.DrawTexture(rowRect, whiteTexture, ScaleMode.StretchToFill, false);
+                    GUI.color = Color.white;
+
+                    if (GUI.Button(rowRect, GUIContent.none, GUIStyle.none))
+                    {
+                        selectedReliquaryWeaponIndex = i;
+                    }
+
+                    GUI.Label(new Rect(rowRect.x + 12f, rowRect.y + 4f, rowRect.width - 24f, 16f), option.DisplayName, centeredBodyStyle);
+                    GUI.Label(new Rect(rowRect.x + 12f, rowRect.y + 20f, rowRect.width - 24f, 18f), option.Description, corruptionColumnStyle);
+                }
+            }
+
+            var canConfirm = view.RemovableWeapons.Length > 0;
+            var resolvedWeaponIndex = selectedReliquaryWeaponIndex >= 0 ? selectedReliquaryWeaponIndex : 0;
+            var selectedWeapon = canConfirm && resolvedWeaponIndex < view.RemovableWeapons.Length ? view.RemovableWeapons[resolvedWeaponIndex] : null;
+
+            var corruptionRect = new Rect(panelRect.x + 74f, panelRect.y + 332f, panelRect.width - 148f, 42f);
+            DrawUpgradeButton(corruptionRect);
+            GUI.enabled = canConfirm && selectedWeapon != null;
+            if (GUI.Button(corruptionRect, "Cast Into The Deep   (+25 Corruption)", upgradeButtonStyle))
+            {
+                DrownedReliquary.ConfirmCorruptionCost(selectedWeapon.WeaponId);
+                selectedReliquaryWeaponIndex = -1;
+                Time.timeScale = 1f;
+            }
+
+            var healthRect = new Rect(panelRect.x + 74f, panelRect.y + 384f, panelRect.width - 148f, 42f);
+            DrawUpgradeButton(healthRect);
+            if (GUI.Button(healthRect, "Bleed For Release   (-4 Max Health)", upgradeButtonStyle))
+            {
+                DrownedReliquary.ConfirmMaxHealthCost(selectedWeapon.WeaponId);
+                selectedReliquaryWeaponIndex = -1;
+                Time.timeScale = 1f;
+            }
+
+            GUI.enabled = true;
+            var cancelRect = new Rect(panelRect.x + 280f, panelRect.y + 432f, panelRect.width - 560f, 28f);
+            if (GUI.Button(cancelRect, "Cancel"))
+            {
+                DrownedReliquary.CancelInteraction();
+                selectedReliquaryWeaponIndex = -1;
+                Time.timeScale = 1f;
+            }
+
+            GUI.matrix = previousMatrix;
             GUI.color = previousColor;
         }
     }

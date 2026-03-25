@@ -201,6 +201,29 @@ namespace Dagon.Tests.Editor
         }
 
         [Test]
+        public void BuildAmbientSpawnPosition_BiasesAheadOfRecentTravelDirection()
+        {
+            var directorObject = new GameObject("SpawnDirector");
+            var director = directorObject.AddComponent<SpawnDirector>();
+            var player = new GameObject("Player");
+            player.transform.position = Vector3.zero;
+
+            SetField(director, "player", player.transform);
+            SetField(director, "spawnRadius", 10f);
+            SetField(director, "spawnHeightOffset", 0f);
+            SetField(director, "recentTravelDirection", Vector3.right);
+            SetField(director, "recentTravelDirectionAge", 0f);
+
+            var position = (Vector3)InvokePrivateMethodWithResult(director, "BuildAmbientSpawnPosition");
+
+            Assert.Greater(position.x, 0f);
+            Assert.AreEqual(player.transform.position.y, position.y, 0.0001f);
+
+            Object.DestroyImmediate(player);
+            Object.DestroyImmediate(directorObject);
+        }
+
+        [Test]
         public void ResetTimer_UsesFasterIntervalsAfterSpawnRampProgresses()
         {
             var directorObject = new GameObject("SpawnDirector");

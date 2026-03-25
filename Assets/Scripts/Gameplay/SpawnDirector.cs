@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Dagon.Bootstrap;
 using Dagon.Core;
+using Dagon.Gameplay.Spawning;
 using Dagon.Rendering;
 using Dagon.UI;
 using UnityEngine;
@@ -12,6 +13,10 @@ namespace Dagon.Gameplay
     public sealed class SpawnDirector : MonoBehaviour
     {
         private const float EnemyHurtboxHeightLeniencyMultiplier = 1.3f;
+        private const float DefaultAmbientHeadingMemorySeconds = 0.9f;
+        private const float DefaultAmbientSpawnForwardLead = 4.5f;
+        private const float DefaultAmbientFrontConeWeight = 0.68f;
+        private const float DefaultAmbientFlankPincerWeight = 0.22f;
 
         public enum CorruptionWaveClass
         {
@@ -149,6 +154,10 @@ namespace Dagon.Gameplay
         [SerializeField] private float spawnRampDurationSeconds = 120f;
         [SerializeField] private float spawnRampMaxIntervalReduction = 1.2f;
         [SerializeField] private int spawnRampAdditionalAliveCap;
+        [SerializeField] private float ambientHeadingMemorySeconds = DefaultAmbientHeadingMemorySeconds;
+        [SerializeField] private float ambientSpawnForwardLead = DefaultAmbientSpawnForwardLead;
+        [SerializeField, Range(0f, 1f)] private float ambientFrontConeWeight = DefaultAmbientFrontConeWeight;
+        [SerializeField, Range(0f, 1f)] private float ambientFlankPincerWeight = DefaultAmbientFlankPincerWeight;
 
         private float spawnTimer;
         private float configuredMinSpawnInterval;
@@ -192,6 +201,11 @@ namespace Dagon.Gameplay
         private EnemyKind activeWaveEnemyKind;
         private WavePattern activeWavePattern;
         private Vector2 activeWavePrimaryDirection;
+        private PlayerMover playerMover;
+        private Vector3 recentTravelDirection = Vector3.forward;
+        private float recentTravelDirectionAge = DefaultAmbientHeadingMemorySeconds + 1f;
+        private EnemySpawnPlanner ambientSpawnPlanner;
+        private readonly UnitySpawnRandom ambientSpawnRandom = new();
         private readonly HashSet<GameObject> activeEnemies = new();
         private readonly List<ScriptedWaveState> scriptedWaves = new();
 
@@ -284,6 +298,7 @@ namespace Dagon.Gameplay
                 return;
             }
 
+            UpdateRecentTravelDirection(Time.deltaTime);
             TickDirector(Time.deltaTime);
             DespawnFarEnemies();
             TickWave(Time.deltaTime);
@@ -309,6 +324,7 @@ namespace Dagon.Gameplay
             player = playerTransform;
             worldCamera = cameraReference;
             corruptionMeter = player != null ? player.GetComponent<CorruptionMeter>() : corruptionMeter;
+            playerMover = player != null ? player.GetComponent<PlayerMover>() : null;
             if (runStateManager == null)
             {
                 runStateManager = FindFirstObjectByType<RunStateManager>();
@@ -364,6 +380,14 @@ namespace Dagon.Gameplay
             spawnRampDurationSeconds = Mathf.Max(1f, durationSeconds);
             spawnRampMaxIntervalReduction = Mathf.Max(0f, maxIntervalReduction);
             spawnRampAdditionalAliveCap = Mathf.Max(0, additionalAliveCap);
+        }
+
+        public void ConfigureAmbientSpawnBias(float headingMemorySeconds, float forwardLead, float frontConeWeight, float flankPincerWeight)
+        {
+            ambientHeadingMemorySeconds = Mathf.Max(0f, headingMemorySeconds);
+            ambientSpawnForwardLead = Mathf.Max(0f, forwardLead);
+            ambientFrontConeWeight = Mathf.Clamp01(frontConeWeight);
+            ambientFlankPincerWeight = Mathf.Clamp01(flankPincerWeight);
         }
 
         public bool TriggerCorruptionWave(CorruptionWaveClass waveClass)
@@ -615,10 +639,15 @@ namespace Dagon.Gameplay
             {
                 corruptionMeter = player.GetComponent<CorruptionMeter>();
             }
+            if (playerMover == null && player != null)
+            {
+                playerMover = player.GetComponent<PlayerMover>();
+            }
             if (corruptionRuntimeEffects == null && player != null)
             {
                 corruptionRuntimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
             }
+            ambientSpawnPlanner = new EnemySpawnPlanner(spawnRadius);
             ResetDirectorState();
             if (openingWaveEnabled)
             {
@@ -642,7 +671,7 @@ namespace Dagon.Gameplay
             var count = Mathf.Min(startingEnemies, Mathf.Min(regularSpawnQuota - totalSpawned, GetCurrentMaxAliveEnemies() - activeEnemies.Count));
             for (var i = 0; i < count; i++)
             {
-                if (!TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildSpawnPosition()))
+                if (!TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildAmbientSpawnPosition()))
                 {
                     break;
                 }
@@ -662,7 +691,7 @@ namespace Dagon.Gameplay
             {
                 EnemyKind.Parasite => TrySpawnParasitePack(),
                 EnemyKind.Slime => TrySpawnSlimePack(),
-                _ => TrySpawnSpecificEnemy(nextEnemyKind, BuildSpawnPosition())
+                _ => TrySpawnSpecificEnemy(nextEnemyKind, BuildAmbientSpawnPosition())
             };
             if (SpawnQuotaMet)
             {
@@ -822,7 +851,7 @@ namespace Dagon.Gameplay
                 GetCurrentMaxAliveEnemies() - activeEnemies.Count);
             var maxPackSize = Mathf.Clamp(availableSlots, 1, 4);
             var packSize = Random.Range(1, maxPackSize + 1);
-            var anchor = BuildSpawnPosition();
+            var anchor = BuildAmbientSpawnPosition();
             var toPlayer = player.position - anchor;
             toPlayer.y = 0f;
             var forward = toPlayer.sqrMagnitude > 0.001f ? toPlayer.normalized : Vector3.forward;
@@ -873,7 +902,7 @@ namespace Dagon.Gameplay
                 GetCurrentMaxAliveEnemies() - activeEnemies.Count);
             var maxPackSize = Mathf.Clamp(availableSlots, 1, 3);
             var packSize = maxPackSize <= 1 ? 1 : Random.Range(2, maxPackSize + 1);
-            var anchor = BuildSpawnPosition();
+            var anchor = BuildAmbientSpawnPosition();
             var lateral = ResolvePlanarLateral(anchor);
             var halfWidth = (packSize - 1) * 0.5f;
             var spawnedAny = false;
@@ -1207,30 +1236,35 @@ namespace Dagon.Gameplay
                     collider.height = 3.6f;
                     collider.radius = 1.1f;
                     break;
+                case EnemyKind.DrownedAcolyte:
+                    collider.center = new Vector3(0f, 2.0f, 0f);
+                    collider.height = 4.0f;
+                    collider.radius = 1.25f;
+                    break;
                 case EnemyKind.Mermaid:
-                    collider.center = new Vector3(0f, 1.15f, 0f);
-                    collider.height = 2.3f;
-                    collider.radius = 0.65f;
+                    collider.center = new Vector3(0f, 1.9f, 0f);
+                    collider.height = 3.8f;
+                    collider.radius = 1.2f;
                     break;
                 case EnemyKind.WatcherEye:
-                    collider.center = new Vector3(0f, 0.72f, 0f);
-                    collider.height = 1.45f;
-                    collider.radius = 0.42f;
+                    collider.center = new Vector3(0f, 0.78f, 0f);
+                    collider.height = 1.55f;
+                    collider.radius = 0.55f;
                     break;
                 case EnemyKind.Slime:
-                    collider.center = new Vector3(0f, isSmallSlimeVariant ? 0.34f : 0.48f, 0f);
-                    collider.height = isSmallSlimeVariant ? 0.68f : 0.96f;
-                    collider.radius = isSmallSlimeVariant ? 0.34f : 0.58f;
+                    collider.center = new Vector3(0f, isSmallSlimeVariant ? 0.38f : 0.78f, 0f);
+                    collider.height = isSmallSlimeVariant ? 0.75f : 1.55f;
+                    collider.radius = isSmallSlimeVariant ? 0.3f : 0.55f;
                     break;
                 case EnemyKind.Parasite:
-                    collider.center = new Vector3(0f, 0.45f, 0f);
-                    collider.height = 0.9f;
-                    collider.radius = 0.38f;
+                    collider.center = new Vector3(0f, 0.78f, 0f);
+                    collider.height = 1.55f;
+                    collider.radius = 0.55f;
                     break;
                 case EnemyKind.DeepSpawn:
-                    collider.center = new Vector3(0f, 0.8f, 0f);
-                    collider.height = 1.6f;
-                    collider.radius = 0.5f;
+                    collider.center = new Vector3(0f, 2.2f, 0f);
+                    collider.height = 4.4f;
+                    collider.radius = 1.45f;
                     break;
                 default:
                     collider.center = new Vector3(0f, 0.75f, 0f);
@@ -1729,6 +1763,79 @@ namespace Dagon.Gameplay
             return position;
         }
 
+        private Vector3 BuildAmbientSpawnPosition()
+        {
+            if (player == null)
+            {
+                return Vector3.zero;
+            }
+
+            if (!TryResolveAmbientSpawnForward(out var forward))
+            {
+                return BuildSpawnPosition();
+            }
+
+            ambientSpawnPlanner ??= new EnemySpawnPlanner(spawnRadius);
+            var anchor = player.position + (forward * ambientSpawnForwardLead);
+            var patternRoll = Random.value;
+            var frontThreshold = Mathf.Clamp01(ambientFrontConeWeight);
+            var flankThreshold = Mathf.Clamp01(frontThreshold + ambientFlankPincerWeight);
+            var pattern = patternRoll < frontThreshold
+                ? EnemySpawnPattern.FrontCone
+                : patternRoll < flankThreshold
+                    ? EnemySpawnPattern.FlankPincer
+                    : EnemySpawnPattern.SurroundRing;
+            var plannedPositions = ambientSpawnPlanner.BuildPatternPositions(pattern, 1, anchor, forward, ambientSpawnRandom);
+            if (plannedPositions.Count <= 0)
+            {
+                return BuildSpawnPosition();
+            }
+
+            var position = plannedPositions[0];
+            position.y = player.position.y + spawnHeightOffset;
+            return position;
+        }
+
+        private void UpdateRecentTravelDirection(float deltaTime)
+        {
+            if (playerMover == null && player != null)
+            {
+                playerMover = player.GetComponent<PlayerMover>();
+            }
+
+            if (playerMover != null && playerMover.MoveDirection.sqrMagnitude > 0.01f)
+            {
+                recentTravelDirection = playerMover.MoveDirection.normalized;
+                recentTravelDirectionAge = 0f;
+                return;
+            }
+
+            recentTravelDirectionAge += Mathf.Max(0f, deltaTime);
+        }
+
+        private bool TryResolveAmbientSpawnForward(out Vector3 forward)
+        {
+            if (playerMover == null && player != null)
+            {
+                playerMover = player.GetComponent<PlayerMover>();
+            }
+
+            if (playerMover != null && playerMover.MoveDirection.sqrMagnitude > 0.01f)
+            {
+                forward = playerMover.MoveDirection.normalized;
+                return true;
+            }
+
+            if (recentTravelDirectionAge <= ambientHeadingMemorySeconds && recentTravelDirection.sqrMagnitude > 0.01f)
+            {
+                forward = recentTravelDirection.normalized;
+                return true;
+            }
+
+            forward = Vector3.zero;
+            return false;
+        }
+
         private Vector3 ResolvePlanarLateral(Vector3 anchor)
         {
             if (player == null)
@@ -1943,6 +2050,8 @@ namespace Dagon.Gameplay
             wavesStartedCount = 0;
             activeWaveBurstTimer = 0f;
             scriptedWaves.Clear();
+            recentTravelDirection = Vector3.forward;
+            recentTravelDirectionAge = ambientHeadingMemorySeconds + 1f;
             ResetWaveTimer();
             ResetDirectorCooldowns();
         }

@@ -214,6 +214,14 @@ namespace Dagon.Bootstrap
                     camera,
                     runState,
                     player.GetComponent<CorruptionMeter>());
+
+                var reliquaryDirector = root.gameObject.AddComponent<DrownedReliquaryDirector>();
+                reliquaryDirector.Configure(
+                    player.transform,
+                    camera,
+                    player.GetComponent<PlayerCombatLoadout>(),
+                    player.GetComponent<Health>(),
+                    player.GetComponent<CorruptionMeter>());
             }
             else
             {
@@ -260,7 +268,9 @@ namespace Dagon.Bootstrap
                 $"BarVisibleDuration={resolvedStage.Settings.enemyHealthBarVisibleDuration:0.00}, BossDelay={resolvedStage.Settings.bossTransitionDelaySeconds:0.0}, " +
                 $"ShowSpawnProgress={resolvedStage.Settings.showSpawnProgressUi}, SpawnRamp={resolvedStage.Settings.useSpawnRamp}, " +
                 $"RampDelay={resolvedStage.Settings.spawnRampDelaySeconds:0.0}, RampDuration={resolvedStage.Settings.spawnRampDurationSeconds:0.0}, " +
-                $"RampMaxReduction={resolvedStage.Settings.spawnRampMaxIntervalReduction:0.00}, RampAliveCap={resolvedStage.Settings.spawnRampAdditionalAliveCap}.",
+                $"RampMaxReduction={resolvedStage.Settings.spawnRampMaxIntervalReduction:0.00}, RampAliveCap={resolvedStage.Settings.spawnRampAdditionalAliveCap}, " +
+                $"AmbientHeadingMemory={resolvedStage.Settings.ambientHeadingMemorySeconds:0.00}, AmbientForwardLead={resolvedStage.Settings.ambientSpawnForwardLead:0.00}, " +
+                $"AmbientFrontWeight={resolvedStage.Settings.ambientFrontConeWeight:0.00}, AmbientFlankWeight={resolvedStage.Settings.ambientFlankPincerWeight:0.00}.",
                 this);
 
             if (resolvedStage.Settings.enableSandboxUi)
@@ -289,6 +299,11 @@ namespace Dagon.Bootstrap
                 config.spawnRampDurationSeconds,
                 config.spawnRampMaxIntervalReduction,
                 config.spawnRampAdditionalAliveCap);
+            spawnDirector?.ConfigureAmbientSpawnBias(
+                config.ambientHeadingMemorySeconds,
+                config.ambientSpawnForwardLead,
+                config.ambientFrontConeWeight,
+                config.ambientFlankPincerWeight);
             spawnDirector?.ConfigureHealthBars(config.enemyHealthBarsAlwaysVisible, config.enemyHealthBarVisibleDuration);
         }
 
@@ -310,6 +325,11 @@ namespace Dagon.Bootstrap
                 config.minSpawnInterval,
                 config.maxSpawnInterval);
             spawnDirector?.ConfigureSpawnFlow(config.openingWaveEnabled);
+            spawnDirector?.ConfigureAmbientSpawnBias(
+                config.ambientHeadingMemorySeconds,
+                config.ambientSpawnForwardLead,
+                config.ambientFrontConeWeight,
+                config.ambientFlankPincerWeight);
             spawnDirector?.ConfigureHealthBars(config.enemyHealthBarsAlwaysVisible, config.enemyHealthBarVisibleDuration);
             runState?.ConfigureLevelFlow(string.Empty, "MainMenu", 1);
             runState?.ConfigureBossTransition(false, config.bossTransitionDelaySeconds, config.showSpawnProgressUi);

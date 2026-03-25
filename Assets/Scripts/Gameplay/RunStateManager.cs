@@ -599,7 +599,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            if (activeBosses.Count >= ambientBossAliveCap || player == null || worldCamera == null)
+            var effectiveAmbientBossAliveCap = GetEffectiveAmbientBossAliveCap();
+            if (activeBosses.Count >= effectiveAmbientBossAliveCap || player == null || worldCamera == null)
             {
                 return;
             }
@@ -611,13 +612,31 @@ namespace Dagon.Gameplay
             }
 
             var bossKind = SelectNextBossKind();
-            SpawnBoss(activeBosses.Count, Mathf.Max(1, ambientBossAliveCap), ResolveBossDefinition(bossKind, bossesDefeatedCount));
+            SpawnBoss(activeBosses.Count, Mathf.Max(1, effectiveAmbientBossAliveCap), ResolveBossDefinition(bossKind, bossesDefeatedCount));
             ResetAmbientBossTimer();
         }
 
         private void ResetAmbientBossTimer()
         {
             ambientBossTimer = Random.Range(18f, 26f) * ambientBossLaneIntervalMultiplier;
+        }
+
+        private int GetEffectiveAmbientBossAliveCap()
+        {
+            if (ambientBossAliveCap <= 0)
+            {
+                return 0;
+            }
+
+            var currentCorruption = corruptionMeter != null ? corruptionMeter.CurrentCorruption : 0f;
+            var scaledCap = currentCorruption >= 500f
+                ? 5
+                : currentCorruption >= 400f
+                    ? 4
+                    : currentCorruption >= 300f
+                        ? 3
+                        : 2;
+            return Mathf.Max(ambientBossAliveCap, scaledCap);
         }
 
         private BossRuntimeDefinition ResolveBossDefinition(BossKind bossKind, int defeatedBossCount)
@@ -653,9 +672,9 @@ namespace Dagon.Gameplay
                     "Sprites/Bosses/admiral",
                     new Color(0.90f, 0.96f, 0.88f, 1f),
                     70f * healthMultiplier,
-                    new Vector3(0f, 1.2f, 0f),
-                    2.8f,
-                    0.75f,
+                    new Vector3(0f, 2.4f, 0f),
+                    4.8f,
+                    1.7f,
                     new Vector3(0f, 2.55f, 0f),
                     new Vector3(2.7f, 2.7f, 1f),
                     Vector3.zero,
@@ -674,9 +693,9 @@ namespace Dagon.Gameplay
                     biomeBossSpritePath,
                     biomeBossTint,
                     35f * healthMultiplier,
-                    new Vector3(0f, 1.15f, 0f),
-                    3.2f,
-                    1.15f,
+                    new Vector3(0f, 4.9f, 0f),
+                    9.8f,
+                    3.0f,
                     new Vector3(0f, 2.45f, 0f),
                     new Vector3(0.95f, 0.95f, 1f),
                     Vector3.zero,
@@ -733,6 +752,10 @@ namespace Dagon.Gameplay
 
             activeBosses.Remove(health);
             bossesDefeatedCount += 1;
+            if (!endRunOnBossDefeat)
+            {
+                experienceController?.GrantBonusChoice();
+            }
             if (bossWaveStarted && activeBosses.Count == 0)
             {
                 if (endRunOnBossDefeat)
@@ -878,7 +901,7 @@ namespace Dagon.Gameplay
 
             var scale = Mathf.Max(1.1f, Mathf.Min(Screen.width / 1600f, Screen.height / 900f) * 1.15f);
             var width = 520f;
-            var height = 310f;
+            var height = playerWon ? 310f : 370f;
             var scaledWidth = Screen.width / scale;
             var scaledHeight = Screen.height / scale;
             var box = new Rect((scaledWidth - width) * 0.5f, (scaledHeight - height) * 0.5f, width, height);

@@ -689,7 +689,7 @@ namespace Dagon.Gameplay
             var anchor = target != null ? target.position : transform.position;
             worldProgressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
 
-            var corruptionOrigin = worldProgressionDirector != null ? worldProgressionDirector.WorldOrigin : Vector3.zero;
+            var corruptionOrigin = worldProgressionDirector != null ? worldProgressionDirector.CorruptionOrigin : Vector3.zero;
             var corruptionRadius = worldProgressionDirector != null ? worldProgressionDirector.CurrentCorruptionRadius : 0f;
             var bestPosition = ResolveFallbackRelocation(anchor, corruptionOrigin, corruptionRadius);
             var bestOutsideScore = float.MinValue;
@@ -715,10 +715,10 @@ namespace Dagon.Gameplay
                 }
 
                 var candidateDistanceFromOrigin = Vector3.Distance(Flatten(candidate), corruptionOrigin);
-                var outsideCorruption = corruptionRadius <= 0.01f || candidateDistanceFromOrigin >= corruptionRadius + CorruptionSafetyBuffer;
+                var outsideCorruption = corruptionRadius > 0.01f && candidateDistanceFromOrigin <= corruptionRadius - CorruptionSafetyBuffer;
                 if (outsideCorruption)
                 {
-                    var outsideScore = candidateDistanceFromOrigin - corruptionRadius;
+                    var outsideScore = corruptionRadius - candidateDistanceFromOrigin;
                     if (outsideScore > bestOutsideScore)
                     {
                         bestOutsideScore = outsideScore;
@@ -753,7 +753,11 @@ namespace Dagon.Gameplay
 
             away.Normalize();
             var currentDistanceFromOrigin = Vector3.Distance(Flatten(transform.position), corruptionOrigin);
-            var desiredDistance = Mathf.Max(corruptionRadius + CorruptionSafetyBuffer, currentDistanceFromOrigin + 8f);
+            var desiredDistance = Mathf.Min(corruptionRadius - CorruptionSafetyBuffer, currentDistanceFromOrigin - 8f);
+            if (desiredDistance <= 0.5f)
+            {
+                desiredDistance = Mathf.Max(0.5f, corruptionRadius * 0.5f);
+            }
             var fallback = corruptionOrigin + (away * desiredDistance);
             fallback.y = transform.position.y;
 
@@ -764,7 +768,11 @@ namespace Dagon.Gameplay
                 return fallback;
             }
 
-            var fartherDistance = Mathf.Max(desiredDistance, currentDistanceFromOrigin + MinimumRelocationDistance);
+            var fartherDistance = Mathf.Min(desiredDistance, currentDistanceFromOrigin - MinimumRelocationDistance);
+            if (fartherDistance <= 0.5f)
+            {
+                fartherDistance = desiredDistance;
+            }
             var fartherFallback = corruptionOrigin + (away * fartherDistance);
             fartherFallback.y = transform.position.y;
             return fartherFallback;

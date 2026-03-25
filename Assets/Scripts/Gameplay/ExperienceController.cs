@@ -84,6 +84,20 @@ namespace Dagon.Gameplay
             Changed?.Invoke();
         }
 
+        public void GrantBonusChoice(int count = 1)
+        {
+            var clampedCount = Mathf.Max(0, count);
+            for (var index = 0; index < clampedCount; index++)
+            {
+                queuedChoices.Enqueue(BuildChoiceSet());
+            }
+
+            if (clampedCount > 0)
+            {
+                Changed?.Invoke();
+            }
+        }
+
         private int GetRequiredXpForLevel(int level)
         {
             return baseXpRequirement + ((level - 1) * xpRequirementGrowth);
@@ -132,7 +146,7 @@ namespace Dagon.Gameplay
                     }
                     break;
                 case CombatRewardKind.CorruptionPulse:
-                    corruptionMeter?.AddCorruption(10f);
+                    corruptionMeter?.AddCorruption(25f);
                     break;
             }
         }
@@ -247,7 +261,7 @@ namespace Dagon.Gameplay
             var corruptionReward = new CombatRewardOption(
                 CombatRewardKind.CorruptionPulse,
                 "Tide of Dagon",
-                "Gain corruption and empower the run.");
+                "Gain 25 corruption and surge toward the next threshold.");
             if (!usedKeys.Contains(BuildOfferKey(corruptionReward)))
             {
                 candidates.Add((corruptionReward, 4f));

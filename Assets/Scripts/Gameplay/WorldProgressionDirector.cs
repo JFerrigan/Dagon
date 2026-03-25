@@ -8,7 +8,9 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class WorldProgressionDirector : MonoBehaviour
     {
-        private const float BossCorruptionSpreadMultiplier = 0.1f;
+        private const float CorruptionOriginMinDistance = 180f;
+        private const float CorruptionOriginMaxDistance = 300f;
+        private const float StartingSafeRadius = 500f;
 
         [SerializeField] private Transform player;
         [SerializeField] private RunStateManager runStateManager;
@@ -17,8 +19,6 @@ namespace Dagon.Gameplay
         [SerializeField] private MirePropScatterer propScatterer;
         [SerializeField] private float sanctuaryRadius = 24f;
         [SerializeField] private float ringWidth = 48f;
-        [SerializeField] private float corruptionStartDelaySeconds = 32f;
-        [SerializeField] private float corruptionSpreadRate = 0.72f;
         [SerializeField] private float corruptionMoveSlowAmount = 0.4f;
         [SerializeField] private float corruptionAttackRatePenalty = 0.55f;
         [SerializeField] private float corruptionGainPerSecond = 1.2f;
@@ -29,8 +29,7 @@ namespace Dagon.Gameplay
         private PlayerSlowReceiver playerSlowReceiver;
         private CorruptionMeter corruptionMeter;
         private Vector3 worldOrigin;
-        private float runtimeStartedAt;
-        private float lastCorruptionUpdateTime;
+        private Vector3 corruptionOrigin;
         private float currentCorruptionRadius;
         private int currentBiomeIndex = -1;
         private bool corruptionPenaltyActive;
@@ -41,6 +40,7 @@ namespace Dagon.Gameplay
                 : null;
 
         public Vector3 WorldOrigin => worldOrigin;
+        public Vector3 CorruptionOrigin => corruptionOrigin;
         public float CurrentCorruptionRadius => currentCorruptionRadius;
 
         public void Configure(
@@ -66,10 +66,9 @@ namespace Dagon.Gameplay
             playerSlowReceiver = player != null ? player.GetComponent<PlayerSlowReceiver>() : null;
             corruptionMeter = player != null ? player.GetComponent<CorruptionMeter>() : null;
             worldOrigin = player != null ? Flatten(player.position) : Vector3.zero;
-            runtimeStartedAt = Time.time;
-            lastCorruptionUpdateTime = runtimeStartedAt;
+            corruptionOrigin = ResolveCorruptionOrigin(worldOrigin);
             currentBiomeIndex = -1;
-            currentCorruptionRadius = 0f;
+            currentCorruptionRadius = StartingSafeRadius;
 
             groundTiler?.ConfigureProgression(this);
             propScatterer?.ConfigureProgression(this);
@@ -100,13 +99,9 @@ namespace Dagon.Gameplay
                 worldOrigin = Flatten(player.position);
             }
 
-            if (runtimeStartedAt <= 0f)
+            if (corruptionOrigin == Vector3.zero && player != null)
             {
-                runtimeStartedAt = Time.time;
-            }
-            if (lastCorruptionUpdateTime <= 0f)
-            {
-                lastCorruptionUpdateTime = runtimeStartedAt;
+                corruptionOrigin = ResolveCorruptionOrigin(worldOrigin);
             }
 
             groundTiler?.ConfigureProgression(this);
@@ -180,8 +175,7 @@ namespace Dagon.Gameplay
 
         public bool IsPositionCorrupted(Vector3 worldPosition)
         {
-            return currentCorruptionRadius > 0.01f &&
-                Vector3.Distance(Flatten(worldPosition), worldOrigin) <= currentCorruptionRadius;
+            return Vector3.Distance(Flatten(worldPosition), corruptionOrigin) >= currentCorruptionRadius;
         }
 
         private void HandleBossWaveCompleted()
@@ -220,25 +214,13 @@ namespace Dagon.Gameplay
 
         private void RefreshCorruptionField(bool force)
         {
-            if (player == null)
+            if (player == null || corruptionMeter == null)
             {
                 return;
             }
 
-            var now = Time.time;
-            if (lastCorruptionUpdateTime <= 0f)
-            {
-                lastCorruptionUpdateTime = now;
-            }
-
-            var startTime = runtimeStartedAt + corruptionStartDelaySeconds;
-            var activeFrom = Mathf.Max(lastCorruptionUpdateTime, startTime);
-            var activeDelta = Mathf.Max(0f, now - activeFrom);
-            var bossMultiplier = runStateManager != null && runStateManager.BossWaveStarted
-                ? BossCorruptionSpreadMultiplier
-                : 1f;
-            var nextRadius = currentCorruptionRadius + (activeDelta * corruptionSpreadRate * bossMultiplier);
-            lastCorruptionUpdateTime = now;
+            var targetRadius = Mathf.Lerp(StartingSafeRadius, 0f, Mathf.Clamp01(corruptionMeter.CurrentCorruption / 250f));
+            var nextRadius = Mathf.Max(0f, targetRadius);
             if (!force && Mathf.Abs(nextRadius - currentCorruptionRadius) < 0.35f)
             {
                 return;
@@ -324,6 +306,19 @@ namespace Dagon.Gameplay
         private static Vector3 Flatten(Vector3 position)
         {
             return new Vector3(position.x, 0f, position.z);
+        }
+
+        private static Vector3 ResolveCorruptionOrigin(Vector3 playerOrigin)
+        {
+            var direction = Random.insideUnitCircle;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                direction = Vector2.right;
+            }
+
+            direction.Normalize();
+            var distance = Random.Range(CorruptionOriginMinDistance, CorruptionOriginMaxDistance);
+            return playerOrigin + new Vector3(direction.x, 0f, direction.y) * distance;
         }
 
         private static class ListPool<T>

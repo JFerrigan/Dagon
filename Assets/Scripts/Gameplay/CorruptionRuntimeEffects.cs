@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Dagon.Bootstrap;
 using Dagon.Core;
 using Dagon.Data;
 using UnityEngine;
@@ -108,6 +109,7 @@ namespace Dagon.Gameplay
             BossAmbientIntervalMultiplier,
             EliteWaveEarlyUnlock,
             ReplacePrimaryActive,
+            GrantCorruptionWeapon,
             AmbientSpawnIntervalMultiplier,
             EnemyHealthMultiplier,
             EnemyMoveSpeedMultiplier,
@@ -116,6 +118,8 @@ namespace Dagon.Gameplay
             BossCorruptionChanceMultiplier,
             CorruptedBossHealthMultiplier,
             AmbientBossLaneEnable,
+            AmbientBossLaneIntervalMultiplier,
+            AmbientBossLaneAliveCap,
             ResetProgression,
             BloodInTheWake,
             CarrionPull,
@@ -129,19 +133,22 @@ namespace Dagon.Gameplay
 
         private readonly struct CorruptionEffect
         {
-            public CorruptionEffect(EffectKind kind, float value, bool fillBonusHealth = false, ActiveAbilityDefinition activeDefinition = null)
+            public CorruptionEffect(EffectKind kind, float value, bool fillBonusHealth = false, ActiveAbilityDefinition activeDefinition = null, WeaponDefinition weaponDefinition = null)
             {
                 Kind = kind;
                 Value = value;
                 FillBonusHealth = fillBonusHealth;
                 ActiveDefinition = activeDefinition;
+                WeaponDefinition = weaponDefinition;
             }
 
             public EffectKind Kind { get; }
             public float Value { get; }
             public bool FillBonusHealth { get; }
             public ActiveAbilityDefinition ActiveDefinition { get; }
+            public WeaponDefinition WeaponDefinition { get; }
             public bool IsActiveReplacement => Kind == EffectKind.ReplacePrimaryActive && ActiveDefinition != null;
+            public bool IsWeaponGrant => Kind == EffectKind.GrantCorruptionWeapon && WeaponDefinition != null;
             public bool IsResetProgression => Kind == EffectKind.ResetProgression;
             public bool UpgradesAllWeapons => Kind == EffectKind.UpgradeAllWeaponsOnce;
         }
@@ -165,7 +172,7 @@ namespace Dagon.Gameplay
                 {
                     for (var i = 0; i < Effects.Length; i++)
                     {
-                        if (Effects[i].IsActiveReplacement)
+                        if (Effects[i].IsActiveReplacement || Effects[i].IsWeaponGrant)
                         {
                             return true;
                         }
@@ -247,6 +254,8 @@ namespace Dagon.Gameplay
             public float BossCorruptionChanceMultiplier = 1f;
             public float CorruptedBossHealthMultiplier = 1f;
             public bool AmbientBossLaneEnabled;
+            public float AmbientBossLaneIntervalMultiplier = 1f;
+            public int AmbientBossLaneAliveCap = 1;
             public bool BloodInTheWake;
             public float PickupAttractRadiusMultiplier = 1f;
             public float ExperiencePickupValueMultiplier = 1f;
@@ -303,6 +312,7 @@ namespace Dagon.Gameplay
         private ActiveAbilityDefinition abyssalRebirthAbility;
         private ActiveAbilityDefinition bloodwakeStepAbility;
         private ActiveAbilityDefinition riftheartAbility;
+        private WeaponDefinition eldritchBlastWeapon;
         private ActiveAbilityRuntime subscribedActive;
         private readonly HashSet<GameObject> resolvedTargets = new();
 
@@ -342,6 +352,7 @@ namespace Dagon.Gameplay
             }
 
             BuildCorruptionActiveDefinitions();
+            BuildCorruptionWeaponDefinitions();
         }
 
         private void OnEnable()
@@ -500,6 +511,10 @@ namespace Dagon.Gameplay
                     combatLoadout?.ReplacePrimaryActive(effect.ActiveDefinition, true);
                     RefreshActiveSubscription();
                 }
+                else if (effect.IsWeaponGrant)
+                {
+                    combatLoadout?.AddWeapon(effect.WeaponDefinition);
+                }
                 else if (effect.IsResetProgression)
                 {
                     PerformCastDown();
@@ -580,8 +595,8 @@ namespace Dagon.Gameplay
                 aggregate.BossCorruptionChanceMultiplier,
                 aggregate.CorruptedBossHealthMultiplier,
                 aggregate.AmbientBossLaneEnabled,
-                1f,
-                1);
+                aggregate.AmbientBossLaneIntervalMultiplier,
+                aggregate.AmbientBossLaneAliveCap);
         }
 
         private StageAggregate BuildAggregate()
@@ -728,6 +743,12 @@ namespace Dagon.Gameplay
                 case EffectKind.AmbientBossLaneEnable:
                     aggregate.AmbientBossLaneEnabled |= effect.Value > 0.5f;
                     break;
+                case EffectKind.AmbientBossLaneIntervalMultiplier:
+                    aggregate.AmbientBossLaneIntervalMultiplier *= effect.Value;
+                    break;
+                case EffectKind.AmbientBossLaneAliveCap:
+                    aggregate.AmbientBossLaneAliveCap = Mathf.Max(aggregate.AmbientBossLaneAliveCap, Mathf.RoundToInt(effect.Value));
+                    break;
                 case EffectKind.BloodInTheWake:
                     aggregate.BloodInTheWake = effect.Value > 0.5f;
                     break;
@@ -750,6 +771,7 @@ namespace Dagon.Gameplay
                     aggregate.DevourTheDeep = effect.Value > 0.5f;
                     break;
                 case EffectKind.ReplacePrimaryActive:
+                case EffectKind.GrantCorruptionWeapon:
                 case EffectKind.ResetProgression:
                 case EffectKind.UpgradeAllWeaponsOnce:
                     break;
@@ -864,6 +886,15 @@ namespace Dagon.Gameplay
                     new CorruptionEffect(EffectKind.ReplacePrimaryActive, 0f, false, activeDefinition));
             }
 
+            if (eldritchBlastWeapon != null && (combatLoadout == null || !combatLoadout.HasWeapon(eldritchBlastWeapon.WeaponId)))
+            {
+                AddWeightedBoon(catalog,
+                    BoonBand.Late,
+                    $"Corruption Weapon: {eldritchBlastWeapon.DisplayName}",
+                    "Gain a slow, piercing beam that tears through every enemy in its lane.",
+                    new CorruptionEffect(EffectKind.GrantCorruptionWeapon, 0f, false, null, eldritchBlastWeapon));
+            }
+
             AddWeightedBoon(catalog, BoonBand.Mid, "Tide Ascendant", "Upgrade every owned weapon once.", new CorruptionEffect(EffectKind.UpgradeAllWeaponsOnce, 1f));
 
             AddWeightedBoon(catalog, BoonBand.Late, "Abyssal Pulse", $"Every {AbyssalPulseKillsPerTrigger} kills: {AbyssalPulseDamage:0.0} damage in {AbyssalPulseRadius:0.0}m.", new CorruptionEffect(EffectKind.AbyssalPulse, 1f));
@@ -966,8 +997,13 @@ namespace Dagon.Gameplay
             {
                 return new[]
                 {
-                    new StageOptionDefinition("No Healing", "Health pickups and fountains are disabled.", new CorruptionEffect(EffectKind.DisableWorldHealing, 1f)),
-                    new StageOptionDefinition("Bosses Become Common", "Ambient bosses start appearing like elite threats.", new CorruptionEffect(EffectKind.AmbientBossLaneEnable, 1f)),
+                    new StageOptionDefinition("No Healing", "Health pickups are disabled. Fountains still function.", new CorruptionEffect(EffectKind.DisableWorldHealing, 1f)),
+                    new StageOptionDefinition(
+                        "Bosses Become Common",
+                        "Ambient bosses surge constantly, up to 2 at a time.",
+                        new CorruptionEffect(EffectKind.AmbientBossLaneEnable, 1f),
+                        new CorruptionEffect(EffectKind.AmbientBossLaneIntervalMultiplier, 0.4f),
+                        new CorruptionEffect(EffectKind.AmbientBossLaneAliveCap, 2f)),
                     new StageOptionDefinition("Cast Down", "Reset to level 1 with your starting weapons and abilities.", new CorruptionEffect(EffectKind.ResetProgression, 1f))
                 };
             }
@@ -1294,6 +1330,30 @@ namespace Dagon.Gameplay
                 1f,
                 durationSeconds: 4.5f,
                 magnitude: 2.15f);
+        }
+
+        private void BuildCorruptionWeaponDefinitions()
+        {
+            eldritchBlastWeapon = RuntimeCharacterCatalog.GetCorruptionWeapon("weapon.eldritch_blast");
+            if (eldritchBlastWeapon != null)
+            {
+                return;
+            }
+
+            eldritchBlastWeapon = WeaponDefinition.CreateRuntime(
+                "weapon.eldritch_blast",
+                "Eldritch Blast",
+                "Release a slow, piercing corruption beam that tears through every enemy in its lane.",
+                WeaponRuntimeKind.EldritchBlast,
+                WeaponProjectileVisualKind.Orb,
+                0.1f,
+                0f,
+                7f,
+                1,
+                0f,
+                0.7f,
+                12f,
+                0f);
         }
 
         private static class ListPool<T>

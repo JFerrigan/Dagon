@@ -128,6 +128,29 @@ namespace Dagon.Gameplay
             return runtime;
         }
 
+        public bool RemoveWeapon(string weaponId)
+        {
+            if (string.IsNullOrWhiteSpace(weaponId))
+            {
+                return false;
+            }
+
+            for (var index = 0; index < weapons.Count; index++)
+            {
+                var weapon = weapons[index];
+                if (weapon == null || weapon.WeaponId != weaponId || weapon.IsBaseWeapon)
+                {
+                    continue;
+                }
+
+                weapons.RemoveAt(index);
+                Destroy(weapon);
+                return true;
+            }
+
+            return false;
+        }
+
         public void ResetWeaponsToStartingLoadout()
         {
             ClearWeapons();
@@ -373,6 +396,7 @@ namespace Dagon.Gameplay
                 WeaponRuntimeKind.RotBeaconBomb => gameObject.AddComponent<RotBeaconBombWeapon>(),
                 WeaponRuntimeKind.Floodline => gameObject.AddComponent<FloodlineWeapon>(),
                 WeaponRuntimeKind.Tideburst => gameObject.AddComponent<TideburstWeapon>(),
+                WeaponRuntimeKind.EldritchBlast => gameObject.AddComponent<EldritchBlastWeapon>(),
                 _ => gameObject.AddComponent<HarpoonLauncher>()
             };
         }

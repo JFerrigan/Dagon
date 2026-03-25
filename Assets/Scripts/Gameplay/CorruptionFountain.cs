@@ -14,7 +14,9 @@ namespace Dagon.Gameplay
         private static readonly Color DepletedGlowTint = new(0.12f, 0.22f, 0.20f, 0.12f);
 
         [SerializeField] private float cleanseAmount = 25f;
+        [SerializeField] private float healAmount = 6f;
         [SerializeField] private float interactionRadius = 2.1f;
+        [SerializeField] private float visualScaleMultiplier = 1f;
 
         private CorruptionMeter corruptionMeter;
         private Camera worldCamera;
@@ -24,7 +26,7 @@ namespace Dagon.Gameplay
         private Vector2Int fountainCell;
         private bool isDepleted;
 
-        public static CorruptionFountain Create(Vector3 position, float cleanseValue, Camera camera, CorruptionMeter targetMeter, Vector2Int cell, bool depleted)
+        public static CorruptionFountain Create(Vector3 position, float cleanseValue, float healValue, Camera camera, CorruptionMeter targetMeter, Vector2Int cell, bool depleted, float scaleMultiplier = 1f)
         {
             var fountainObject = new GameObject("CorruptionFountain");
             fountainObject.transform.position = position;
@@ -39,9 +41,11 @@ namespace Dagon.Gameplay
 
             var fountain = fountainObject.AddComponent<CorruptionFountain>();
             fountain.cleanseAmount = Mathf.Max(1f, cleanseValue);
+            fountain.healAmount = Mathf.Max(0f, healValue);
             fountain.corruptionMeter = targetMeter;
             fountain.worldCamera = camera;
             fountain.fountainCell = cell;
+            fountain.visualScaleMultiplier = Mathf.Max(0.1f, scaleMultiplier);
             fountain.BuildVisuals();
             fountain.SetDepleted(depleted);
 
@@ -87,17 +91,17 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var runtimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
-            if (runtimeEffects != null && runtimeEffects.BlocksWorldHealing)
-            {
-                return;
-            }
-
             var toPlayer = player.position - transform.position;
             toPlayer.y = 0f;
             if (toPlayer.sqrMagnitude > interactionRadius * interactionRadius)
             {
                 return;
+            }
+
+            var playerHealth = player.GetComponent<Health>();
+            if (healAmount > 0f)
+            {
+                playerHealth?.Restore(healAmount);
             }
 
             corruptionMeter?.ReduceCorruption(cleanseAmount);
@@ -118,9 +122,8 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var rect = new Rect((Screen.width * 0.5f) - 90f, Screen.height - 88f, 180f, 24f);
-            var runtimeEffects = player.GetComponent<CorruptionRuntimeEffects>();
-            GUI.Label(rect, runtimeEffects != null && runtimeEffects.BlocksWorldHealing ? "Fountain Sealed" : "Press E - Cleanse Corruption");
+            var rect = new Rect((Screen.width * 0.5f) - 140f, Screen.height - 88f, 280f, 24f);
+            GUI.Label(rect, $"Press E - Restore {healAmount:0} Health and Cleanse Corruption");
         }
 
         public void SetDepleted(bool depleted)
@@ -152,7 +155,7 @@ namespace Dagon.Gameplay
             var visuals = new GameObject("Visuals");
             visuals.transform.SetParent(transform, false);
             visuals.transform.localPosition = new Vector3(0f, 0.34f, 0f);
-            visuals.transform.localScale = new Vector3(3.4f, 3.4f, 1f);
+            visuals.transform.localScale = new Vector3(3.4f, 3.4f, 1f) * visualScaleMultiplier;
 
             mainRenderer = visuals.AddComponent<SpriteRenderer>();
             mainRenderer.sprite = sprite;

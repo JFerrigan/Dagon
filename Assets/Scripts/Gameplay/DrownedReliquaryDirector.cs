@@ -1,30 +1,27 @@
+using System.Collections.Generic;
 using Dagon.Core;
 using UnityEngine;
-using System.Collections.Generic;
 
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class CorruptionFountainDirector : MonoBehaviour
+    public sealed class DrownedReliquaryDirector : MonoBehaviour
     {
         [SerializeField] private Transform player;
         [SerializeField] private Camera worldCamera;
-        [SerializeField] private RunStateManager runStateManager;
+        [SerializeField] private PlayerCombatLoadout combatLoadout;
+        [SerializeField] private Health playerHealth;
         [SerializeField] private CorruptionMeter corruptionMeter;
-        [SerializeField] private float cleanseAmount = 25f;
-        [SerializeField] private float healAmount = 6f;
         [SerializeField] private int visibleRadiusInLandmarkCells = 2;
         [SerializeField] private float landmarkCellSize = 180f;
-        [SerializeField] private float landmarkSpawnChance = 0.95f;
-        [SerializeField] private float spawnMargin = 18f;
+        [SerializeField] private float landmarkSpawnChance = 0.52f;
+        [SerializeField] private float spawnMargin = 22f;
 
-        private readonly Dictionary<Vector2Int, CorruptionFountain> activeFountains = new();
-        private readonly HashSet<Vector2Int> depletedFountainCells = new();
+        private readonly Dictionary<Vector2Int, DrownedReliquary> activeAltars = new();
+        private readonly HashSet<Vector2Int> depletedAltarCells = new();
         private readonly List<Vector2Int> cellBuffer = new();
         private Vector2Int currentCenterCell = new(int.MinValue, int.MinValue);
-        private FountainScatterPlanner planner;
-        private WorldProgressionDirector progressionDirector;
-        private CorruptionFountain centerFountain;
+        private ReliquaryScatterPlanner planner;
 
         private void Update()
         {
@@ -33,64 +30,34 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            if (corruptionMeter == null || player == null || worldCamera == null)
+            if (player == null || worldCamera == null || combatLoadout == null || playerHealth == null || corruptionMeter == null)
             {
                 return;
             }
 
-            progressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
-            planner ??= new FountainScatterPlanner(visibleRadiusInLandmarkCells, landmarkCellSize, landmarkSpawnChance, spawnMargin);
-            RefreshCenterFountain();
-            RefreshFountains(force: false);
+            planner ??= new ReliquaryScatterPlanner(visibleRadiusInLandmarkCells, landmarkCellSize, landmarkSpawnChance, spawnMargin);
+            RefreshAltars(force: false);
             CleanupDestroyedEntries();
         }
 
-        public void Configure(Transform playerTransform, Camera cameraReference, RunStateManager runState, CorruptionMeter meter)
+        public void Configure(Transform playerTransform, Camera cameraReference, PlayerCombatLoadout loadout, Health health, CorruptionMeter meter)
         {
             player = playerTransform;
             worldCamera = cameraReference;
-            runStateManager = runState;
+            combatLoadout = loadout;
+            playerHealth = health;
             corruptionMeter = meter;
         }
 
         private void Start()
         {
-            planner = new FountainScatterPlanner(visibleRadiusInLandmarkCells, landmarkCellSize, landmarkSpawnChance, spawnMargin);
-            progressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
-            RefreshCenterFountain();
-            RefreshFountains(force: true);
+            planner = new ReliquaryScatterPlanner(visibleRadiusInLandmarkCells, landmarkCellSize, landmarkSpawnChance, spawnMargin);
+            RefreshAltars(force: true);
         }
 
-        private void RefreshCenterFountain()
+        private void RefreshAltars(bool force)
         {
-            if (progressionDirector == null || corruptionMeter == null || worldCamera == null)
-            {
-                return;
-            }
-
-            var targetPosition = progressionDirector.CorruptionOrigin;
-            if (centerFountain == null)
-            {
-                centerFountain = CorruptionFountain.Create(
-                    targetPosition,
-                    cleanseAmount,
-                    healAmount,
-                    worldCamera,
-                    corruptionMeter,
-                    new Vector2Int(int.MaxValue, int.MaxValue),
-                    false,
-                    3f);
-                centerFountain.name = "CorruptionOriginFountain";
-                centerFountain.transform.SetParent(transform, true);
-                return;
-            }
-
-            centerFountain.transform.position = targetPosition;
-        }
-
-        private void RefreshFountains(bool force)
-        {
-            planner ??= new FountainScatterPlanner(visibleRadiusInLandmarkCells, landmarkCellSize, landmarkSpawnChance, spawnMargin);
+            planner ??= new ReliquaryScatterPlanner(visibleRadiusInLandmarkCells, landmarkCellSize, landmarkSpawnChance, spawnMargin);
             var centerCell = planner.WorldToCell(player.position);
             if (!force && centerCell == currentCenterCell)
             {
@@ -99,7 +66,7 @@ namespace Dagon.Gameplay
 
             currentCenterCell = centerCell;
             cellBuffer.Clear();
-            foreach (var key in activeFountains.Keys)
+            foreach (var key in activeAltars.Keys)
             {
                 cellBuffer.Add(key);
             }
@@ -108,62 +75,62 @@ namespace Dagon.Gameplay
             for (var i = 0; i < visibleCells.Count; i++)
             {
                 var cell = visibleCells[i];
-                if (activeFountains.ContainsKey(cell))
+                if (activeAltars.ContainsKey(cell))
                 {
                     cellBuffer.Remove(cell);
                     continue;
                 }
 
-                if (!planner.TryPlanFountain(cell, out var position))
+                if (!planner.TryPlanReliquary(cell, out var position))
                 {
                     continue;
                 }
 
-                var fountain = CorruptionFountain.Create(
+                var altar = DrownedReliquary.Create(
                     position,
-                    cleanseAmount,
-                    healAmount,
                     worldCamera,
+                    combatLoadout,
+                    playerHealth,
                     corruptionMeter,
                     cell,
-                    depletedFountainCells.Contains(cell),
+                    depletedAltarCells.Contains(cell),
                     1f);
-                fountain.transform.SetParent(transform, true);
-                activeFountains[cell] = fountain;
+                altar.transform.SetParent(transform, true);
+                activeAltars[cell] = altar;
             }
 
             for (var i = 0; i < cellBuffer.Count; i++)
             {
                 var cell = cellBuffer[i];
-                if (!activeFountains.TryGetValue(cell, out var fountain))
+                if (!activeAltars.TryGetValue(cell, out var altar))
                 {
                     continue;
                 }
 
-                if (fountain != null)
+                if (altar != null)
                 {
-                    if (fountain.IsDepleted)
+                    if (altar.IsDepleted)
                     {
-                        depletedFountainCells.Add(cell);
+                        depletedAltarCells.Add(cell);
                     }
 
-                    Destroy(fountain.gameObject);
+                    Destroy(altar.gameObject);
                 }
 
-                activeFountains.Remove(cell);
+                activeAltars.Remove(cell);
             }
         }
 
         private void CleanupDestroyedEntries()
         {
             cellBuffer.Clear();
-            foreach (var entry in activeFountains)
+            foreach (var entry in activeAltars)
             {
                 if (entry.Value != null)
                 {
                     if (entry.Value.IsDepleted)
                     {
-                        depletedFountainCells.Add(entry.Key);
+                        depletedAltarCells.Add(entry.Key);
                     }
 
                     continue;
@@ -174,18 +141,18 @@ namespace Dagon.Gameplay
 
             for (var i = 0; i < cellBuffer.Count; i++)
             {
-                activeFountains.Remove(cellBuffer[i]);
+                activeAltars.Remove(cellBuffer[i]);
             }
         }
 
-        private sealed class FountainScatterPlanner
+        private sealed class ReliquaryScatterPlanner
         {
             private readonly int visibleRadiusInCells;
             private readonly float cellSize;
             private readonly float spawnChance;
             private readonly float margin;
 
-            public FountainScatterPlanner(int visibleRadiusInCells, float cellSize, float spawnChance, float margin)
+            public ReliquaryScatterPlanner(int visibleRadiusInCells, float cellSize, float spawnChance, float margin)
             {
                 this.visibleRadiusInCells = Mathf.Max(0, visibleRadiusInCells);
                 this.cellSize = Mathf.Max(1f, cellSize);
@@ -214,7 +181,7 @@ namespace Dagon.Gameplay
                 return cells;
             }
 
-            public bool TryPlanFountain(Vector2Int cell, out Vector3 position)
+            public bool TryPlanReliquary(Vector2Int cell, out Vector3 position)
             {
                 position = default;
                 if (Sample01(cell.x, cell.y, 0) > spawnChance)

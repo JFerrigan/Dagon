@@ -96,7 +96,7 @@ namespace Dagon.Bootstrap
             var currentCorruption = corruptionMeter != null ? corruptionMeter.CurrentCorruption : 0f;
             var characterRows = Mathf.Max(1, Mathf.CeilToInt(availableCharacterProfiles.Length / 2f));
             var abilityRows = Mathf.Max(1, Mathf.CeilToInt(availableActiveDefinitions.Length / 2f));
-            var contentHeight = 856f
+            var contentHeight = 892f
                 + (characterRows * rowHeight)
                 + (abilityRows * rowHeight)
                 + (availableWeapons.Count * rowHeight);
@@ -257,7 +257,17 @@ namespace Dagon.Bootstrap
                 TriggerCorruptionEvent(CorruptionEventKind.Front);
             }
 
-            var weaponListTop = controlsTop + 494f;
+            if (GUI.Button(new Rect(0f, controlsTop + 490f, 152f, 24f), "Spawn Fountain"))
+            {
+                SpawnSandboxFountain();
+            }
+
+            if (GUI.Button(new Rect(160f, controlsTop + 490f, 152f, 24f), "Spawn Reliquary"))
+            {
+                SpawnSandboxReliquary();
+            }
+
+            var weaponListTop = controlsTop + 526f;
 
             for (var index = 0; index < availableWeapons.Count; index++)
             {
@@ -421,6 +431,12 @@ namespace Dagon.Bootstrap
             }
 
             definitions.AddRange(combatLoadout.WeaponPool.Where(definition => definition != null));
+
+            var eldritchBlast = RuntimeCharacterCatalog.GetCorruptionWeapon("weapon.eldritch_blast");
+            if (eldritchBlast != null)
+            {
+                definitions.Add(eldritchBlast);
+            }
 
             foreach (var definition in definitions.GroupBy(definition => definition.WeaponId).Select(group => group.First()))
             {
@@ -782,6 +798,66 @@ namespace Dagon.Bootstrap
             {
                 manualSpawnCount += 1;
             }
+        }
+
+        private void SpawnSandboxFountain()
+        {
+            var playerMover = FindObjectOfType<PlayerMover>();
+            var meter = playerMover != null ? playerMover.GetComponent<CorruptionMeter>() : null;
+            var cameraReference = Camera.main;
+            if (playerMover == null || meter == null || cameraReference == null)
+            {
+                return;
+            }
+
+            var position = GetSandboxInteractablePosition(playerMover.transform, -1.1f);
+            var fountain = CorruptionFountain.Create(
+                position,
+                25f,
+                cameraReference,
+                meter,
+                new Vector2Int(int.MinValue + manualSpawnCount, int.MinValue),
+                false,
+                1f);
+            fountain.transform.SetParent(transform, true);
+            manualSpawnCount += 1;
+        }
+
+        private void SpawnSandboxReliquary()
+        {
+            var playerMover = FindObjectOfType<PlayerMover>();
+            var cameraReference = Camera.main;
+            if (playerMover == null || cameraReference == null || combatLoadout == null || playerHealth == null || corruptionMeter == null)
+            {
+                return;
+            }
+
+            var position = GetSandboxInteractablePosition(playerMover.transform, 1.1f);
+            var reliquary = DrownedReliquary.Create(
+                position,
+                cameraReference,
+                combatLoadout,
+                playerHealth,
+                corruptionMeter,
+                new Vector2Int(int.MinValue + manualSpawnCount, int.MaxValue),
+                false,
+                1f);
+            reliquary.transform.SetParent(transform, true);
+            manualSpawnCount += 1;
+        }
+
+        private static Vector3 GetSandboxInteractablePosition(Transform playerTransform, float lateralOffset)
+        {
+            var forward = playerTransform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.01f)
+            {
+                forward = Vector3.forward;
+            }
+
+            forward.Normalize();
+            var right = new Vector3(forward.z, 0f, -forward.x);
+            return playerTransform.position + (forward * 3.4f) + (right * lateralOffset);
         }
 
         private enum SpawnEnemyKind

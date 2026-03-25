@@ -8,7 +8,8 @@ namespace Dagon.Data
         BilgeSpray,
         RotBeaconBomb,
         Floodline,
-        Tideburst
+        Tideburst,
+        EldritchBlast
     }
 
     public enum WeaponProjectileVisualKind

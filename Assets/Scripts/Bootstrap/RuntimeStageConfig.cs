@@ -33,6 +33,10 @@ namespace Dagon.Bootstrap
             [Min(1f)] public float spawnRampDurationSeconds;
             [Min(0f)] public float spawnRampMaxIntervalReduction;
             [Min(0)] public int spawnRampAdditionalAliveCap;
+            [Min(0f)] public float ambientHeadingMemorySeconds;
+            [Min(0f)] public float ambientSpawnForwardLead;
+            [Range(0f, 1f)] public float ambientFrontConeWeight;
+            [Range(0f, 1f)] public float ambientFlankPincerWeight;
 
             public StageRuntimeSettings(
                 int spawnQuota,
@@ -51,7 +55,11 @@ namespace Dagon.Bootstrap
                 float spawnRampDelaySeconds,
                 float spawnRampDurationSeconds,
                 float spawnRampMaxIntervalReduction,
-                int spawnRampAdditionalAliveCap)
+                int spawnRampAdditionalAliveCap,
+                float ambientHeadingMemorySeconds,
+                float ambientSpawnForwardLead,
+                float ambientFrontConeWeight,
+                float ambientFlankPincerWeight)
             {
                 this.spawnQuota = spawnQuota;
                 this.startingEnemies = startingEnemies;
@@ -70,6 +78,10 @@ namespace Dagon.Bootstrap
                 this.spawnRampDurationSeconds = spawnRampDurationSeconds;
                 this.spawnRampMaxIntervalReduction = spawnRampMaxIntervalReduction;
                 this.spawnRampAdditionalAliveCap = spawnRampAdditionalAliveCap;
+                this.ambientHeadingMemorySeconds = ambientHeadingMemorySeconds;
+                this.ambientSpawnForwardLead = ambientSpawnForwardLead;
+                this.ambientFrontConeWeight = ambientFrontConeWeight;
+                this.ambientFlankPincerWeight = ambientFlankPincerWeight;
             }
         }
 
@@ -85,9 +97,9 @@ namespace Dagon.Bootstrap
             public StageRuntimeSettings Settings { get; }
         }
 
-        private static readonly StageRuntimeSettings BlackMireSettings = new(99999, 0, 6, 12, 1.6f, 2.3f, false, false, 2.25f, 45f, false, false, true, 10f, 45f, 1.1f, 4);
-        private static readonly StageRuntimeSettings BossSettings = new(0, 0, 1, 1, 0.4f, 0.75f, false, true, 2.25f, 1f, false, false, false, 0f, 1f, 0f, 0);
-        private static readonly StageRuntimeSettings DeveloperSandboxSettings = new(99999, 0, 3, 12, 2.4f, 3.6f, false, false, 2.25f, 45f, false, true, true, 20f, 90f, 1.4f, 0);
+        private static readonly StageRuntimeSettings BlackMireSettings = new(99999, 0, 6, 12, 1.6f, 2.3f, false, false, 2.25f, 45f, false, false, true, 10f, 45f, 1.1f, 4, 0.9f, 4.5f, 0.68f, 0.22f);
+        private static readonly StageRuntimeSettings BossSettings = new(0, 0, 1, 1, 0.4f, 0.75f, false, true, 2.25f, 1f, false, false, false, 0f, 1f, 0f, 0, 0.9f, 4.5f, 0.68f, 0.22f);
+        private static readonly StageRuntimeSettings DeveloperSandboxSettings = new(99999, 0, 3, 12, 2.4f, 3.6f, false, false, 2.25f, 45f, false, true, true, 20f, 90f, 1.4f, 0, 0.9f, 4.5f, 0.68f, 0.22f);
 
         [SerializeField] private StageKind stageKind = StageKind.BlackMireRun;
 
