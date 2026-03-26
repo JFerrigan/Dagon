@@ -68,6 +68,22 @@ namespace Dagon.Core
                 return;
             }
 
+            if (currentHealth - scaledAmount <= 0f && IsPlayerHealth())
+            {
+                var corruptionEffects = GetComponent<CorruptionRuntimeEffects>();
+                if (corruptionEffects != null && corruptionEffects.TryConsumeSecondDrowning(source))
+                {
+                    Dagon.Gameplay.CombatDebug.Log(
+                        "Health",
+                        $"target={name} amount={scaledAmount:0.##} source={(source != null ? source.name : "null")} secondDrowning=true hp={currentHealth:0.##}",
+                        this);
+                    onDamaged?.Invoke();
+                    Changed?.Invoke(this);
+                    Damaged?.Invoke(this, scaledAmount, source);
+                    return;
+                }
+            }
+
             var previousHealth = currentHealth;
             currentHealth = Mathf.Max(0f, currentHealth - scaledAmount);
             Dagon.Gameplay.CombatDebug.Log(
@@ -118,6 +134,20 @@ namespace Dagon.Core
 
             currentHealth = Mathf.Min(MaxHealth, currentHealth + (amount * healingMultiplier));
             Changed?.Invoke(this);
+        }
+
+        public void SetCurrentHealth(float value, bool notify = true)
+        {
+            currentHealth = Mathf.Clamp(value, 0f, MaxHealth);
+            if (currentHealth > 0f)
+            {
+                isDead = false;
+            }
+
+            if (notify)
+            {
+                Changed?.Invoke(this);
+            }
         }
 
         public void SetMaxHealth(float value, bool refillHealth)

@@ -18,6 +18,7 @@ namespace Dagon.Bootstrap
         [SerializeField] private CorruptionEventDirector corruptionEventDirector;
         [SerializeField] private RunStateManager runStateManager;
         [SerializeField] private CorruptionMeter corruptionMeter;
+        [SerializeField] private CorruptionRuntimeEffects corruptionEffects;
         [SerializeField] private KeyCode togglePanelKey = KeyCode.F1;
         [SerializeField] private CombatVolumeDebugOverlay combatVolumeOverlay;
 
@@ -65,6 +66,11 @@ namespace Dagon.Bootstrap
                 corruptionMeter = FindObjectOfType<CorruptionMeter>();
             }
 
+            if (corruptionEffects == null)
+            {
+                corruptionEffects = FindObjectOfType<CorruptionRuntimeEffects>();
+            }
+
             EnsureCombatVolumeOverlay();
 
             RebuildWeaponCatalog();
@@ -98,13 +104,22 @@ namespace Dagon.Bootstrap
             var currentProfile = ResolveCurrentCharacterProfile();
             var currentActive = combatLoadout.GetPrimaryActive();
             var currentCorruption = corruptionMeter != null ? corruptionMeter.CurrentCorruption : 0f;
+            var boons = corruptionEffects != null ? corruptionEffects.GetSandboxBoons() : System.Array.Empty<CorruptionRuntimeEffects.SandboxCorruptionOptionView>();
+            var drawbacks = corruptionEffects != null ? corruptionEffects.GetSandboxDrawbacks() : System.Array.Empty<CorruptionRuntimeEffects.SandboxCorruptionOptionView>();
+            var catastrophes = corruptionEffects != null ? corruptionEffects.GetSandboxCatastrophes() : System.Array.Empty<CorruptionRuntimeEffects.SandboxCorruptionOptionView>();
             var characterRows = Mathf.Max(1, Mathf.CeilToInt(availableCharacterProfiles.Length / 2f));
             var abilityRows = Mathf.Max(1, Mathf.CeilToInt(availableActiveDefinitions.Length / 2f));
             var contentHeight = 892f
                 + rowHeight
                 + (characterRows * rowHeight)
                 + (abilityRows * rowHeight)
-                + (availableWeapons.Count * rowHeight);
+                + (availableWeapons.Count * rowHeight)
+                + 48f
+                + 24f + (boons.Length * 54f)
+                + 14f
+                + 24f + (drawbacks.Length * 54f)
+                + 14f
+                + 24f + (catastrophes.Length * 54f);
 
             GUI.Box(rect, "Developer Sandbox");
             var viewRect = new Rect(
@@ -215,74 +230,104 @@ namespace Dagon.Bootstrap
                 SpawnEnemy(SpawnEnemyKind.DeepSpawn);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 348f, 152f, 24f), "Spawn Eye"))
+            if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Spawn Swordfish"))
+            {
+                SpawnEnemy(SpawnEnemyKind.Swordfish);
+            }
+
+            if (GUI.Button(new Rect(160f, controlsTop + 376f, 152f, 24f), "Spawn Eye"))
             {
                 SpawnEnemy(SpawnEnemyKind.WatcherEye);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 348f, 152f, 24f), "Spawn Slime"))
+            if (GUI.Button(new Rect(0f, controlsTop + 404f, 152f, 24f), "Spawn Slime"))
             {
                 SpawnEnemy(SpawnEnemyKind.Slime);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Spawn Parasite"))
+            if (GUI.Button(new Rect(160f, controlsTop + 404f, 152f, 24f), "Spawn Parasite"))
             {
                 SpawnEnemy(SpawnEnemyKind.Parasite);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 376f, 152f, 24f), "Spawn Mire Boss"))
+            if (GUI.Button(new Rect(0f, controlsTop + 432f, 152f, 24f), "Spawn Mire Boss"))
             {
                 SpawnBoss();
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 404f, 152f, 24f), "Spawn Monolith"))
+            if (GUI.Button(new Rect(160f, controlsTop + 432f, 152f, 24f), "Spawn Monolith"))
             {
                 SpawnMonolithBoss();
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 404f, 152f, 24f), "Spawn Admiral"))
+            if (GUI.Button(new Rect(0f, controlsTop + 460f, 152f, 24f), "Spawn Admiral"))
             {
                 SpawnAdmiralBoss();
             }
 
-            GUI.Label(new Rect(0f, controlsTop + 436f, contentRect.width, 18f), "Corruption Events");
+            GUI.Label(new Rect(0f, controlsTop + 492f, contentRect.width, 18f), "Corruption Events");
 
-            if (GUI.Button(new Rect(0f, controlsTop + 458f, 152f, 24f), "Trigger Fodder"))
+            if (GUI.Button(new Rect(0f, controlsTop + 514f, 152f, 24f), "Trigger Fodder"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Fodder);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 458f, 152f, 24f), "Trigger Specialist"))
+            if (GUI.Button(new Rect(160f, controlsTop + 514f, 152f, 24f), "Trigger Specialist"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Specialist);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 486f, 152f, 24f), "Trigger Elite"))
+            if (GUI.Button(new Rect(0f, controlsTop + 542f, 152f, 24f), "Trigger Elite"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Elite);
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 486f, 152f, 24f), "Trigger Front"))
+            if (GUI.Button(new Rect(160f, controlsTop + 542f, 152f, 24f), "Trigger Front"))
             {
                 TriggerCorruptionEvent(CorruptionEventKind.Front);
             }
 
-            if (GUI.Button(new Rect(0f, controlsTop + 518f, 152f, 24f), "Spawn Fountain"))
+            if (GUI.Button(new Rect(0f, controlsTop + 576f, 152f, 24f), "Spawn Fountain"))
             {
                 SpawnSandboxFountain();
             }
 
-            if (GUI.Button(new Rect(160f, controlsTop + 518f, 152f, 24f), "Spawn Reliquary"))
+            if (GUI.Button(new Rect(160f, controlsTop + 576f, 152f, 24f), "Spawn Reliquary"))
             {
                 SpawnSandboxReliquary();
             }
 
-            var weaponListTop = controlsTop + 554f;
+            var weaponListTop = controlsTop + 612f;
 
             for (var index = 0; index < availableWeapons.Count; index++)
             {
                 DrawWeaponRow(index, availableWeapons[index], contentRect.width, weaponListTop);
             }
+
+            var corruptionTop = weaponListTop + (availableWeapons.Count * rowHeight) + 18f;
+            GUI.Label(new Rect(0f, corruptionTop, contentRect.width, 20f), "Corruption Sandbox");
+            GUI.Label(new Rect(0f, corruptionTop + 18f, contentRect.width, 20f), "Apply boons and burdens directly. Repeated clicks stack.");
+            var sectionTop = corruptionTop + 46f;
+            sectionTop = DrawCorruptionOptionSection(
+                "Boons",
+                boons,
+                sectionTop,
+                contentRect.width,
+                index => corruptionEffects != null && corruptionEffects.ApplySandboxBoon(index));
+            sectionTop += 14f;
+            sectionTop = DrawCorruptionOptionSection(
+                "Burdens",
+                drawbacks,
+                sectionTop,
+                contentRect.width,
+                index => corruptionEffects != null && corruptionEffects.ApplySandboxDrawback(index));
+            sectionTop += 14f;
+            DrawCorruptionOptionSection(
+                "Catastrophes",
+                catastrophes,
+                sectionTop,
+                contentRect.width,
+                index => corruptionEffects != null && corruptionEffects.ApplySandboxCatastrophe(index));
 
             GUI.EndScrollView();
         }
@@ -310,11 +355,46 @@ namespace Dagon.Bootstrap
             {
                 corruptionMeter = FindObjectOfType<CorruptionMeter>();
             }
+            if (corruptionEffects == null)
+            {
+                corruptionEffects = FindObjectOfType<CorruptionRuntimeEffects>();
+            }
             EnsureCombatVolumeOverlay();
             RebuildWeaponCatalog();
             SyncSelectionFromLoadout();
             availableCharacterProfiles = RuntimeCharacterCatalog.GetCharacterProfiles();
             availableActiveDefinitions = RuntimeCharacterCatalog.GetSandboxActivePool();
+        }
+
+        private float DrawCorruptionOptionSection(
+            string title,
+            CorruptionRuntimeEffects.SandboxCorruptionOptionView[] options,
+            float top,
+            float width,
+            System.Func<int, bool> applyAction)
+        {
+            GUI.Label(new Rect(0f, top, width, 20f), title);
+            top += 24f;
+            for (var index = 0; index < options.Length; index++)
+            {
+                var option = options[index];
+                var rowRect = new Rect(0f, top, width, 50f);
+                GUI.Box(rowRect, GUIContent.none);
+                var stackLabel = option.StackCount > 0 ? $" x{option.StackCount}" : string.Empty;
+                GUI.Label(new Rect(8f, top + 4f, width - 96f, 18f), option.Title + stackLabel);
+                GUI.Label(new Rect(8f, top + 22f, width - 96f, 22f), option.Description);
+                GUI.enabled = option.CanApply;
+                var buttonLabel = option.CanApply ? "Apply" : "Taken";
+                if (GUI.Button(new Rect(width - 78f, top + 12f, 70f, 24f), buttonLabel))
+                {
+                    applyAction(index);
+                }
+                GUI.enabled = true;
+
+                top += 54f;
+            }
+
+            return top;
         }
 
         private string GetInvincibilityToggleLabel()
@@ -740,6 +820,7 @@ namespace Dagon.Bootstrap
                 SpawnEnemyKind.Slime => spawnDirector.SpawnSandboxSlime(corruptManualSpawns),
                 SpawnEnemyKind.Parasite => spawnDirector.SpawnSandboxParasite(corruptManualSpawns),
                 SpawnEnemyKind.DeepSpawn => spawnDirector.SpawnSandboxDeepSpawn(corruptManualSpawns),
+                SpawnEnemyKind.Swordfish => spawnDirector.SpawnSandboxSwordfish(corruptManualSpawns),
                 _ => false
             };
 
@@ -907,7 +988,8 @@ namespace Dagon.Bootstrap
             WatcherEye,
             Slime,
             Parasite,
-            DeepSpawn
+            DeepSpawn,
+            Swordfish
         }
 
         private enum CorruptionEventKind

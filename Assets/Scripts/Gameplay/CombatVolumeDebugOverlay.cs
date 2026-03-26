@@ -65,6 +65,7 @@ namespace Dagon.Gameplay
             lineMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             lineMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
             lineMaterial.SetInt("_ZWrite", 0);
+            lineMaterial.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
         }
 
         private static void DrawCombatColliders()
@@ -115,6 +116,7 @@ namespace Dagon.Gameplay
                 collider.GetComponentInParent<HarpoonProjectile>() != null ||
                 collider.GetComponentInParent<DrownedAcolyteProjectile>() != null ||
                 collider.GetComponentInParent<EnemyHazardZone>() != null ||
+                collider.GetComponentInParent<ShapedHazardZone>() != null ||
                 collider.GetComponentInParent<MermaidBrinePool>() != null ||
                 collider.GetComponentInParent<WatcherEyeMarkZone>() != null)
             {

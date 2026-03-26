@@ -4,37 +4,37 @@ using UnityEngine;
 namespace Dagon.Gameplay
 {
     [DisallowMultipleComponent]
-    public sealed class MermaidBrinePool : MonoBehaviour
+    public sealed class SwordfishDashTrail : MonoBehaviour
     {
-        private static readonly Color FillTint = new(0.34f, 0.86f, 0.58f, 0.36f);
-        private static readonly Color RingTint = new(0.76f, 0.98f, 0.82f, 0.72f);
+        private static readonly Color TrailFillTint = new(0.18f, 0.78f, 0.86f, 0.34f);
+        private static readonly Color TrailOverlayTint = new(0.78f, 0.98f, 0.96f, 0.2f);
 
         private float duration;
         private float tickDamage;
         private float tickInterval;
-        private float slowAmount;
-        private float slowDuration;
         private GameObject sourceOwner;
-        private readonly HashSet<Hurtbox> occupants = new();
         private readonly Dictionary<Hurtbox, float> nextTickTimes = new();
+        private readonly HashSet<Hurtbox> occupants = new();
 
         public static void Spawn(
-            Vector3 position,
-            float radius,
+            Vector3 start,
+            Vector3 end,
+            float width,
             float duration,
             float tickDamage,
             float tickInterval,
-            float slowAmount,
-            float slowDuration,
             Camera camera,
-            GameObject owner,
-            string name = "MermaidBrinePool")
+            GameObject owner)
         {
-            var zone = new GameObject(name);
-            zone.transform.position = position + Vector3.up * 0.08f;
+            var trail = new GameObject("SwordfishDashTrail");
+            var planarDelta = end - start;
+            planarDelta.y = 0f;
+            var midpoint = start + (planarDelta * 0.5f);
+            trail.transform.position = midpoint + Vector3.up * 0.05f;
+            trail.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(planarDelta.x, planarDelta.z) * Mathf.Rad2Deg, 0f);
 
-            var component = zone.AddComponent<MermaidBrinePool>();
-            component.Initialize(radius, duration, tickDamage, tickInterval, slowAmount, slowDuration, camera, owner);
+            var component = trail.AddComponent<SwordfishDashTrail>();
+            component.Initialize(planarDelta.magnitude, width, duration, tickDamage, tickInterval, camera, owner);
         }
 
         private void Update()
@@ -52,68 +52,56 @@ namespace Dagon.Gameplay
         }
 
         private void Initialize(
-            float radius,
-            float zoneDuration,
+            float length,
+            float width,
+            float trailDuration,
             float damage,
             float interval,
-            float appliedSlowAmount,
-            float appliedSlowDuration,
             Camera camera,
             GameObject owner)
         {
-            duration = Mathf.Max(0.1f, zoneDuration);
+            duration = Mathf.Max(0.1f, trailDuration);
             tickDamage = Mathf.Max(0.01f, damage);
-            tickInterval = Mathf.Max(0.1f, interval);
-            slowAmount = Mathf.Clamp01(appliedSlowAmount);
-            slowDuration = Mathf.Max(0.1f, appliedSlowDuration);
+            tickInterval = Mathf.Max(0.05f, interval);
             sourceOwner = owner;
 
-            var sphere = gameObject.AddComponent<SphereCollider>();
-            sphere.isTrigger = true;
-            sphere.radius = Mathf.Max(0.1f, radius);
+            var collider = gameObject.AddComponent<BoxCollider>();
+            collider.isTrigger = true;
+            collider.size = new Vector3(Mathf.Max(0.15f, width), 0.75f, Mathf.Max(0.5f, length));
+            collider.center = new Vector3(0f, 0.2f, 0f);
 
             var body = gameObject.AddComponent<Rigidbody>();
-            body.isKinematic = true;
             body.useGravity = false;
+            body.isKinematic = true;
 
-            PlaceholderWeaponVisual.Spawn(
-                "MermaidBrinePoolVisual",
-                transform.position,
-                new Vector3(radius * 2.15f, radius * 2.15f, 1f),
+            var halfLength = Mathf.Max(0.25f, length * 0.5f);
+            var direction = transform.forward;
+            var start = transform.position - (direction * halfLength);
+            var end = transform.position + (direction * halfLength);
+            LineAttackOverlayVisual.Spawn(
+                "SwordfishDashTrail",
+                start,
+                end,
+                width,
+                trailDuration,
                 camera,
-                FillTint,
-                zoneDuration,
-                1f,
-                0f,
-                spritePath: "Sprites/Effects/brine_surge",
-                pixelsPerUnit: 256f,
-                sortingOrder: 4,
-                groundPlane: true);
-
-            RotLanternRadiusVisual.Spawn(
-                transform.position,
-                radius,
-                0.04f,
-                0.16f,
-                RingTint,
-                zoneDuration,
-                1f,
-                5);
+                TrailFillTint,
+                TrailOverlayTint);
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            TryTrackOccupant(other);
+            TryTrack(other);
         }
 
         private void OnTriggerStay(Collider other)
         {
-            TryTrackOccupant(other);
+            TryTrack(other);
         }
 
         private void OnTriggerExit(Collider other)
         {
-            if (!CombatResolver.TryResolveTarget(other, CombatTeam.Enemy, sourceOwner, out var hurtbox) || hurtbox == null || hurtbox.Team != CombatTeam.Player)
+            if (!TryResolveOccupant(other, out var hurtbox))
             {
                 return;
             }
@@ -122,9 +110,9 @@ namespace Dagon.Gameplay
             nextTickTimes.Remove(hurtbox);
         }
 
-        private void TryTrackOccupant(Collider other)
+        private void TryTrack(Collider other)
         {
-            if (!CombatResolver.TryResolveTarget(other, CombatTeam.Enemy, sourceOwner, out var hurtbox) || hurtbox == null || hurtbox.Team != CombatTeam.Player)
+            if (!TryResolveOccupant(other, out var hurtbox))
             {
                 return;
             }
@@ -132,10 +120,19 @@ namespace Dagon.Gameplay
             occupants.Add(hurtbox);
             if (!nextTickTimes.ContainsKey(hurtbox))
             {
-                nextTickTimes[hurtbox] = Time.time;
+                nextTickTimes[hurtbox] = Time.time + tickInterval;
+            }
+        }
+
+        private bool TryResolveOccupant(Collider other, out Hurtbox hurtbox)
+        {
+            hurtbox = null;
+            if (!CombatResolver.TryResolveTarget(other, CombatTeam.Neutral, sourceOwner, out hurtbox))
+            {
+                return false;
             }
 
-            hurtbox.GetComponentInParent<PlayerSlowReceiver>()?.ApplySlow(slowAmount, slowDuration);
+            return hurtbox != null && hurtbox.Team == CombatTeam.Player;
         }
 
         private void TickOccupants()
@@ -156,7 +153,6 @@ namespace Dagon.Gameplay
                 }
 
                 hurtbox.Damageable?.ApplyDamage(tickDamage, sourceOwner != null ? sourceOwner : gameObject);
-                hurtbox.GetComponentInParent<PlayerSlowReceiver>()?.ApplySlow(slowAmount, slowDuration);
                 nextTickTimes[hurtbox] = now + tickInterval;
             }
 

@@ -145,28 +145,26 @@ namespace Dagon.Gameplay
 
         protected override void ApplyPathUpgrade(WeaponUpgradePath path, int nextStep)
         {
-            switch (path)
+            var volleyStep = path == WeaponUpgradePath.PathA ? nextStep : GetPathUpgradesTaken(WeaponUpgradePath.PathA);
+            var rapidFireStep = path == WeaponUpgradePath.PathB ? nextStep : GetPathUpgradesTaken(WeaponUpgradePath.PathB);
+
+            projectilesPerVolley = volleyStep switch
             {
-                case WeaponUpgradePath.PathA:
-                    projectilesPerVolley = nextStep switch
-                    {
-                        1 => 2,
-                        2 => 3,
-                        _ => 4
-                    };
-                    attacksPerSecond = baseAttacksPerSecond;
-                    spreadAngle = projectilesPerVolley switch
-                    {
-                        1 => 0f,
-                        2 => 8f,
-                        3 => 14f,
-                        _ => 20f
-                    };
-                    break;
-                case WeaponUpgradePath.PathB:
-                    attacksPerSecond = baseAttacksPerSecond * (1f + (0.5f * nextStep));
-                    break;
-            }
+                <= 0 => 1,
+                1 => 2,
+                2 => 3,
+                _ => 4
+            };
+
+            spreadAngle = projectilesPerVolley switch
+            {
+                1 => 0f,
+                2 => 8f,
+                3 => 14f,
+                _ => 20f
+            };
+
+            attacksPerSecond = baseAttacksPerSecond * (1f + (0.5f * Mathf.Max(0, rapidFireStep)));
         }
 
         protected override string GetUpgradeTitle(WeaponUpgradePath path, int nextStep)

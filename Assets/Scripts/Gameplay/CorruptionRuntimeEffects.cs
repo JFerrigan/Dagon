@@ -55,6 +55,24 @@ namespace Dagon.Gameplay
             public bool RequiresBoonSelection { get; }
         }
 
+        public readonly struct SandboxCorruptionOptionView
+        {
+            public SandboxCorruptionOptionView(string title, string description, int stackCount, bool canApply, bool isRepeatable)
+            {
+                Title = title;
+                Description = description;
+                StackCount = Mathf.Max(0, stackCount);
+                CanApply = canApply;
+                IsRepeatable = isRepeatable;
+            }
+
+            public string Title { get; }
+            public string Description { get; }
+            public int StackCount { get; }
+            public bool CanApply { get; }
+            public bool IsRepeatable { get; }
+        }
+
         public readonly struct CorruptionStatSnapshot
         {
             public CorruptionStatSnapshot(
@@ -128,7 +146,10 @@ namespace Dagon.Gameplay
             CrashingSurge,
             UpgradeAllWeaponsOnce,
             AbyssalPulse,
-            DevourTheDeep
+            DevourTheDeep,
+            Undertide,
+            SecondDrowning,
+            CorruptionSpreadMultiplier
         }
 
         private readonly struct CorruptionEffect
@@ -151,6 +172,32 @@ namespace Dagon.Gameplay
             public bool IsWeaponGrant => Kind == EffectKind.GrantCorruptionWeapon && WeaponDefinition != null;
             public bool IsResetProgression => Kind == EffectKind.ResetProgression;
             public bool UpgradesAllWeapons => Kind == EffectKind.UpgradeAllWeaponsOnce;
+            public bool IsRepeatable
+            {
+                get
+                {
+                    switch (Kind)
+                    {
+                        case EffectKind.AttackRateBonus:
+                        case EffectKind.HealingMultiplier:
+                        case EffectKind.IncomingDamageMultiplier:
+                        case EffectKind.EliteWaveSizeMultiplier:
+                        case EffectKind.BossAmbientIntervalMultiplier:
+                        case EffectKind.AmbientSpawnIntervalMultiplier:
+                        case EffectKind.EnemyHealthMultiplier:
+                        case EffectKind.EnemyMoveSpeedMultiplier:
+                        case EffectKind.ActiveCooldownMultiplier:
+                        case EffectKind.BossCorruptionChanceMultiplier:
+                        case EffectKind.CorruptedBossHealthMultiplier:
+                        case EffectKind.CarrionPull:
+                        case EffectKind.ExperiencePickupValueMultiplier:
+                        case EffectKind.CorruptionSpreadMultiplier:
+                            return true;
+                        default:
+                            return false;
+                    }
+                }
+            }
         }
 
         private readonly struct StageOptionDefinition
@@ -182,6 +229,22 @@ namespace Dagon.Gameplay
                 }
             }
 
+            public bool ReplacesPrimaryActive
+            {
+                get
+                {
+                    for (var i = 0; i < Effects.Length; i++)
+                    {
+                        if (Effects[i].IsActiveReplacement)
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            }
+
             public bool TriggersProgressionReset
             {
                 get
@@ -195,6 +258,27 @@ namespace Dagon.Gameplay
                     }
 
                     return false;
+                }
+            }
+
+            public bool IsRepeatable
+            {
+                get
+                {
+                    if (Effects == null || Effects.Length == 0)
+                    {
+                        return false;
+                    }
+
+                    for (var i = 0; i < Effects.Length; i++)
+                    {
+                        if (!Effects[i].IsRepeatable)
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
                 }
             }
         }
@@ -263,6 +347,9 @@ namespace Dagon.Gameplay
             public bool CrashingSurge;
             public bool AbyssalPulse;
             public bool DevourTheDeep;
+            public bool Undertide;
+            public bool SecondDrowning;
+            public float CorruptionSpreadMultiplier = 1f;
         }
 
         private const int NormalCorruptionStageCount = 9;
@@ -279,6 +366,9 @@ namespace Dagon.Gameplay
         private const float AbyssalPulseRadius = 4.5f;
         private const float AbyssalPulseDamage = 6f;
         private const float DevourTheDeepCorruptionReduction = 3f;
+        private const float SecondDrowningReviveHealthFraction = 0.5f;
+        private const float SecondDrowningImmunityDuration = 1.1f;
+        private const float SecondDrowningCorruptionLoss = 25f;
 
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private PlayerCombatLoadout combatLoadout;
@@ -288,11 +378,18 @@ namespace Dagon.Gameplay
         [SerializeField] private RunStateManager runStateManager;
         [SerializeField] private PlayerMover playerMover;
         [SerializeField] private LayerMask enemyMask = ~0;
+        [SerializeField] private WorldProgressionDirector worldProgressionDirector;
 
         private readonly Queue<int> pendingStageChoices = new();
         private readonly Dictionary<int, StageSelection> rememberedSelections = new();
         private readonly Dictionary<int, StageOptionDefinition[]> stageBoons = new();
         private readonly Dictionary<int, StageOptionDefinition[]> stageDrawbacks = new();
+        private readonly List<StageOptionDefinition> sandboxBoons = new();
+        private readonly List<StageOptionDefinition> sandboxDrawbacks = new();
+        private readonly List<StageOptionDefinition> sandboxCatastrophes = new();
+        private readonly Dictionary<string, int> sandboxAppliedBoons = new();
+        private readonly Dictionary<string, int> sandboxAppliedDrawbacks = new();
+        private readonly Dictionary<string, int> sandboxAppliedCatastrophes = new();
 
         private float appliedAttackRateBonus;
         private float appliedTransientAttackRateBonus;
@@ -304,6 +401,9 @@ namespace Dagon.Gameplay
         private bool crashingSurgeEnabled;
         private bool abyssalPulseEnabled;
         private bool devourTheDeepEnabled;
+        private bool undertideEnabled;
+        private bool secondDrowningEnabled;
+        private bool secondDrowningConsumed;
         private int bloodInTheWakeStacks;
         private float bloodInTheWakeTimer;
         private float brineEngineCharge;
@@ -320,6 +420,37 @@ namespace Dagon.Gameplay
         public bool BlocksWorldHealing => blocksWorldHealing;
         public float PickupAttractRadiusMultiplier => pickupAttractRadiusMultiplier;
         public float ExperiencePickupValueMultiplier => experiencePickupValueMultiplier;
+        public bool HasUndertide => undertideEnabled;
+
+        public SandboxCorruptionOptionView[] GetSandboxBoons()
+        {
+            return BuildSandboxViews(GetAllSandboxBoons(), sandboxAppliedBoons);
+        }
+
+        public SandboxCorruptionOptionView[] GetSandboxDrawbacks()
+        {
+            return BuildSandboxViews(GetAllSandboxDrawbacks(), sandboxAppliedDrawbacks);
+        }
+
+        public SandboxCorruptionOptionView[] GetSandboxCatastrophes()
+        {
+            return BuildSandboxViews(GetAllSandboxCatastrophes(), sandboxAppliedCatastrophes);
+        }
+
+        public bool ApplySandboxBoon(int index)
+        {
+            return ApplySandboxOption(GetAllSandboxBoons(), sandboxAppliedBoons, sandboxBoons, index);
+        }
+
+        public bool ApplySandboxDrawback(int index)
+        {
+            return ApplySandboxOption(GetAllSandboxDrawbacks(), sandboxAppliedDrawbacks, sandboxDrawbacks, index);
+        }
+
+        public bool ApplySandboxCatastrophe(int index)
+        {
+            return ApplySandboxOption(GetAllSandboxCatastrophes(), sandboxAppliedCatastrophes, sandboxCatastrophes, index);
+        }
 
         public CorruptionStatSnapshot GetStatSnapshot()
         {
@@ -350,6 +481,8 @@ namespace Dagon.Gameplay
             {
                 runStateManager = FindFirstObjectByType<RunStateManager>();
             }
+
+            worldProgressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
 
             BuildCorruptionActiveDefinitions();
             BuildCorruptionWeaponDefinitions();
@@ -400,7 +533,26 @@ namespace Dagon.Gameplay
                 runStateManager = FindFirstObjectByType<RunStateManager>();
             }
 
+            worldProgressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
+
             ReapplyActiveEffects();
+        }
+
+        public bool TryConsumeSecondDrowning(GameObject source)
+        {
+            if (!secondDrowningEnabled || secondDrowningConsumed || health == null)
+            {
+                return false;
+            }
+
+            secondDrowningConsumed = true;
+            health.SetCurrentHealth(health.MaxHealth * SecondDrowningReviveHealthFraction, notify: false);
+            corruptionMeter?.ReduceCorruption(SecondDrowningCorruptionLoss);
+
+            var damageImmunity = GetComponent<TemporaryDamageImmunity>();
+            damageImmunity?.Grant(SecondDrowningImmunityDuration);
+            TriggerAbyssalPulseBurst();
+            return true;
         }
 
         public CorruptionChoiceView PeekPendingChoice()
@@ -446,6 +598,15 @@ namespace Dagon.Gameplay
             {
                 ApplySelectionSideEffects(drawbacks[resolvedDrawbackIndex]);
             }
+
+            var selectedUniqueOption =
+                (resolvedBoonIndex >= 0 && resolvedBoonIndex < boons.Length && !boons[resolvedBoonIndex].IsRepeatable) ||
+                (resolvedDrawbackIndex >= 0 && resolvedDrawbackIndex < drawbacks.Length && !drawbacks[resolvedDrawbackIndex].IsRepeatable);
+            if (selectedUniqueOption)
+            {
+                InvalidateUnselectedStageCaches();
+            }
+
             ReapplyActiveEffects();
         }
 
@@ -561,6 +722,8 @@ namespace Dagon.Gameplay
             crashingSurgeEnabled = aggregate.CrashingSurge;
             abyssalPulseEnabled = aggregate.AbyssalPulse;
             devourTheDeepEnabled = aggregate.DevourTheDeep;
+            undertideEnabled = aggregate.Undertide;
+            secondDrowningEnabled = aggregate.SecondDrowning;
             blocksWorldHealing = aggregate.WorldHealingDisabled;
 
             if (!bloodInTheWakeEnabled)
@@ -580,6 +743,8 @@ namespace Dagon.Gameplay
             }
 
             corruptionMeter?.SetCorruptionGainMultiplier(aggregate.CorruptionGainMultiplier);
+            worldProgressionDirector ??= FindFirstObjectByType<WorldProgressionDirector>();
+            worldProgressionDirector?.SetCorruptionSpreadMultiplier(aggregate.CorruptionSpreadMultiplier);
             spawnDirector?.ConfigureCorruptionModifiers(
                 1f,
                 1f,
@@ -631,6 +796,21 @@ namespace Dagon.Gameplay
                 {
                     ApplyEffects(aggregate, stageFive[catastrophicSelection.DrawbackIndex].Effects);
                 }
+            }
+
+            for (var index = 0; index < sandboxBoons.Count; index++)
+            {
+                ApplyEffects(aggregate, sandboxBoons[index].Effects);
+            }
+
+            for (var index = 0; index < sandboxDrawbacks.Count; index++)
+            {
+                ApplyEffects(aggregate, sandboxDrawbacks[index].Effects);
+            }
+
+            for (var index = 0; index < sandboxCatastrophes.Count; index++)
+            {
+                ApplyEffects(aggregate, sandboxCatastrophes[index].Effects);
             }
 
             return aggregate;
@@ -770,6 +950,15 @@ namespace Dagon.Gameplay
                 case EffectKind.DevourTheDeep:
                     aggregate.DevourTheDeep = effect.Value > 0.5f;
                     break;
+                case EffectKind.Undertide:
+                    aggregate.Undertide = effect.Value > 0.5f;
+                    break;
+                case EffectKind.SecondDrowning:
+                    aggregate.SecondDrowning = effect.Value > 0.5f;
+                    break;
+                case EffectKind.CorruptionSpreadMultiplier:
+                    aggregate.CorruptionSpreadMultiplier *= effect.Value;
+                    break;
                 case EffectKind.ReplacePrimaryActive:
                 case EffectKind.GrantCorruptionWeapon:
                 case EffectKind.ResetProgression:
@@ -787,6 +976,153 @@ namespace Dagon.Gameplay
             }
 
             return views;
+        }
+
+        private SandboxCorruptionOptionView[] BuildSandboxViews(StageOptionDefinition[] options, Dictionary<string, int> appliedTitles)
+        {
+            var views = new SandboxCorruptionOptionView[options.Length];
+            for (var index = 0; index < options.Length; index++)
+            {
+                var option = options[index];
+                var title = option.Title;
+                var stackCount = GetAppliedOptionCount(title);
+                views[index] = new SandboxCorruptionOptionView(
+                    title,
+                    option.Description,
+                    stackCount,
+                    option.IsRepeatable || stackCount <= 0,
+                    option.IsRepeatable);
+            }
+
+            return views;
+        }
+
+        private bool ApplySandboxOption(StageOptionDefinition[] options, Dictionary<string, int> appliedTitles, List<StageOptionDefinition> appliedDefinitions, int index)
+        {
+            if (options == null || index < 0 || index >= options.Length)
+            {
+                return false;
+            }
+
+            var option = options[index];
+            if (!option.IsRepeatable && GetAppliedOptionCount(option.Title) > 0)
+            {
+                return false;
+            }
+
+            appliedDefinitions.Add(option);
+            if (appliedTitles.TryGetValue(option.Title, out var currentStacks))
+            {
+                appliedTitles[option.Title] = currentStacks + 1;
+            }
+            else
+            {
+                appliedTitles[option.Title] = 1;
+            }
+
+            ApplySelectionSideEffects(option);
+            if (!option.IsRepeatable)
+            {
+                InvalidateUnselectedStageCaches();
+            }
+
+            ReapplyActiveEffects();
+            return true;
+        }
+
+        private void InvalidateUnselectedStageCaches()
+        {
+            var stagedKeys = ListPool<int>.Get();
+            try
+            {
+                foreach (var pair in stageBoons)
+                {
+                    if (!rememberedSelections.ContainsKey(pair.Key))
+                    {
+                        stagedKeys.Add(pair.Key);
+                    }
+                }
+
+                for (var index = 0; index < stagedKeys.Count; index++)
+                {
+                    stageBoons.Remove(stagedKeys[index]);
+                }
+
+                stagedKeys.Clear();
+                foreach (var pair in stageDrawbacks)
+                {
+                    if (!rememberedSelections.ContainsKey(pair.Key))
+                    {
+                        stagedKeys.Add(pair.Key);
+                    }
+                }
+
+                for (var index = 0; index < stagedKeys.Count; index++)
+                {
+                    stageDrawbacks.Remove(stagedKeys[index]);
+                }
+            }
+            finally
+            {
+                ListPool<int>.Release(stagedKeys);
+            }
+        }
+
+        private StageOptionDefinition[] GetAllSandboxBoons()
+        {
+            var catalog = ListPool<WeightedBoonDefinition>.Get();
+            try
+            {
+                BuildWeightedBoonCatalog(catalog);
+                var filtered = ListPool<StageOptionDefinition>.Get();
+                try
+                {
+                    for (var index = 0; index < catalog.Count; index++)
+                    {
+                        if (catalog[index].Option.ReplacesPrimaryActive)
+                        {
+                            continue;
+                        }
+
+                        filtered.Add(catalog[index].Option);
+                    }
+
+                    return filtered.ToArray();
+                }
+                finally
+                {
+                    ListPool<StageOptionDefinition>.Release(filtered);
+                }
+            }
+            finally
+            {
+                ListPool<WeightedBoonDefinition>.Release(catalog);
+            }
+        }
+
+        private StageOptionDefinition[] GetAllSandboxDrawbacks()
+        {
+            var catalog = ListPool<WeightedDrawbackDefinition>.Get();
+            try
+            {
+                BuildWeightedDrawbackCatalog(catalog);
+                var options = new StageOptionDefinition[catalog.Count];
+                for (var index = 0; index < catalog.Count; index++)
+                {
+                    options[index] = catalog[index].Option;
+                }
+
+                return options;
+            }
+            finally
+            {
+                ListPool<WeightedDrawbackDefinition>.Release(catalog);
+            }
+        }
+
+        private StageOptionDefinition[] GetAllSandboxCatastrophes()
+        {
+            return BuildStageDrawbacks(CatastropheStageIndex);
         }
 
         private StageOptionDefinition[] GetResolvedStageBoons(int stageIndex)
@@ -823,6 +1159,7 @@ namespace Dagon.Gameplay
             try
             {
                 BuildWeightedBoonCatalog(candidates);
+                RemoveTakenUniqueOptions(candidates);
                 if (candidates.Count == 0)
                 {
                     return System.Array.Empty<StageOptionDefinition>();
@@ -896,10 +1233,12 @@ namespace Dagon.Gameplay
             }
 
             AddWeightedBoon(catalog, BoonBand.Mid, "Tide Ascendant", "Upgrade every owned weapon once.", new CorruptionEffect(EffectKind.UpgradeAllWeaponsOnce, 1f));
+            AddWeightedBoon(catalog, BoonBand.Mid, "Undertide", "Corruption pickups inside corruption cleanse instead of adding corruption.", new CorruptionEffect(EffectKind.Undertide, 1f));
 
             AddWeightedBoon(catalog, BoonBand.Late, "Abyssal Pulse", $"Every {AbyssalPulseKillsPerTrigger} kills: {AbyssalPulseDamage:0.0} damage in {AbyssalPulseRadius:0.0}m.", new CorruptionEffect(EffectKind.AbyssalPulse, 1f));
             AddWeightedBoon(catalog, BoonBand.Late, "Devour the Deep", $"Corrupted-enemy kills reduce corruption by {DevourTheDeepCorruptionReduction:0.0}.", new CorruptionEffect(EffectKind.DevourTheDeep, 1f));
             AddWeightedBoon(catalog, BoonBand.Late, "Quickening Rot", "All weapons gain +0.25 fire rate.", new CorruptionEffect(EffectKind.AttackRateBonus, 0.25f));
+            AddWeightedBoon(catalog, BoonBand.Late, "Second Drowning", "Once per run, lethal damage restores you to half health, burns corruption, and detonates a pulse.", new CorruptionEffect(EffectKind.SecondDrowning, 1f));
         }
 
         private void AddWeightedBoon(List<WeightedBoonDefinition> catalog, BoonBand band, string title, string description, params CorruptionEffect[] effects)
@@ -1012,6 +1351,7 @@ namespace Dagon.Gameplay
             try
             {
                 BuildWeightedDrawbackCatalog(catalog);
+                RemoveTakenUniqueOptions(catalog);
                 if (catalog.Count <= 0)
                 {
                     return System.Array.Empty<StageOptionDefinition>();
@@ -1057,6 +1397,7 @@ namespace Dagon.Gameplay
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Fleshwarp I", "Enemy health multiplier 1.20x.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.20f)));
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Drowned Hands", "Active cooldown multiplier 1.45x.", new CorruptionEffect(EffectKind.ActiveCooldownMultiplier, 1.45f)));
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Tyrant Tide", "Boss ambient interval 0.78x.", new CorruptionEffect(EffectKind.BossAmbientIntervalMultiplier, 0.78f)));
+            catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Mid, "Spreading Blight", "Corruption spread 1.5x faster from now on.", new CorruptionEffect(EffectKind.CorruptionSpreadMultiplier, 1.5f)));
 
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "The Deep Opens", "Elite waves unlock immediately.", new CorruptionEffect(EffectKind.EliteWaveEarlyUnlock, 1f)));
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Fleshwarp II", "Enemy health multiplier 1.30x.", new CorruptionEffect(EffectKind.EnemyHealthMultiplier, 1.30f)));
@@ -1068,6 +1409,76 @@ namespace Dagon.Gameplay
                 new CorruptionEffect(EffectKind.BossCorruptionChanceMultiplier, 1.85f),
                 new CorruptionEffect(EffectKind.CorruptedBossHealthMultiplier, 1.35f)));
             catalog.Add(new WeightedDrawbackDefinition(DrawbackBand.Late, "Mortal Ruin", "Incoming enemy damage 2.0x.", new CorruptionEffect(EffectKind.IncomingDamageMultiplier, 2f)));
+        }
+
+        private void RemoveTakenUniqueOptions(List<WeightedBoonDefinition> catalog)
+        {
+            for (var index = catalog.Count - 1; index >= 0; index--)
+            {
+                if (!catalog[index].Option.IsRepeatable && HasTakenOption(catalog[index].Option.Title))
+                {
+                    catalog.RemoveAt(index);
+                }
+            }
+        }
+
+        private void RemoveTakenUniqueOptions(List<WeightedDrawbackDefinition> catalog)
+        {
+            for (var index = catalog.Count - 1; index >= 0; index--)
+            {
+                if (!catalog[index].Option.IsRepeatable && HasTakenOption(catalog[index].Option.Title))
+                {
+                    catalog.RemoveAt(index);
+                }
+            }
+        }
+
+        private bool HasTakenOption(string title)
+        {
+            return GetAppliedOptionCount(title) > 0;
+        }
+
+        private int GetAppliedOptionCount(string title)
+        {
+            if (string.IsNullOrEmpty(title))
+            {
+                return 0;
+            }
+
+            var total = 0;
+            if (sandboxAppliedBoons.TryGetValue(title, out var boonCount) && boonCount > 0)
+            {
+                total += boonCount;
+            }
+
+            if (sandboxAppliedDrawbacks.TryGetValue(title, out var drawbackCount) && drawbackCount > 0)
+            {
+                total += drawbackCount;
+            }
+
+            if (sandboxAppliedCatastrophes.TryGetValue(title, out var catastropheCount) && catastropheCount > 0)
+            {
+                total += catastropheCount;
+            }
+
+            foreach (var selection in rememberedSelections)
+            {
+                var stageIndex = selection.Key;
+                var stageSelection = selection.Value;
+                var boons = GetResolvedStageBoons(stageIndex);
+                if (stageSelection.BoonIndex >= 0 && stageSelection.BoonIndex < boons.Length && boons[stageSelection.BoonIndex].Title == title)
+                {
+                    total += 1;
+                }
+
+                var drawbacks = GetResolvedStageDrawbacks(stageIndex);
+                if (stageSelection.DrawbackIndex >= 0 && stageSelection.DrawbackIndex < drawbacks.Length && drawbacks[stageSelection.DrawbackIndex].Title == title)
+                {
+                    total += 1;
+                }
+            }
+
+            return total;
         }
 
         private static DrawbackBand RollDrawbackBandForStage(int stageIndex, List<WeightedDrawbackDefinition> candidates)
@@ -1166,6 +1577,11 @@ namespace Dagon.Gameplay
 
                 weapon.ApplyPathUpgrade(path);
             }
+        }
+
+        public void TriggerAbyssalPulseBurst()
+        {
+            TriggerAbyssalPulse();
         }
 
         private void TriggerAbyssalPulse()

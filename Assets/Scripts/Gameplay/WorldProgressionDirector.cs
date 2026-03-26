@@ -38,6 +38,7 @@ namespace Dagon.Gameplay
         private const float CorruptionOriginMinDistance = 180f;
         private const float CorruptionOriginMaxDistance = 300f;
         private const float StartingSafeRadius = 500f;
+        private const float MaxSpreadCorruptionValue = 250f;
 
         [SerializeField] private Transform player;
         [SerializeField] private RunStateManager runStateManager;
@@ -50,6 +51,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float corruptionMoveSlowAmount = 0.4f;
         [SerializeField] private float corruptionAttackRatePenalty = 0.55f;
         [SerializeField] private float corruptionGainPerSecond = 1.2f;
+        [SerializeField] private float corruptionRadiusCatchupSpeed = 180f;
 
         private readonly Dictionary<PlayerWeaponRuntime, float> appliedAttackRatePenalties = new();
         private RuntimeBiomeProfile[] biomeSequence = System.Array.Empty<RuntimeBiomeProfile>();
@@ -61,6 +63,9 @@ namespace Dagon.Gameplay
         private Vector2 biomeFieldSeedOffset;
         private int biomeFieldSeedSalt;
         private float currentCorruptionRadius;
+        private float targetCorruptionRadius;
+        private float corruptionSpreadMultiplier = 1f;
+        private float spreadMultiplierCorruptionBaseline;
         private int currentBiomeIndex = -1;
         private bool corruptionPenaltyActive;
 
@@ -72,6 +77,27 @@ namespace Dagon.Gameplay
         public Vector3 WorldOrigin => worldOrigin;
         public Vector3 CorruptionOrigin => corruptionOrigin;
         public float CurrentCorruptionRadius => currentCorruptionRadius;
+
+        public void SetCorruptionSpreadMultiplier(float multiplier)
+        {
+            var nextMultiplier = Mathf.Max(0f, multiplier);
+            if (Mathf.Abs(nextMultiplier - corruptionSpreadMultiplier) < 0.0001f)
+            {
+                return;
+            }
+
+            if (nextMultiplier > 1f && corruptionSpreadMultiplier <= 1f && corruptionMeter != null)
+            {
+                spreadMultiplierCorruptionBaseline = corruptionMeter.CurrentCorruption;
+            }
+            else if (nextMultiplier <= 1f)
+            {
+                spreadMultiplierCorruptionBaseline = 0f;
+            }
+
+            corruptionSpreadMultiplier = nextMultiplier;
+            RefreshCorruptionField(force: true);
+        }
 
         public void Configure(
             Transform playerTransform,
@@ -100,6 +126,9 @@ namespace Dagon.Gameplay
             InitializeBiomeFieldSeed();
             currentBiomeIndex = -1;
             currentCorruptionRadius = StartingSafeRadius;
+            targetCorruptionRadius = StartingSafeRadius;
+            corruptionSpreadMultiplier = 1f;
+            spreadMultiplierCorruptionBaseline = 0f;
 
             groundTiler?.ConfigureProgression(this);
             propScatterer?.ConfigureProgression(this);
@@ -256,6 +285,22 @@ namespace Dagon.Gameplay
             return Vector3.Distance(Flatten(worldPosition), corruptionOrigin) >= currentCorruptionRadius;
         }
 
+        public bool TryGetCorruptionEscapeDirection(Vector3 worldPosition, out Vector3 direction)
+        {
+            direction = Vector3.zero;
+            var planarPosition = Flatten(worldPosition);
+            var toOrigin = corruptionOrigin - planarPosition;
+            toOrigin.y = 0f;
+
+            if (toOrigin.sqrMagnitude <= 0.0001f || !IsPositionCorrupted(worldPosition))
+            {
+                return false;
+            }
+
+            direction = toOrigin.normalized;
+            return true;
+        }
+
         private void HandleBossWaveCompleted()
         {
             var currentProfile = CurrentBiome;
@@ -297,16 +342,49 @@ namespace Dagon.Gameplay
                 return;
             }
 
-            var targetRadius = Mathf.Lerp(StartingSafeRadius, 0f, Mathf.Clamp01(corruptionMeter.CurrentCorruption / 250f));
-            var nextRadius = Mathf.Max(0f, targetRadius);
-            if (!force && Mathf.Abs(nextRadius - currentCorruptionRadius) < 0.35f)
+            var spreadCorruptionValue = ResolveSpreadCorruptionValue();
+            targetCorruptionRadius = Mathf.Max(
+                0f,
+                Mathf.Lerp(StartingSafeRadius, 0f, Mathf.Clamp01(spreadCorruptionValue / MaxSpreadCorruptionValue)));
+
+            if (force)
+            {
+                currentCorruptionRadius = targetCorruptionRadius;
+                groundTiler?.RefreshProgressionPresentation();
+                propScatterer?.RefreshProgressionPresentation();
+                return;
+            }
+
+            var previousRadius = currentCorruptionRadius;
+            currentCorruptionRadius = Mathf.MoveTowards(
+                currentCorruptionRadius,
+                targetCorruptionRadius,
+                Mathf.Max(1f, corruptionRadiusCatchupSpeed) * Time.deltaTime);
+
+            if (Mathf.Abs(currentCorruptionRadius - previousRadius) < 0.35f)
             {
                 return;
             }
 
-            currentCorruptionRadius = nextRadius;
             groundTiler?.RefreshProgressionPresentation();
             propScatterer?.RefreshProgressionPresentation();
+        }
+
+        private float ResolveSpreadCorruptionValue()
+        {
+            if (corruptionMeter == null)
+            {
+                return 0f;
+            }
+
+            var currentCorruption = corruptionMeter.CurrentCorruption;
+            if (corruptionSpreadMultiplier <= 1f || currentCorruption <= spreadMultiplierCorruptionBaseline)
+            {
+                return currentCorruption;
+            }
+
+            var postSelectionCorruption = currentCorruption - spreadMultiplierCorruptionBaseline;
+            return spreadMultiplierCorruptionBaseline + (postSelectionCorruption * corruptionSpreadMultiplier);
         }
 
         private void UpdateCorruptionPenalty()

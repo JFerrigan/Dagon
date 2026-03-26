@@ -1,3 +1,4 @@
+using Dagon.Core;
 using Dagon.Data;
 using UnityEngine;
 
@@ -5,8 +6,9 @@ namespace Dagon.Gameplay
 {
     public sealed class TideburstWeapon : PlayerWeaponRuntime
     {
-        private static readonly Color TideburstProjectileTint = new(0.32f, 0.68f, 0.98f, 1f);
-        private static readonly Color TideburstOverlayTint = new(0.70f, 0.90f, 1f, 0.42f);
+        private static readonly Color TideburstProjectileTint = new(0.98f, 0.98f, 0.98f, 1f);
+        private static readonly Color TideburstOverlayTint = new(1f, 1f, 1f, 0.36f);
+        private static readonly Color TideburstGlowTint = new(1f, 1f, 1f, 0.22f);
 
         [SerializeField] private HarpoonProjectile projectilePrefab;
         [SerializeField] private float attacksPerSecond = 0.7f;
@@ -176,9 +178,9 @@ namespace Dagon.Gameplay
         {
             var projectile = RuntimeOrbProjectileFactory.Create(
                 worldCameraReference,
-                "Sprites/Enemies/mire_wretch",
+                "Sprites/Props/corruption_fountain",
                 TideburstProjectileTint,
-                new Vector3(0.88f, 0.88f, 1f),
+                new Vector3(0.18f, 0.18f, 1f),
                 256f);
             if (projectile == null)
             {
@@ -197,10 +199,20 @@ namespace Dagon.Gameplay
                 return projectile;
             }
 
+            var glow = new GameObject("TideburstGlow");
+            glow.transform.SetParent(visuals, false);
+            glow.transform.localPosition = new Vector3(0f, 0f, 0.01f);
+            glow.transform.localScale = Vector3.one * 1.8f;
+
+            var glowRenderer = glow.AddComponent<SpriteRenderer>();
+            glowRenderer.sprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Effects/brine_surge", 256f);
+            glowRenderer.color = TideburstGlowTint;
+            glowRenderer.sortingOrder = baseRenderer.sortingOrder - 1;
+
             var overlay = new GameObject("TideburstOverlay");
             overlay.transform.SetParent(visuals, false);
             overlay.transform.localPosition = new Vector3(0f, 0f, -0.01f);
-            overlay.transform.localScale = Vector3.one * 1.12f;
+            overlay.transform.localScale = Vector3.one * 1.06f;
 
             var overlayRenderer = overlay.AddComponent<SpriteRenderer>();
             overlayRenderer.sprite = baseRenderer.sprite;

@@ -34,7 +34,8 @@ namespace Dagon.Gameplay
             WatcherEye,
             Slime,
             Parasite,
-            DeepSpawn
+            DeepSpawn,
+            Swordfish
         }
 
         public readonly struct EnemyVisualSpec
@@ -110,7 +111,8 @@ namespace Dagon.Gameplay
             WatcherEye,
             Slime,
             Parasite,
-            DeepSpawn
+            DeepSpawn,
+            Swordfish
         }
 
         private sealed class ScriptedWaveState
@@ -137,6 +139,7 @@ namespace Dagon.Gameplay
         [SerializeField] private Sprite slimeSprite;
         [SerializeField] private Sprite parasiteSprite;
         [SerializeField] private Sprite deepSpawnSprite;
+        [SerializeField] private Sprite swordfishSprite;
         [SerializeField] private GameObject deepSpawnPrefab;
         [SerializeField] private DrownedAcolyteProjectile acolyteProjectilePrefab;
         [SerializeField] private HarpoonProjectile watcherEyeProjectilePrefab;
@@ -263,6 +266,9 @@ namespace Dagon.Gameplay
                 case "deep_spawn":
                     spec = new EnemyVisualSpec("Sprites/Enemies/deep_spawn", 64f, new Vector3(0.9f, 0.9f, 1f), Vector3.zero);
                     return true;
+                case "swordfish":
+                    spec = new EnemyVisualSpec("Sprites/Enemies/swordfish", 64f, new Vector3(2.6f, 2.6f, 1f), Vector3.zero);
+                    return true;
                 case "watcher_eye":
                     spec = new EnemyVisualSpec("Sprites/Enemies/watcher_eye", 64f, new Vector3(1.2f, 1.2f, 1f), new Vector3(0f, 0.22f, 0f));
                     return true;
@@ -339,6 +345,7 @@ namespace Dagon.Gameplay
             slimeSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/slime", 64f);
             parasiteSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/parasite", 64f);
             deepSpawnSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/deep_spawn", 64f);
+            swordfishSprite = RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/swordfish", 64f);
             deepSpawnPrefab = Resources.Load<GameObject>(DeepSpawnPrefabResourcePath);
             acolyteProjectilePrefab = RuntimeAcolyteProjectileFactory.Create(cameraReference);
             watcherEyeProjectilePrefab = RuntimeOrbProjectileFactory.Create(
@@ -434,6 +441,7 @@ namespace Dagon.Gameplay
                 CorruptionWaveEnemyKind.Slime => EnemyKind.Slime,
                 CorruptionWaveEnemyKind.Parasite => EnemyKind.Parasite,
                 CorruptionWaveEnemyKind.DeepSpawn => EnemyKind.DeepSpawn,
+                CorruptionWaveEnemyKind.Swordfish => EnemyKind.Swordfish,
                 _ => ChooseWaveFodderKind(GetElapsedRunTime())
             });
         }
@@ -557,6 +565,11 @@ namespace Dagon.Gameplay
             return SpawnSandboxDeepSpawn(false);
         }
 
+        public bool SpawnSandboxSwordfish()
+        {
+            return SpawnSandboxSwordfish(false);
+        }
+
         public bool SpawnSandboxMireWretch(bool forceCorrupted)
         {
             return TrySpawnSpecificEnemy(EnemyKind.MireWretch, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
@@ -592,6 +605,11 @@ namespace Dagon.Gameplay
             return TrySpawnSpecificEnemy(EnemyKind.DeepSpawn, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
         }
 
+        public bool SpawnSandboxSwordfish(bool forceCorrupted)
+        {
+            return TrySpawnSpecificEnemy(EnemyKind.Swordfish, BuildSpawnPosition(), ignoreAliveCap: true, forceCorrupted: forceCorrupted);
+        }
+
         public void ConfigureBiome(RuntimeBiomeProfile profile)
         {
             currentBiomeProfile = profile;
@@ -602,6 +620,7 @@ namespace Dagon.Gameplay
             slimeSprite = LoadBiomeSprite(profile != null ? profile.SlimeSpritePath : null, "Sprites/Enemies/slime", slimeSprite, 64f);
             parasiteSprite = LoadBiomeSprite(profile != null ? profile.ParasiteSpritePath : null, "Sprites/Enemies/parasite", parasiteSprite, 64f);
             deepSpawnSprite = LoadBiomeSprite(profile != null ? profile.DeepSpawnSpritePath : null, "Sprites/Enemies/deep_spawn", deepSpawnSprite, 64f);
+            swordfishSprite ??= RuntimeSpriteLibrary.LoadSprite("Sprites/Enemies/swordfish", 64f);
         }
 
         public void ConfigureDistanceThreat(RuntimeBiomeProfile profile, int threatTier)
@@ -817,6 +836,20 @@ namespace Dagon.Gameplay
                     rewards.Configure(1, 0f);
                     break;
                 }
+                case EnemyKind.Swordfish:
+                {
+                    knockbackReceiver.Configure(0.7f, 18f, 4.8f);
+                    var contactDamage = mire.AddComponent<ContactDamage>();
+                    contactDamage.Configure(2.25f * modifiers.DamageMultiplier);
+                    var swordfish = mire.AddComponent<SwordfishHunterController>();
+                    swordfish.Configure(player, worldCamera, 2.3f * corruptionEnemyMoveSpeedMultiplier, 11.4f * corruptionEnemyMoveSpeedMultiplier);
+                    if (isCorrupted)
+                    {
+                        swordfish.ApplyCorruptionModifiers(modifiers.DamageMultiplier, modifiers.SpeedMultiplier, modifiers.CadenceMultiplier);
+                    }
+                    rewards.Configure(6, 4f, EliteHealthPickupDropChance, HealthPickupHealAmount);
+                    break;
+                }
                 case EnemyKind.DeepSpawn:
                 default:
                 {
@@ -1012,7 +1045,7 @@ namespace Dagon.Gameplay
 
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = GetSprite(enemyKind);
-            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite || enemyKind == EnemyKind.Slime ? 5 : 6;
+            renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn || enemyKind == EnemyKind.Swordfish ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite || enemyKind == EnemyKind.Slime ? 5 : 6;
             var baseColor = currentBiomeProfile != null ? currentBiomeProfile.EnemyTint : Color.white;
             renderer.color = baseColor;
 
@@ -1023,6 +1056,10 @@ namespace Dagon.Gameplay
             else if (enemyKind == EnemyKind.DeepSpawn)
             {
                 visuals.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+            }
+            else if (enemyKind == EnemyKind.Swordfish && swordfishSprite != null)
+            {
+                visuals.transform.localScale = new Vector3(2.6f, 2.6f, 1f);
             }
             else if (enemyKind == EnemyKind.Mermaid && mermaidSprite != null)
             {
@@ -1153,6 +1190,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => CorruptionVariantRules.EnemyArchetype.Specialist,
                 EnemyKind.Mermaid => CorruptionVariantRules.EnemyArchetype.Specialist,
                 EnemyKind.DeepSpawn => CorruptionVariantRules.EnemyArchetype.Elite,
+                EnemyKind.Swordfish => CorruptionVariantRules.EnemyArchetype.Elite,
                 _ => CorruptionVariantRules.EnemyArchetype.Fodder
             };
         }
@@ -1221,6 +1259,7 @@ namespace Dagon.Gameplay
                 EnemyKind.WatcherEye => new Vector3(0f, 1.7f, 0f),
                 EnemyKind.Slime => new Vector3(0f, isSmallSlimeVariant ? 0.85f : 1.35f, 0f),
                 EnemyKind.Parasite => new Vector3(0f, 1.1f, 0f),
+                EnemyKind.Swordfish => new Vector3(0f, 5.2f, 0f),
                 _ => new Vector3(0f, 1.8f, 0f)
             };
             bar.Configure(worldCamera, offset, !enemyHealthBarsAlwaysVisible, enemyHealthBarVisibleDuration);
@@ -1270,6 +1309,11 @@ namespace Dagon.Gameplay
                     collider.height = 4.4f;
                     collider.radius = 1.45f;
                     break;
+                case EnemyKind.Swordfish:
+                    collider.center = new Vector3(0f, 2.4f, 0f);
+                    collider.height = 4.8f;
+                    collider.radius = 1.7f;
+                    break;
                 default:
                     collider.center = new Vector3(0f, 0.75f, 0f);
                     collider.height = 1.5f;
@@ -1302,6 +1346,7 @@ namespace Dagon.Gameplay
                 EnemyKind.Slime => isSmallSlimeVariant ? 0.26f : 0.46f,
                 EnemyKind.Parasite => 0.28f,
                 EnemyKind.DeepSpawn => 0.62f,
+                EnemyKind.Swordfish => 1.15f,
                 _ => Mathf.Max(0.2f, collider.radius * 0.85f)
             };
             var weight = enemyKind switch
@@ -1310,6 +1355,7 @@ namespace Dagon.Gameplay
                 EnemyKind.WatcherEye => 0.85f,
                 EnemyKind.Slime => isSmallSlimeVariant ? 0.6f : 1.2f,
                 EnemyKind.DeepSpawn => 1.8f,
+                EnemyKind.Swordfish => 1.65f,
                 EnemyKind.Mermaid => 1.15f,
                 _ => 1f
             };
@@ -1751,6 +1797,18 @@ namespace Dagon.Gameplay
 
         private EnemyKind ChooseEliteKind()
         {
+            var deepSpawnAvailable = deepSpawnPrefab != null;
+            var swordfishAvailable = swordfishSprite != null;
+            if (deepSpawnAvailable && swordfishAvailable)
+            {
+                return Random.value < 0.5f ? EnemyKind.DeepSpawn : EnemyKind.Swordfish;
+            }
+
+            if (swordfishAvailable)
+            {
+                return EnemyKind.Swordfish;
+            }
+
             return EnemyKind.DeepSpawn;
         }
 
@@ -1870,6 +1928,7 @@ namespace Dagon.Gameplay
                 EnemyKind.Slime => isSmallSlimeVariant ? 2f : 6f,
                 EnemyKind.Parasite => 1f,
                 EnemyKind.DeepSpawn => 24f,
+                EnemyKind.Swordfish => 20f,
                 _ => 3f
             };
         }
@@ -1884,6 +1943,7 @@ namespace Dagon.Gameplay
                 EnemyKind.Slime when slimeSprite != null => slimeSprite,
                 EnemyKind.Parasite when parasiteSprite != null => parasiteSprite,
                 EnemyKind.DeepSpawn when deepSpawnSprite != null => deepSpawnSprite,
+                EnemyKind.Swordfish when swordfishSprite != null => swordfishSprite,
                 _ => mireSprite
             };
         }
@@ -1949,6 +2009,11 @@ namespace Dagon.Gameplay
                 return SpawnClass.Elite;
             }
 
+            if (enemy.GetComponent<SwordfishHunterController>() != null)
+            {
+                return SpawnClass.Elite;
+            }
+
             if (enemy.GetComponent<DrownedAcolyteShooter>() != null || enemy.GetComponent<MermaidController>() != null)
             {
                 return SpawnClass.Specialist;
@@ -1962,7 +2027,7 @@ namespace Dagon.Gameplay
             return enemyKind switch
             {
                 EnemyKind.DrownedAcolyte or EnemyKind.Mermaid => SpawnClass.Specialist,
-                EnemyKind.DeepSpawn => SpawnClass.Elite,
+                EnemyKind.DeepSpawn or EnemyKind.Swordfish => SpawnClass.Elite,
                 _ => SpawnClass.Fodder
             };
         }
@@ -2081,7 +2146,7 @@ namespace Dagon.Gameplay
 
         private bool HasAvailableElite()
         {
-            return deepSpawnPrefab != null;
+            return deepSpawnPrefab != null || swordfishSprite != null;
         }
 
         private void TryStartWave()
@@ -2160,7 +2225,8 @@ namespace Dagon.Gameplay
                 EnemyKind.WatcherEye => watcherEyeSprite != null && watcherEyeProjectilePrefab != null && elapsed >= GetCurrentWatcherUnlockTime(),
                 EnemyKind.Slime => slimeSprite != null,
                 EnemyKind.Parasite => parasiteSprite != null && elapsed >= GetCurrentParasiteUnlockTime(),
-                EnemyKind.DeepSpawn => HasAvailableElite(),
+                EnemyKind.DeepSpawn => deepSpawnPrefab != null,
+                EnemyKind.Swordfish => swordfishSprite != null,
                 _ => mireSprite != null
             };
         }
@@ -2251,7 +2317,7 @@ namespace Dagon.Gameplay
 
         private EnemyKind ChooseWaveEliteKind()
         {
-            return EnemyKind.DeepSpawn;
+            return ChooseEliteKind();
         }
 
         private WavePattern ChooseWavePattern(EnemyKind enemyKind)
@@ -2269,6 +2335,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => Random.value < 0.6f ? WavePattern.SingleSideLine : WavePattern.DoubleSidePincer,
                 EnemyKind.Mermaid => WavePattern.SingleSideLine,
                 EnemyKind.DeepSpawn => WavePattern.SingleSideLine,
+                EnemyKind.Swordfish => WavePattern.SingleSideLine,
                 _ => WavePattern.SingleSideLine
             };
         }
@@ -2288,6 +2355,7 @@ namespace Dagon.Gameplay
                 EnemyKind.DrownedAcolyte => pattern == WavePattern.DoubleSidePincer ? 8 : 6,
                 EnemyKind.Mermaid => 6,
                 EnemyKind.DeepSpawn => 4,
+                EnemyKind.Swordfish => 4,
                 _ => 4
             };
 

@@ -6,6 +6,12 @@ namespace Dagon.Gameplay
     [DisallowMultipleComponent]
     public sealed class RotBeaconBombProjectile : MonoBehaviour
     {
+        private enum LandingPayloadMode
+        {
+            Beacon,
+            HostilePool
+        }
+
         private Vector3 startPosition;
         private Vector3 targetPosition;
         private float travelDuration;
@@ -34,6 +40,13 @@ namespace Dagon.Gameplay
         private Color explosionTint;
         private int effectSortingOrder;
         private float heightOffset;
+        private LandingPayloadMode landingPayloadMode;
+        private float poolDuration;
+        private float poolTickDamage;
+        private float poolTickInterval;
+        private float poolSlowAmount;
+        private float poolSlowDuration;
+        private string poolName = "EnemyThrownPool";
 
         internal static void Spawn(
             Vector3 start,
@@ -100,6 +113,49 @@ namespace Dagon.Gameplay
                 effectSortingOrder);
         }
 
+        internal static void SpawnHostilePool(
+            Vector3 start,
+            Vector3 target,
+            float duration,
+            float lobHeight,
+            Camera camera,
+            GameObject sourceOwner,
+            string projectileSpritePath,
+            Color projectileTint,
+            Vector3 projectileScale,
+            int projectileSortingOrder,
+            float projectileHeightOffset,
+            float radius,
+            float zoneDuration,
+            float tickDamage,
+            float tickInterval,
+            float slowAmount,
+            float slowDuration,
+            string poolName)
+        {
+            var projectile = new GameObject("RotBeaconBombProjectile");
+            var component = projectile.AddComponent<RotBeaconBombProjectile>();
+            component.InitializeHostilePool(
+                start,
+                target,
+                duration,
+                lobHeight,
+                camera,
+                sourceOwner,
+                projectileSpritePath,
+                projectileTint,
+                projectileScale,
+                projectileSortingOrder,
+                projectileHeightOffset,
+                radius,
+                zoneDuration,
+                tickDamage,
+                tickInterval,
+                slowAmount,
+                slowDuration,
+                poolName);
+        }
+
         private void Update()
         {
             elapsed += Time.deltaTime;
@@ -152,6 +208,7 @@ namespace Dagon.Gameplay
             worldCamera = camera;
             owner = sourceOwner;
             heightOffset = projectileHeightOffset;
+            landingPayloadMode = LandingPayloadMode.Beacon;
 
             pulseRadius = Mathf.Max(0.1f, newPulseRadius);
             pulseCount = Mathf.Max(1, newPulseCount);
@@ -205,31 +262,93 @@ namespace Dagon.Gameplay
 
         private void Land()
         {
-            RotBeaconBombBeacon.Spawn(
-                targetPosition,
-                worldCamera,
-                owner,
-                pulseRadius,
-                pulseCount,
-                pulseInterval,
-                pulseDamage,
-                slowAmount,
-                slowDuration,
-                explosionRadius,
-                explosionDamage,
-                enemyMask,
-                beaconSpritePath,
-                beaconTint,
-                beaconScale,
-                beaconSortingOrder,
-                pulseSpritePath,
-                pulseTint,
-                explosionSpritePath,
-                explosionTint,
-                effectSortingOrder,
-                heightOffset);
+            switch (landingPayloadMode)
+            {
+                case LandingPayloadMode.HostilePool:
+                    ShapedHazardZone.SpawnCircle(
+                        targetPosition,
+                        pulseRadius,
+                        poolDuration,
+                        poolTickDamage,
+                        poolTickInterval,
+                        worldCamera,
+                        CombatTeam.Player,
+                        owner,
+                        new Color(0.34f, 0.86f, 0.58f, 0.36f),
+                        new Color(0.76f, 0.98f, 0.82f, 0.72f),
+                        poolSlowAmount,
+                        poolSlowDuration,
+                        tickImmediatelyOnEnter: true,
+                        name: poolName);
+                    break;
+                default:
+                    RotBeaconBombBeacon.Spawn(
+                        targetPosition,
+                        worldCamera,
+                        owner,
+                        pulseRadius,
+                        pulseCount,
+                        pulseInterval,
+                        pulseDamage,
+                        slowAmount,
+                        slowDuration,
+                        explosionRadius,
+                        explosionDamage,
+                        enemyMask,
+                        beaconSpritePath,
+                        beaconTint,
+                        beaconScale,
+                        beaconSortingOrder,
+                        pulseSpritePath,
+                        pulseTint,
+                        explosionSpritePath,
+                        explosionTint,
+                        effectSortingOrder,
+                        heightOffset);
+                    break;
+            }
 
             Destroy(gameObject);
+        }
+
+        private void InitializeHostilePool(
+            Vector3 start,
+            Vector3 target,
+            float duration,
+            float lobHeight,
+            Camera camera,
+            GameObject sourceOwner,
+            string projectileSpritePath,
+            Color projectileTint,
+            Vector3 projectileScale,
+            int projectileSortingOrder,
+            float projectileHeightOffset,
+            float radius,
+            float zoneDuration,
+            float tickDamage,
+            float tickInterval,
+            float appliedSlowAmount,
+            float appliedSlowDuration,
+            string hostilePoolName)
+        {
+            startPosition = start;
+            targetPosition = target;
+            travelDuration = Mathf.Max(0.05f, duration);
+            arcHeight = Mathf.Max(0.05f, lobHeight);
+            worldCamera = camera;
+            owner = sourceOwner;
+            heightOffset = projectileHeightOffset;
+            landingPayloadMode = LandingPayloadMode.HostilePool;
+            pulseRadius = Mathf.Max(0.1f, radius);
+            poolDuration = Mathf.Max(0.1f, zoneDuration);
+            poolTickDamage = Mathf.Max(0.01f, tickDamage);
+            poolTickInterval = Mathf.Max(0.05f, tickInterval);
+            poolSlowAmount = Mathf.Clamp01(appliedSlowAmount);
+            poolSlowDuration = Mathf.Max(0f, appliedSlowDuration);
+            poolName = string.IsNullOrWhiteSpace(hostilePoolName) ? "EnemyThrownPool" : hostilePoolName;
+
+            transform.position = start + (Vector3.up * heightOffset);
+            CreateProjectileVisual(projectileSpritePath, projectileTint, projectileScale, projectileSortingOrder);
         }
     }
 }

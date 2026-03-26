@@ -5,7 +5,7 @@ namespace Dagon.Gameplay
 {
     public static class WorldPickupVisualFactory
     {
-        private static Sprite cachedOrbSprite;
+        private static readonly System.Collections.Generic.Dictionary<int, Sprite> CachedOrbSprites = new();
 
         public static void Create(
             Transform parent,
@@ -51,7 +51,7 @@ namespace Dagon.Gameplay
             billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
         }
 
-        public static void CreateOrb(
+        public static SpriteRenderer CreateOrb(
             Transform parent,
             Camera camera,
             Color coreColor,
@@ -64,7 +64,7 @@ namespace Dagon.Gameplay
         {
             if (parent == null)
             {
-                return;
+                return null;
             }
 
             var visuals = new GameObject("Visuals");
@@ -79,11 +79,24 @@ namespace Dagon.Gameplay
 
             var billboard = visuals.AddComponent<BillboardSprite>();
             billboard.Configure(camera, BillboardSprite.BillboardMode.YAxisOnly);
+            return renderer;
+        }
+
+        public static void UpdateOrb(SpriteRenderer renderer, Color coreColor, Color midColor, Color rimColor, float pixelsPerUnit = 256f)
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            renderer.sprite = GetOrCreateOrbSprite(coreColor, midColor, rimColor, pixelsPerUnit);
+            renderer.color = Color.white;
         }
 
         private static Sprite GetOrCreateOrbSprite(Color coreColor, Color midColor, Color rimColor, float pixelsPerUnit)
         {
-            if (cachedOrbSprite != null)
+            var key = System.HashCode.Combine((Color32)coreColor, (Color32)midColor, (Color32)rimColor, Mathf.RoundToInt(pixelsPerUnit * 10f));
+            if (CachedOrbSprites.TryGetValue(key, out var cachedOrbSprite))
             {
                 return cachedOrbSprite;
             }
@@ -130,6 +143,7 @@ namespace Dagon.Gameplay
                 pixelsPerUnit,
                 0,
                 SpriteMeshType.FullRect);
+            CachedOrbSprites[key] = cachedOrbSprite;
             return cachedOrbSprite;
         }
     }

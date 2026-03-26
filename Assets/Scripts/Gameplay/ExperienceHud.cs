@@ -14,12 +14,15 @@ namespace Dagon.Gameplay
         private static readonly Color CooldownReady = new(0.58f, 0.86f, 0.72f, 1f);
         private static readonly Color CooldownActive = new(0.23f, 0.55f, 0.46f, 1f);
         private static readonly Color CooldownBackground = new(0.10f, 0.16f, 0.16f, 1f);
+        private static readonly Color EscapeArrowColor = new(0.96f, 0.92f, 0.62f, 0.96f);
+        private static readonly Color EscapeArrowShadowColor = new(0.18f, 0.16f, 0.08f, 0.72f);
 
         [SerializeField] private ExperienceController experienceController;
         [SerializeField] private Health playerHealth;
         [SerializeField] private CorruptionMeter corruptionMeter;
         [SerializeField] private PlayerCombatLoadout combatLoadout;
         [SerializeField] private CorruptionRuntimeEffects corruptionEffects;
+        [SerializeField] private WorldProgressionDirector worldProgressionDirector;
         private Texture2D heartTexture;
         private Texture2D whiteTexture;
         private GUIStyle centeredTitleStyle;
@@ -58,6 +61,11 @@ namespace Dagon.Gameplay
                 corruptionEffects = FindObjectOfType<CorruptionRuntimeEffects>();
             }
 
+            if (worldProgressionDirector == null)
+            {
+                worldProgressionDirector = FindObjectOfType<WorldProgressionDirector>();
+            }
+
             heartTexture = Resources.Load<Texture2D>("Sprites/UI/heart");
             whiteTexture = Texture2D.whiteTexture;
 
@@ -81,6 +89,7 @@ namespace Dagon.Gameplay
             DrawExperienceBar();
             DrawCooldownPanel();
             DrawCorruptionBar();
+            DrawCorruptionEscapeArrow();
             DrawWeaponStrip();
 
             if (DrownedReliquary.HasActiveInteraction)
@@ -244,6 +253,127 @@ namespace Dagon.Gameplay
             GUI.Label(new Rect(barX + barWidth + 8f, barY - 4f, 96f, 18f), corruptionLabel);
         }
 
+        private void DrawCorruptionEscapeArrow()
+        {
+            if (whiteTexture == null)
+            {
+                return;
+            }
+
+            worldProgressionDirector ??= FindObjectOfType<WorldProgressionDirector>();
+            var playerTransform = playerHealth != null ? playerHealth.transform : FindObjectOfType<PlayerMover>()?.transform;
+            if (worldProgressionDirector == null || playerTransform == null)
+            {
+                return;
+            }
+
+            if (!worldProgressionDirector.TryGetCorruptionEscapeDirection(playerTransform.position, out var escapeDirection))
+            {
+                return;
+            }
+
+            var worldCamera = Camera.main;
+            var angle = ResolveScreenBearingAngle(escapeDirection, worldCamera);
+            var scale = Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f), 0.85f, 1.15f);
+            var bottomOffset = 118f * scale;
+            var center = new Vector2(Screen.width * 0.5f, Screen.height - bottomOffset);
+            var bodyLength = 34f * scale;
+            var bodyThickness = 6f * scale;
+            var wingLength = 16f * scale;
+            var wingThickness = 5f * scale;
+
+            DrawArrowAt(center + new Vector2(0f, 20f * scale), angle, bodyLength, bodyThickness, wingLength, wingThickness, EscapeArrowShadowColor);
+            DrawArrowAt(center, angle, bodyLength, bodyThickness, wingLength, wingThickness, EscapeArrowColor);
+            GUI.Label(
+                new Rect(center.x - 52f, center.y + 22f * scale, 104f, 18f),
+                "WAY OUT",
+                centeredBodyStyle);
+        }
+
+        private void DrawArrowAt(
+            Vector2 center,
+            float angleDegrees,
+            float bodyLength,
+            float bodyThickness,
+            float wingLength,
+            float wingThickness,
+            Color color)
+        {
+            var tip = center + RotateVector(new Vector2(0f, -bodyLength * 0.5f), angleDegrees);
+            var headBase = tip + RotateVector(new Vector2(0f, wingLength * 0.4f), angleDegrees);
+            var leftWingCenter = headBase + RotateVector(new Vector2(-wingLength * 0.2f, 0f), angleDegrees);
+            var rightWingCenter = headBase + RotateVector(new Vector2(wingLength * 0.2f, 0f), angleDegrees);
+            DrawRotatedRect(center, new Vector2(bodyThickness, bodyLength), angleDegrees, color);
+            DrawRotatedRect(leftWingCenter, new Vector2(wingThickness, wingLength), angleDegrees + 32f, color);
+            DrawRotatedRect(rightWingCenter, new Vector2(wingThickness, wingLength), angleDegrees - 32f, color);
+        }
+
+        private void DrawRotatedRect(Vector2 center, Vector2 size, float angleDegrees, Color color)
+        {
+            var previousColor = GUI.color;
+            var previousMatrix = GUI.matrix;
+            GUI.color = color;
+            GUIUtility.RotateAroundPivot(angleDegrees, center);
+            GUI.DrawTexture(
+                new Rect(center.x - size.x * 0.5f, center.y - size.y * 0.5f, size.x, size.y),
+                whiteTexture,
+                ScaleMode.StretchToFill,
+                false);
+            GUI.matrix = previousMatrix;
+            GUI.color = previousColor;
+        }
+
+        private static Vector2 RotateVector(Vector2 value, float angleDegrees)
+        {
+            var radians = angleDegrees * Mathf.Deg2Rad;
+            var cos = Mathf.Cos(radians);
+            var sin = Mathf.Sin(radians);
+            return new Vector2(
+                value.x * cos - value.y * sin,
+                value.x * sin + value.y * cos);
+        }
+
+        private static float ResolveScreenBearingAngle(Vector3 worldDirection, Camera worldCamera)
+        {
+            var planarDirection = new Vector3(worldDirection.x, 0f, worldDirection.z);
+            if (planarDirection.sqrMagnitude <= 0.0001f)
+            {
+                return 0f;
+            }
+
+            planarDirection.Normalize();
+            if (worldCamera == null)
+            {
+                return Mathf.Atan2(planarDirection.x, planarDirection.z) * Mathf.Rad2Deg;
+            }
+
+            var cameraForward = worldCamera.transform.forward;
+            cameraForward.y = 0f;
+            if (cameraForward.sqrMagnitude <= 0.0001f)
+            {
+                cameraForward = Vector3.forward;
+            }
+            else
+            {
+                cameraForward.Normalize();
+            }
+
+            var cameraRight = worldCamera.transform.right;
+            cameraRight.y = 0f;
+            if (cameraRight.sqrMagnitude <= 0.0001f)
+            {
+                cameraRight = Vector3.right;
+            }
+            else
+            {
+                cameraRight.Normalize();
+            }
+
+            var x = Vector3.Dot(planarDirection, cameraRight);
+            var y = Vector3.Dot(planarDirection, cameraForward);
+            return Mathf.Atan2(x, y) * Mathf.Rad2Deg;
+        }
+
         private void DrawMeter(Rect rect, float progress, Color fillColor, Color backgroundColor)
         {
             if (whiteTexture == null)
@@ -298,13 +428,22 @@ namespace Dagon.Gameplay
                 padding = new RectOffset(18, 18, 16, 16),
                 margin = new RectOffset(0, 0, 0, 0)
             };
-            upgradeButtonStyle.normal.background = whiteTexture;
-            upgradeButtonStyle.hover.background = whiteTexture;
-            upgradeButtonStyle.active.background = whiteTexture;
-            upgradeButtonStyle.focused.background = whiteTexture;
+            upgradeButtonStyle.normal.background = null;
+            upgradeButtonStyle.hover.background = null;
+            upgradeButtonStyle.active.background = null;
+            upgradeButtonStyle.focused.background = null;
+            upgradeButtonStyle.onNormal.background = null;
+            upgradeButtonStyle.onHover.background = null;
+            upgradeButtonStyle.onActive.background = null;
+            upgradeButtonStyle.onFocused.background = null;
             upgradeButtonStyle.normal.textColor = new Color(0.93f, 0.98f, 0.94f, 1f);
             upgradeButtonStyle.hover.textColor = Color.white;
             upgradeButtonStyle.active.textColor = Color.white;
+            upgradeButtonStyle.focused.textColor = Color.white;
+            upgradeButtonStyle.onNormal.textColor = upgradeButtonStyle.normal.textColor;
+            upgradeButtonStyle.onHover.textColor = Color.white;
+            upgradeButtonStyle.onActive.textColor = Color.white;
+            upgradeButtonStyle.onFocused.textColor = Color.white;
 
             corruptionColumnStyle = new GUIStyle(centeredBodyStyle)
             {
@@ -411,49 +550,55 @@ namespace Dagon.Gameplay
 
             GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 26f, panelRect.width - 80f, 34f), $"Corruption Stage {choice.StageIndex + 1}", centeredTitleStyle);
             var subtitle = choice.RequiresBoonSelection
-                ? $"Crossed {choice.ThresholdValue:0} corruption. Choose 1 boon. The burden is forced."
+                ? $"Crossed {choice.ThresholdValue:0} corruption. Choose 1 boon."
                 : $"Crossed {choice.ThresholdValue:0} corruption. Choose 1 catastrophic drawback.";
             GUI.Label(new Rect(panelRect.x + 40f, panelRect.y + 62f, panelRect.width - 80f, 28f), subtitle, centeredBodyStyle);
 
             var gutter = 26f;
             var columnHeight = 238f;
+            var immediateBoonSelection = -1;
+            var immediateDrawbackSelection = -1;
             if (choice.RequiresBoonSelection)
             {
                 var columnWidth = (panelRect.width - (gutter * 3f)) * 0.5f;
                 var boonRect = new Rect(panelRect.x + gutter, panelRect.y + 108f, columnWidth, columnHeight);
                 var drawbackRect = new Rect(boonRect.xMax + gutter, boonRect.y, columnWidth, columnHeight);
 
-                DrawCorruptionChoiceColumn(boonRect, "Boon", choice.Boons, true, ref selectedCorruptionBoonIndex, new Color(0.11f, 0.19f, 0.16f, 0.94f));
+                DrawCorruptionChoiceColumn(boonRect, "Boon", choice.Boons, true, ref selectedCorruptionBoonIndex, new Color(0.11f, 0.19f, 0.16f, 0.94f), out immediateBoonSelection);
                 DrawForcedCorruptionDrawback(drawbackRect, "Burden", choice.Drawbacks, new Color(0.12f, 0.15f, 0.14f, 0.94f));
                 selectedCorruptionDrawbackIndex = choice.Drawbacks.Length > 0 ? 0 : -1;
             }
             else
             {
                 var singleRect = new Rect(panelRect.x + 120f, panelRect.y + 108f, panelRect.width - 240f, columnHeight);
-                DrawCorruptionChoiceColumn(singleRect, "Catastrophe", choice.Drawbacks, false, ref selectedCorruptionDrawbackIndex, new Color(0.12f, 0.15f, 0.14f, 0.94f));
+                DrawCorruptionChoiceColumn(singleRect, "Catastrophe", choice.Drawbacks, false, ref selectedCorruptionDrawbackIndex, new Color(0.12f, 0.15f, 0.14f, 0.94f), out immediateDrawbackSelection);
                 selectedCorruptionBoonIndex = -1;
             }
 
-            var confirmRect = new Rect(panelRect.x + 250f, panelRect.yMax - 70f, panelRect.width - 500f, 42f);
-            DrawUpgradeButton(confirmRect);
-            var ready = selectedCorruptionDrawbackIndex >= 0 && (!choice.RequiresBoonSelection || selectedCorruptionBoonIndex >= 0);
-            GUI.enabled = ready;
-            if (GUI.Button(confirmRect, "Accept", upgradeButtonStyle))
+            if (immediateBoonSelection >= 0)
             {
-                corruptionEffects?.ApplyPendingChoice(selectedCorruptionBoonIndex, selectedCorruptionDrawbackIndex);
+                corruptionEffects?.ApplyPendingChoice(immediateBoonSelection, selectedCorruptionDrawbackIndex);
+                selectedCorruptionBoonIndex = -1;
+                selectedCorruptionDrawbackIndex = -1;
+                activeCorruptionChoiceStage = -1;
+                Time.timeScale = 1f;
+            }
+            else if (immediateDrawbackSelection >= 0)
+            {
+                corruptionEffects?.ApplyPendingChoice(-1, immediateDrawbackSelection);
                 selectedCorruptionBoonIndex = -1;
                 selectedCorruptionDrawbackIndex = -1;
                 activeCorruptionChoiceStage = -1;
                 Time.timeScale = 1f;
             }
 
-            GUI.enabled = true;
             GUI.matrix = previousMatrix;
             GUI.color = previousColor;
         }
 
-        private void DrawCorruptionChoiceColumn(Rect rect, string title, CorruptionRuntimeEffects.CorruptionOptionView[] options, bool isBoon, ref int selectedIndex, Color backgroundColor)
+        private void DrawCorruptionChoiceColumn(Rect rect, string title, CorruptionRuntimeEffects.CorruptionOptionView[] options, bool isBoon, ref int selectedIndex, Color backgroundColor, out int clickedIndex)
         {
+            clickedIndex = -1;
             GUI.color = backgroundColor;
             GUI.DrawTexture(rect, whiteTexture, ScaleMode.StretchToFill, false);
             GUI.color = Color.white;
@@ -476,6 +621,7 @@ namespace Dagon.Gameplay
                 if (GUI.Button(optionRect, GUIContent.none, GUIStyle.none))
                 {
                     selectedIndex = i;
+                    clickedIndex = i;
                 }
 
                 GUI.Label(new Rect(optionRect.x + 12f, optionRect.y + 5f, optionRect.width - 24f, 18f), option.Title, centeredBodyStyle);

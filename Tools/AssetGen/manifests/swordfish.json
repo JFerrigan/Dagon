@@ -1,0 +1,13 @@
+{
+  "asset_id": "swordfish",
+  "asset_type": "enemy_sprite",
+  "prompt": "Black Mire swordfish elite hunter, predatory swamp-sea lancer with long blade bill, sleek aggressive silhouette, readable gameplay-facing sprite, isolated subject on transparent background.",
+  "output_path": "Assets/Resources/Sprites/Enemies/swordfish.png",
+  "source_image": "Tools/AssetGen/generated/swordfish.png",
+  "processed_image": "Tools/AssetGen/processed/swordfish.png",
+  "size": [64, 64],
+  "palette_notes": "deep teal, bone white bill, pale underbelly, mire black shadows, cold sea-green highlights",
+  "orientation": "front_34",
+  "provider": "chat_attachment_inbox",
+  "notes": "Swordfish elite sprite sourced from the local inbox image. Preserve a long cutting silhouette and readable body mass similar to Deep Spawn on screen, but do not over-bulk the side profile."
+}
