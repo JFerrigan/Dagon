@@ -1,0 +1,13 @@
+{
+  "asset_id": "spawn_refuge_a",
+  "asset_type": "ground_tile",
+  "prompt": "Spawn refuge ground tile, safer pale marsh floor with subtle wet mud texture, readable top-down gameplay tile, seamless edges, painterly pixel-art readability.",
+  "output_path": "Assets/Resources/Sprites/Tiles/spawn_refuge_a.png",
+  "source_image": "Tools/AssetGen/inbox/spawn_refuge_a.png",
+  "processed_image": "Tools/AssetGen/processed/spawn_refuge_a.png",
+  "size": [256, 256],
+  "palette_notes": "pale marsh gray, washed sage, soft mud beige, slightly cleaner refuge mood",
+  "orientation": "top_down_tile",
+  "provider": "chat_attachment_inbox",
+  "notes": "Dedicated Spawn Refuge base tile A."
+}

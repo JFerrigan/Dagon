@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f9dc6f7b4e84a7f9bd7a2fc87a3c511, type: 3}
+  m_Name: MireWretch3DPrototype
+  m_EditorClassIdentifier: 
+  skeletonPrefab: {fileID: 100100000, guid: fcc7e72ef9922724c9dbe91fe1141293, type: 3}
+  idleController: {fileID: 9100000, guid: f893d78148eef4541b5a78c4b4571608, type: 2}
+  walkController: {fileID: 9100000, guid: 468e00031e6a05e498b55f8809463ffb, type: 2}
+  damageController: {fileID: 9100000, guid: faca9af196b9d804abb5f63b24bd0196, type: 2}
+  deathController: {fileID: 9100000, guid: e09f360c42ea3ce409736bb4616687b0, type: 2}
+  localPosition: {x: 0, y: 0, z: 0}
+  localScale: {x: 1.7, y: 1.7, z: 1.7}
+  yawOffset: 0
+  movementThreshold: 0.12

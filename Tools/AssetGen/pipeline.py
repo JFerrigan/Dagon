@@ -198,7 +198,7 @@ def read_rgba_png(path: Path) -> tuple[int, int, list[tuple[int, int, int, int]]
 
         if chunk_type == b"IHDR":
             width, height, bit_depth, color_type, compression, flt, interlace = struct.unpack(">IIBBBBB", chunk_data)
-            if bit_depth != 8 or color_type != 6 or compression != 0 or flt != 0 or interlace != 0:
+            if bit_depth != 8 or color_type not in (2, 6) or compression != 0 or flt != 0 or interlace != 0:
                 raise ValueError(f"unsupported PNG format in {path.name}: bit_depth={bit_depth}, color_type={color_type}, interlace={interlace}")
         elif chunk_type == b"IDAT":
             compressed.extend(chunk_data)
@@ -209,7 +209,8 @@ def read_rgba_png(path: Path) -> tuple[int, int, list[tuple[int, int, int, int]]
         raise ValueError(f"missing IHDR in {path}")
 
     raw = zlib.decompress(bytes(compressed))
-    stride = width * 4
+    channel_count = 4 if color_type == 6 else 3
+    stride = width * channel_count
     pixels: list[tuple[int, int, int, int]] = []
     previous = bytearray(stride)
     cursor = 0
@@ -222,28 +223,32 @@ def read_rgba_png(path: Path) -> tuple[int, int, list[tuple[int, int, int, int]]
 
         if filter_type == 1:
             for i in range(stride):
-                left = row[i - 4] if i >= 4 else 0
+                left = row[i - channel_count] if i >= channel_count else 0
                 row[i] = (row[i] + left) & 0xFF
         elif filter_type == 2:
             for i in range(stride):
                 row[i] = (row[i] + previous[i]) & 0xFF
         elif filter_type == 3:
             for i in range(stride):
-                left = row[i - 4] if i >= 4 else 0
+                left = row[i - channel_count] if i >= channel_count else 0
                 up = previous[i]
                 row[i] = (row[i] + ((left + up) // 2)) & 0xFF
         elif filter_type == 4:
             for i in range(stride):
-                left = row[i - 4] if i >= 4 else 0
+                left = row[i - channel_count] if i >= channel_count else 0
                 up = previous[i]
-                up_left = previous[i - 4] if i >= 4 else 0
+                up_left = previous[i - channel_count] if i >= channel_count else 0
                 row[i] = (row[i] + paeth_predictor(left, up, up_left)) & 0xFF
         elif filter_type != 0:
             raise ValueError(f"unsupported PNG filter {filter_type} in {path.name}")
 
         previous = row
-        for i in range(0, stride, 4):
-            pixels.append((row[i], row[i + 1], row[i + 2], row[i + 3]))
+        if channel_count == 4:
+            for i in range(0, stride, 4):
+                pixels.append((row[i], row[i + 1], row[i + 2], row[i + 3]))
+        else:
+            for i in range(0, stride, 3):
+                pixels.append((row[i], row[i + 1], row[i + 2], 255))
 
     return width, height, pixels
 

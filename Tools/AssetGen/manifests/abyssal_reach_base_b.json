@@ -1,0 +1,13 @@
+{
+  "asset_id": "abyssal_reach_base_b",
+  "asset_type": "ground_tile",
+  "prompt": "Abyssal reach ground tile variation, cold abyssal stone-mud floor with dark drowned seabed texture, readable top-down gameplay tile, seamless edges, painterly pixel-art readability.",
+  "output_path": "Assets/Resources/Sprites/Tiles/abyssal_reach_base_b.png",
+  "source_image": "Tools/AssetGen/inbox/abyssal_reach_base_b.png",
+  "processed_image": "Tools/AssetGen/processed/abyssal_reach_base_b.png",
+  "size": [256, 256],
+  "palette_notes": "cold slate, abyssal blue-gray, wet black, faint bone wash",
+  "orientation": "top_down_tile",
+  "provider": "chat_attachment_inbox",
+  "notes": "Dedicated Abyssal Reach base tile B."
+}

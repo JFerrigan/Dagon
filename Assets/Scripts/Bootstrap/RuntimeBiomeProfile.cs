@@ -92,11 +92,29 @@ namespace Dagon.Bootstrap
 
         public static RuntimeBiomeProfile[] CreateDefaultSequence()
         {
-            var baseTiles = new[]
+            var mireBaseTiles = new[]
             {
                 "Sprites/Tiles/mire_base_a",
                 "Sprites/Tiles/mire_base_b",
                 "Sprites/Tiles/mire_base_c"
+            };
+            var spawnRefugeBaseTiles = new[]
+            {
+                "Sprites/Tiles/spawn_refuge_a",
+                "Sprites/Tiles/spawn_refuge_b",
+                "Sprites/Tiles/spawn_refuge_c"
+            };
+            var corruptedExpanseBaseTiles = new[]
+            {
+                "Sprites/Tiles/corrupted_expanse_a",
+                "Sprites/Tiles/corrupted_expanse_b",
+                "Sprites/Tiles/corrupted_expanse_c"
+            };
+            var abyssalReachBaseTiles = new[]
+            {
+                "Sprites/Tiles/abyssal_reach_base_a",
+                "Sprites/Tiles/abyssal_reach_base_b",
+                "Sprites/Tiles/abyssal_reach_base_c"
             };
             var mediumAccents = new[]
             {
@@ -119,7 +137,7 @@ namespace Dagon.Bootstrap
                     "biome.spawn_refuge",
                     "Spawn Refuge",
                     "Mire Colossus",
-                    baseTiles,
+                    spawnRefugeBaseTiles,
                     mediumAccents,
                     rareAccents,
                     overlays,
@@ -131,7 +149,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
-                    new Color(0.82f, 0.88f, 0.80f, 1f),
+                    new Color(1f, 1f, 1f, 1f),
                     new Color(0.78f, 0.84f, 0.78f, 0.90f),
                     new Color(0.84f, 0.90f, 0.82f, 0.92f),
                     new Color(0.88f, 0.92f, 0.86f, 1f),
@@ -147,7 +165,7 @@ namespace Dagon.Bootstrap
                     "biome.black_mire",
                     "Black Mire",
                     "Mire Colossus",
-                    baseTiles,
+                    mireBaseTiles,
                     mediumAccents,
                     rareAccents,
                     overlays,
@@ -175,7 +193,7 @@ namespace Dagon.Bootstrap
                     "biome.corrupted_expansion",
                     "Corrupted Expanse",
                     "Tidebound Colossus",
-                    baseTiles,
+                    corruptedExpanseBaseTiles,
                     mediumAccents,
                     rareAccents,
                     overlays,
@@ -187,7 +205,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
-                    new Color(0.58f, 0.70f, 0.64f, 1f),
+                    new Color(1f, 1f, 1f, 1f),
                     new Color(0.54f, 0.66f, 0.62f, 0.94f),
                     new Color(0.62f, 0.74f, 0.68f, 0.92f),
                     new Color(0.76f, 0.86f, 0.80f, 1f),
@@ -203,7 +221,7 @@ namespace Dagon.Bootstrap
                     "biome.abyssal_reach",
                     "Abyssal Reach",
                     "Ossuary Colossus",
-                    baseTiles,
+                    abyssalReachBaseTiles,
                     mediumAccents,
                     rareAccents,
                     overlays,
@@ -215,7 +233,7 @@ namespace Dagon.Bootstrap
                     "Sprites/Enemies/parasite",
                     "Sprites/Enemies/deep_spawn",
                     "Sprites/Bosses/mire_colossus",
-                    new Color(0.34f, 0.40f, 0.44f, 1f),
+                    new Color(1f, 1f, 1f, 1f),
                     new Color(0.30f, 0.36f, 0.40f, 0.96f),
                     new Color(0.42f, 0.48f, 0.52f, 0.92f),
                     new Color(0.78f, 0.84f, 0.88f, 1f),

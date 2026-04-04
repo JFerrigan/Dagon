@@ -115,6 +115,12 @@ namespace Dagon.Gameplay
             Swordfish
         }
 
+        public enum MireWretchVisualMode
+        {
+            Sprite,
+            Prototype3D
+        }
+
         private sealed class ScriptedWaveState
         {
             public EnemyKind EnemyKind;
@@ -164,6 +170,7 @@ namespace Dagon.Gameplay
         [SerializeField] private float ambientSpawnForwardLead = DefaultAmbientSpawnForwardLead;
         [SerializeField, Range(0f, 1f)] private float ambientFrontConeWeight = DefaultAmbientFrontConeWeight;
         [SerializeField, Range(0f, 1f)] private float ambientFlankPincerWeight = DefaultAmbientFlankPincerWeight;
+        [SerializeField] private MireWretchVisualMode mireWretchVisualMode = MireWretchVisualMode.Sprite;
 
         private float spawnTimer;
         private float configuredMinSpawnInterval;
@@ -249,6 +256,7 @@ namespace Dagon.Gameplay
         public bool Initialized => initialized;
         public bool OpeningWaveEnabled => openingWaveEnabled;
         public bool IsAutoSpawningStopped => spawningStopped;
+        public MireWretchVisualMode CurrentMireWretchVisualMode => mireWretchVisualMode;
 
         public static bool TryGetEnemyVisualSpec(string enemyId, out EnemyVisualSpec spec)
         {
@@ -354,6 +362,12 @@ namespace Dagon.Gameplay
                 new Color(0.84f, 0.96f, 0.82f, 1f),
                 new Vector3(0.18f, 0.18f, 1f),
                 64f);
+        }
+
+        public void SetMireWretchVisualMode(MireWretchVisualMode mode)
+        {
+            mireWretchVisualMode = mode;
+            Debug.Log($"SpawnDirector '{name}' Mire Wretch visual mode set to {mireWretchVisualMode}.", this);
         }
 
         public void ConfigureCampaign(int newRegularSpawnQuota, int newStartingEnemies, int newMaxAliveEnemies, int newEliteSpawnEvery, float newMinSpawnInterval, float newMaxSpawnInterval)
@@ -748,6 +762,11 @@ namespace Dagon.Gameplay
             var mire = new GameObject($"{(isCorrupted ? "Corrupted" : string.Empty)}{enemyKind}_{activeEnemies.Count + 1}");
             mire.transform.SetParent(transform);
             mire.transform.position = position;
+
+            if (enemyKind == EnemyKind.MireWretch)
+            {
+                Debug.Log($"Spawning Mire Wretch with visual mode {mireWretchVisualMode}.", this);
+            }
             if (isCorrupted)
             {
                 mire.AddComponent<CorruptedVariantMarker>();
@@ -1043,6 +1062,13 @@ namespace Dagon.Gameplay
             visuals.transform.SetParent(enemyRoot, false);
             visuals.transform.localPosition = Vector3.zero;
 
+            if (enemyKind == EnemyKind.MireWretch &&
+                mireWretchVisualMode == MireWretchVisualMode.Prototype3D &&
+                TryConfigureMireWretch3DVisual(enemyRoot, visuals.transform))
+            {
+                return;
+            }
+
             var renderer = visuals.AddComponent<SpriteRenderer>();
             renderer.sprite = GetSprite(enemyKind);
             renderer.sortingOrder = enemyKind == EnemyKind.DeepSpawn || enemyKind == EnemyKind.Swordfish ? 7 : enemyKind == EnemyKind.MireWretch || enemyKind == EnemyKind.Parasite || enemyKind == EnemyKind.Slime ? 5 : 6;
@@ -1094,6 +1120,56 @@ namespace Dagon.Gameplay
             }
 
             CombatVolumeAlignment.TryAlignCapsuleToSpriteCenter(enemyRoot, enemyRoot.GetComponent<CapsuleCollider>());
+        }
+
+        private bool TryConfigureMireWretch3DVisual(Transform enemyRoot, Transform visualsRoot)
+        {
+            if (enemyRoot == null || visualsRoot == null)
+            {
+                Debug.LogWarning("Mire Wretch 3D visual aborted: missing enemy root or visuals root.", this);
+                return false;
+            }
+
+            var config = MireWretch3DPrototypeConfig.Load();
+            if (config == null)
+            {
+                Debug.LogWarning("Mire Wretch 3D visual aborted: failed to load Resources/Configs/MireWretch3DPrototype.", this);
+                return false;
+            }
+
+            if (config.SkeletonPrefab == null)
+            {
+                Debug.LogWarning("Mire Wretch 3D visual aborted: prototype config has no skeleton prefab reference.", this);
+                return false;
+            }
+
+            var instantiatedObject = Instantiate(config.SkeletonPrefab);
+            if (instantiatedObject == null)
+            {
+                Debug.LogWarning("Mire Wretch 3D visual aborted: instantiating the configured skeleton object returned null.", this);
+                return false;
+            }
+
+            var modelInstance = instantiatedObject as GameObject;
+            if (modelInstance == null && instantiatedObject is Component componentInstance)
+            {
+                modelInstance = componentInstance.gameObject;
+            }
+
+            if (modelInstance == null)
+            {
+                Debug.LogWarning(
+                    $"Mire Wretch 3D visual aborted: instantiated object '{instantiatedObject.name}' of type '{instantiatedObject.GetType().Name}' could not be normalized to a GameObject.",
+                    this);
+                Destroy(instantiatedObject);
+                return false;
+            }
+
+            modelInstance.name = "MireWretch3DModel";
+            modelInstance.transform.SetParent(visualsRoot, false);
+            var driver = visualsRoot.gameObject.AddComponent<MireWretch3DVisualDriver>();
+            driver.Configure(enemyRoot, modelInstance.transform, config);
+            return true;
         }
 
         private bool TrySpawnDeepSpawn(Vector3 position, bool isCorrupted)

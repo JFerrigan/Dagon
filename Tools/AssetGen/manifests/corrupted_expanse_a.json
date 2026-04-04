@@ -1,0 +1,13 @@
+{
+  "asset_id": "corrupted_expanse_a",
+  "asset_type": "ground_tile",
+  "prompt": "Corrupted expanse ground tile, sickly sea-rot mire floor with corrupted growth and damp stains, readable top-down gameplay tile, seamless edges, painterly pixel-art readability.",
+  "output_path": "Assets/Resources/Sprites/Tiles/corrupted_expanse_a.png",
+  "source_image": "Tools/AssetGen/inbox/corrupted_expanse_a.png",
+  "processed_image": "Tools/AssetGen/processed/corrupted_expanse_a.png",
+  "size": [256, 256],
+  "palette_notes": "sickly green-gray, drowned teal, rot stains, muted corruption spread",
+  "orientation": "top_down_tile",
+  "provider": "chat_attachment_inbox",
+  "notes": "Dedicated Corrupted Expanse base tile A."
+}

@@ -230,6 +230,11 @@ namespace Dagon.Bootstrap
                 SpawnEnemy(SpawnEnemyKind.DeepSpawn);
             }
 
+            if (GUI.Button(new Rect(0f, controlsTop + 348f, contentRect.width, 24f), GetMireWretchVisualModeLabel()))
+            {
+                ToggleMireWretchVisualMode();
+            }
+
             if (GUI.Button(new Rect(0f, controlsTop + 376f, 152f, 24f), "Spawn Swordfish"))
             {
                 SpawnEnemy(SpawnEnemyKind.Swordfish);
@@ -410,6 +415,14 @@ namespace Dagon.Bootstrap
         private string GetCorruptManualSpawnsLabel()
         {
             return corruptManualSpawns ? "Corrupt Manual Spawns: ON" : "Corrupt Manual Spawns: OFF";
+        }
+
+        private string GetMireWretchVisualModeLabel()
+        {
+            var mode = ResolveMireWretchVisualMode();
+            return mode == SpawnDirector.MireWretchVisualMode.Prototype3D
+                ? "Mire Wretch Visual: 3D"
+                : "Mire Wretch Visual: Sprite";
         }
 
         private void TogglePlayerInvincibility()
@@ -801,6 +814,37 @@ namespace Dagon.Bootstrap
             }
 
             spawnDirector.StopSpawning();
+        }
+
+        private void ToggleMireWretchVisualMode()
+        {
+            var nextMode = ResolveMireWretchVisualMode() == SpawnDirector.MireWretchVisualMode.Prototype3D
+                ? SpawnDirector.MireWretchVisualMode.Sprite
+                : SpawnDirector.MireWretchVisualMode.Prototype3D;
+            var directors = FindObjectsByType<SpawnDirector>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            for (var index = 0; index < directors.Length; index++)
+            {
+                directors[index].SetMireWretchVisualMode(nextMode);
+            }
+
+            EnsureSpawnDirector();
+        }
+
+        private SpawnDirector.MireWretchVisualMode ResolveMireWretchVisualMode()
+        {
+            var directors = FindObjectsByType<SpawnDirector>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            for (var index = 0; index < directors.Length; index++)
+            {
+                if (directors[index] != null && directors[index].enabled)
+                {
+                    return directors[index].CurrentMireWretchVisualMode;
+                }
+            }
+
+            EnsureSpawnDirector();
+            return spawnDirector != null
+                ? spawnDirector.CurrentMireWretchVisualMode
+                : SpawnDirector.MireWretchVisualMode.Sprite;
         }
 
         private void SpawnEnemy(SpawnEnemyKind enemyKind)

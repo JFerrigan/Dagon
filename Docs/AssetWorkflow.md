@@ -65,6 +65,28 @@ Return:
 
 Default intent is `16-bit inspired painterly gameplay art`, not strict low-resolution sprite-sheet output. If a specific asset needs hard `16-bit pixel art` constraints, request that explicitly in the prompt instead of assuming it here.
 
+## Ground Tile Prompting Notes
+
+Current ground-tile manifests use these conventions:
+
+- `asset_type`: `ground_tile`
+- `orientation`: `top_down_tile`
+- `size`: `256 x 256`
+- seamless edges are required
+- square composition
+- no strong central subject
+- low-to-medium contrast so tiles repeat cleanly in gameplay
+
+For biome tile generation prompts, explicitly include:
+
+- `256x256`
+- `top-down`
+- `seamless`
+- `square composition`
+- `readable from gameplay camera height`
+
+Do not rely on the general asset template alone for tiles. Tile prompts should directly describe the image to generate and should not ask the model to return prompt variants or summaries when the goal is immediate image generation.
+
 ## Reference-Image Animation Prompt Template
 
 Use this when you already have a base enemy sprite and want ChatGPT to generate additional action frames that stay on-model.

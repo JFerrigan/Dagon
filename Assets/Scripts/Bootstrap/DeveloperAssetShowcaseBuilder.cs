@@ -256,6 +256,15 @@ namespace Dagon.Bootstrap
         private static void AddTileEntries(List<ShowcaseEntry> entries)
         {
             var tileScale = new Vector3(1f, 1f, 1f);
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Spawn Refuge A", "Sprites/Tiles/spawn_refuge_a", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Spawn Refuge B", "Sprites/Tiles/spawn_refuge_b", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Spawn Refuge C", "Sprites/Tiles/spawn_refuge_c", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Corrupted Expanse A", "Sprites/Tiles/corrupted_expanse_a", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Corrupted Expanse B", "Sprites/Tiles/corrupted_expanse_b", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Corrupted Expanse C", "Sprites/Tiles/corrupted_expanse_c", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Abyssal Reach A", "Sprites/Tiles/abyssal_reach_base_a", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Abyssal Reach B", "Sprites/Tiles/abyssal_reach_base_b", tileScale, 64f, true));
+            entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Abyssal Reach C", "Sprites/Tiles/abyssal_reach_base_c", tileScale, 64f, true));
             entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Mire Base A", "Sprites/Tiles/mire_base_a", tileScale, 64f, true));
             entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Mire Base B", "Sprites/Tiles/mire_base_b", tileScale, 64f, true));
             entries.Add(new ShowcaseEntry(ShowcaseCategory.Tiles, "Mire Base C", "Sprites/Tiles/mire_base_c", tileScale, 64f, true));

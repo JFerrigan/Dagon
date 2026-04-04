@@ -466,15 +466,32 @@ namespace Dagon.Gameplay
 
             var scale = Mathf.Max(1.1f, Mathf.Min(Screen.width / 1400f, Screen.height / 900f) * 1.35f);
             var panelWidth = 760f;
-            var panelHeight = 420f;
             var scaledWidth = Screen.width / scale;
             var scaledHeight = Screen.height / scale;
-            var panelX = (scaledWidth - panelWidth) * 0.5f;
-            var panelY = (scaledHeight - panelHeight) * 0.5f;
 
             var previousMatrix = GUI.matrix;
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
 
+            var buttonWidth = panelWidth - 120f;
+            var buttonTextWidth = buttonWidth - (upgradeButtonStyle.padding.left + upgradeButtonStyle.padding.right);
+            var buttonGap = 20f;
+            var buttonHeights = new float[choices.Options.Length];
+            var totalButtonHeight = 0f;
+            for (var i = 0; i < choices.Options.Length; i++)
+            {
+                var content = DescribeChoice(choices.Options[i]);
+                var calculatedHeight = upgradeButtonStyle.CalcHeight(new GUIContent(content), buttonTextWidth);
+                buttonHeights[i] = Mathf.Max(72f, calculatedHeight + upgradeButtonStyle.padding.top + upgradeButtonStyle.padding.bottom + 10f);
+                totalButtonHeight += buttonHeights[i];
+                if (i < choices.Options.Length - 1)
+                {
+                    totalButtonHeight += buttonGap;
+                }
+            }
+
+            var panelHeight = Mathf.Max(420f, 156f + totalButtonHeight + 28f);
+            var panelX = (scaledWidth - panelWidth) * 0.5f;
+            var panelY = (scaledHeight - panelHeight) * 0.5f;
             var panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
 
             GUI.color = new Color(0.08f, 0.16f, 0.14f, 0.92f);
@@ -489,15 +506,12 @@ namespace Dagon.Gameplay
                 "Pick 1",
                 centeredBodyStyle);
 
-            var buttonWidth = panelRect.width - 120f;
-            var buttonHeight = 72f;
             var buttonX = panelRect.x + 60f;
-            var buttonStartY = panelRect.y + 136f;
-            var buttonGap = 20f;
+            var buttonY = panelRect.y + 136f;
 
             for (var i = 0; i < choices.Options.Length; i++)
             {
-                var buttonRect = new Rect(buttonX, buttonStartY + (i * (buttonHeight + buttonGap)), buttonWidth, buttonHeight);
+                var buttonRect = new Rect(buttonX, buttonY, buttonWidth, buttonHeights[i]);
                 DrawUpgradeButton(buttonRect);
                 GUI.backgroundColor = new Color(1f, 1f, 1f, 0.02f);
                 if (GUI.Button(buttonRect, DescribeChoice(choices.Options[i]), upgradeButtonStyle))
@@ -505,6 +519,8 @@ namespace Dagon.Gameplay
                     Time.timeScale = 1f;
                     experienceController.ApplyChoice(i);
                 }
+
+                buttonY += buttonHeights[i] + buttonGap;
             }
 
             GUI.matrix = previousMatrix;

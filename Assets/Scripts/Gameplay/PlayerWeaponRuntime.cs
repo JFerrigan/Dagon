@@ -1,5 +1,6 @@
 using Dagon.Data;
 using UnityEngine;
+using System.Text;
 
 namespace Dagon.Gameplay
 {
@@ -182,18 +183,67 @@ namespace Dagon.Gameplay
 
         protected virtual string GetOverflowUpgradeTitle(WeaponUpgradePath path, int nextStep)
         {
-            return $"{GetPathName(path)} +{nextStep - 3}";
+            return ReplaceTrailingRomanNumeral(GetUpgradeTitle(path, 3), ToRomanNumeral(nextStep));
         }
 
         protected virtual string GetOverflowUpgradeDescription(WeaponUpgradePath path, int nextStep)
         {
             return path == WeaponUpgradePath.PathA
-                ? "Bonus Path A"
-                : "Bonus Path B";
+                ? "+1 Projectile, +5% Rate"
+                : "+0.35 DMG, +2% Rate";
         }
 
         protected abstract string GetUpgradeTitle(WeaponUpgradePath path, int nextStep);
 
         protected abstract string GetUpgradeDescription(WeaponUpgradePath path, int nextStep);
+
+        private static string ReplaceTrailingRomanNumeral(string title, string numeral)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return numeral;
+            }
+
+            var lastSpaceIndex = title.LastIndexOf(' ');
+            if (lastSpaceIndex < 0 || lastSpaceIndex >= title.Length - 1)
+            {
+                return $"{title} {numeral}";
+            }
+
+            return $"{title[..(lastSpaceIndex + 1)]}{numeral}";
+        }
+
+        private static string ToRomanNumeral(int value)
+        {
+            if (value <= 0)
+            {
+                return "0";
+            }
+
+            var builder = new StringBuilder();
+            AppendRoman(builder, ref value, 1000, "M");
+            AppendRoman(builder, ref value, 900, "CM");
+            AppendRoman(builder, ref value, 500, "D");
+            AppendRoman(builder, ref value, 400, "CD");
+            AppendRoman(builder, ref value, 100, "C");
+            AppendRoman(builder, ref value, 90, "XC");
+            AppendRoman(builder, ref value, 50, "L");
+            AppendRoman(builder, ref value, 40, "XL");
+            AppendRoman(builder, ref value, 10, "X");
+            AppendRoman(builder, ref value, 9, "IX");
+            AppendRoman(builder, ref value, 5, "V");
+            AppendRoman(builder, ref value, 4, "IV");
+            AppendRoman(builder, ref value, 1, "I");
+            return builder.ToString();
+        }
+
+        private static void AppendRoman(StringBuilder builder, ref int remaining, int magnitude, string token)
+        {
+            while (remaining >= magnitude)
+            {
+                builder.Append(token);
+                remaining -= magnitude;
+            }
+        }
     }
 }
